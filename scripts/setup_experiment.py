@@ -93,6 +93,9 @@ def setup() -> dict[str, object]:
             "mongo1",
             "mongo2",
             "mongo3",
+            "fault-controller-1",
+            "fault-controller-2",
+            "fault-controller-3",
         ]
     )
     run(["docker", "compose", "-f", str(COMPOSE_FILE), "build", "runner"])
