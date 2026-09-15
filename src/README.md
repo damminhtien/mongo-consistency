@@ -1,5 +1,5 @@
 # Experiment source
 
-Place the workload generator, history recorder, offline checker, and analysis code here. The generator and checker must remain separate so that a saved history can be replayed without MongoDB.
+The package contains the history model, canonical serializer, offline checkers, and configuration loader. The generator and checker remain separate so that a saved history can be replayed without MongoDB.
 
-The runner and checker are not implemented in the current checkout.
+The live PyMongo runner, command monitor, Compose harness, fault controller, and analysis entry point are implemented in later slices. The checkers already accept saved histories and classify PASS, VIOLATION, UNAVAILABLE, INDETERMINATE, HARNESS_ERROR, and UNSUPPORTED.

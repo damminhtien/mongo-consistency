@@ -14,19 +14,19 @@ The project is complete when the documents, implementation, raw histories, analy
 
 ## Configuration and schema
 
-- [ ] Add machine-readable C1-C8 configurations.
-- [ ] Add the frozen prediction manifest before any result files.
-- [ ] Add schedule definitions for RYW, MR, MW, WFR, and normal control.
+- [x] Add machine-readable C1-C8 configurations.
+- [x] Add the frozen prediction manifest before any result files.
+- [x] Add schedule definitions for RYW, MR, MW, WFR, and normal control.
 - [ ] Add schemas for manifests, operations, fault events, histories, outcomes, and summaries.
 - [ ] Add version and image-digest capture.
 
 ## Checkers and fixtures
 
-- [ ] Implement canonical history serialization and SHA-256 hashing.
-- [ ] Implement separate RYW, MR, MW, and WFR checkers.
-- [ ] Reject different-key MW and WFR histories.
-- [ ] Distinguish PASS, VIOLATION, UNAVAILABLE, INDETERMINATE, HARNESS_ERROR, and UNSUPPORTED.
-- [ ] Add valid, violating, unavailable, ambiguous, malformed, and dependency fixtures.
+- [x] Implement canonical history serialization and SHA-256 hashing.
+- [x] Implement separate RYW, MR, MW, and WFR checkers.
+- [x] Reject different-key MW and WFR histories.
+- [x] Distinguish PASS, VIOLATION, UNAVAILABLE, INDETERMINATE, HARNESS_ERROR, and UNSUPPORTED.
+- [x] Add valid, violating, unavailable, ambiguous, malformed, and dependency fixtures.
 
 ## Compose harness
 

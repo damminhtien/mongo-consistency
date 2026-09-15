@@ -1,0 +1,10 @@
+{
+  "schema_version": "schedule.v1",
+  "schedules": {
+    "normal": {"property": "all", "fault": "none", "observer": "single_document_snapshot"},
+    "ryw-stale-secondary": {"property": "RYW", "fault": "replication_path_isolation", "observer": "read_x_from_tagged_secondary"},
+    "mr-stale-secondary": {"property": "MR", "fault": "replication_path_isolation", "observer": "two_reads_of_x"},
+    "mw-election": {"property": "MW", "fault": "primary_partition_and_election", "observer": "single_document_snapshot"},
+    "wfr-election": {"property": "WFR", "fault": "primary_partition_and_election", "observer": "single_document_snapshot"}
+  }
+}
