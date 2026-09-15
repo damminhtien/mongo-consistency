@@ -6,7 +6,7 @@ services:
     hostname: mongo1
     command: ["mongod", "--replSet", "rs0", "--bind_ip_all", "--port", "27017"]
     networks: [client_net, replica_net]
-    ports: ["27017:27017"]
+    ports: ["27017:27017", "29091:29091"]
     volumes: [mongo1-data:/data/db]
     healthcheck:
       test: ["CMD-SHELL", "mongosh --quiet --host 127.0.0.1 --eval 'db.adminCommand({ping:1}).ok' | grep 1"]
@@ -19,7 +19,7 @@ services:
     hostname: mongo2
     command: ["mongod", "--replSet", "rs0", "--bind_ip_all", "--port", "27017"]
     networks: [client_net, replica_net]
-    ports: ["27018:27017"]
+    ports: ["27018:27017", "29092:29092"]
     volumes: [mongo2-data:/data/db]
     healthcheck:
       test: ["CMD-SHELL", "mongosh --quiet --host 127.0.0.1 --eval 'db.adminCommand({ping:1}).ok' | grep 1"]
@@ -32,7 +32,7 @@ services:
     hostname: mongo3
     command: ["mongod", "--replSet", "rs0", "--bind_ip_all", "--port", "27017"]
     networks: [client_net, replica_net]
-    ports: ["27019:27017"]
+    ports: ["27019:27017", "29093:29093"]
     volumes: [mongo3-data:/data/db]
     healthcheck:
       test: ["CMD-SHELL", "mongosh --quiet --host 127.0.0.1 --eval 'db.adminCommand({ping:1}).ok' | grep 1"]
@@ -52,11 +52,60 @@ services:
     volumes:
       - ./results:/workspace/results:rw
       - ./figures:/workspace/figures:rw
+    environment:
+      FAULT_CONTROLLER_MONGO1: http://mongo1:29091
+      FAULT_CONTROLLER_MONGO2: http://mongo2:29092
+      FAULT_CONTROLLER_MONGO3: http://mongo3:29093
     depends_on:
       mongo1: {condition: service_healthy}
       mongo2: {condition: service_healthy}
       mongo3: {condition: service_healthy}
     entrypoint: ["python"]
+
+  fault-controller-1:
+    build:
+      context: infra/fault-controller
+    network_mode: service:mongo1
+    cap_add: [NET_ADMIN]
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    environment:
+      MEMBER: mongo1
+      CONTROL_PORT: "29091"
+      REPLICA_INTERFACE: eth1
+    depends_on:
+      mongo1: {condition: service_healthy}
+
+  fault-controller-2:
+    build:
+      context: infra/fault-controller
+    network_mode: service:mongo2
+    cap_add: [NET_ADMIN]
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    environment:
+      MEMBER: mongo2
+      CONTROL_PORT: "29092"
+      REPLICA_INTERFACE: eth1
+    depends_on:
+      mongo2: {condition: service_healthy}
+
+  fault-controller-3:
+    build:
+      context: infra/fault-controller
+    network_mode: service:mongo3
+    cap_add: [NET_ADMIN]
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    environment:
+      MEMBER: mongo3
+      CONTROL_PORT: "29093"
+      REPLICA_INTERFACE: eth1
+    depends_on:
+      mongo3: {condition: service_healthy}
 
 networks:
   client_net:

@@ -1,6 +1,6 @@
 PYTHON ?= python3
 
-.PHONY: check-docs submission test setup
+.PHONY: check-docs submission test setup pilot experiment
 
 check-docs:
 	$(PYTHON) scripts/check_documentation.py
@@ -13,3 +13,9 @@ test:
 
 setup:
 	PYTHONPATH=src $(PYTHON) scripts/setup_experiment.py
+
+pilot:
+	docker compose -f compose.yaml run --rm runner scripts/run_campaign.py --campaign pilot
+
+experiment:
+	docker compose -f compose.yaml run --rm runner scripts/run_campaign.py --campaign experiment

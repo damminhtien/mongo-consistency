@@ -33,21 +33,21 @@ The project is complete when the documents, implementation, raw histories, analy
 - [x] Build the three-member MongoDB 8.0.32 replica-set Compose stack.
 - [x] Keep client and replica network paths separate.
 - [x] Add health checks, replica-set initialization, and stable-topology verification.
-- [ ] Add a fault controller without Docker socket, credentials, or unrelated host mounts.
-- [ ] Capture actual command routing with PyMongo monitoring.
+- [x] Add a fault controller without Docker socket, credentials, or unrelated host mounts.
+- [x] Capture actual command routing with PyMongo monitoring.
 - [ ] Verify stale-member client access through replication-path isolation.
 - [ ] Verify election barrier independence from operation timeout.
 - [ ] Verify fault cleanup before the next trial.
 
 ## Workloads and runner
 
-- [ ] Implement explicit causal ON and causal OFF sessions.
-- [ ] Disable retry reads and retry writes.
-- [ ] Implement unique namespaces and integer application versions.
-- [ ] Record parent and read dependencies on the same logical document `x`.
-- [ ] Implement seeded stratified campaign order.
-- [ ] Implement pilot, normal baseline, and adversarial campaign modes.
-- [ ] Preserve raw histories, manifests, fault events, errors, and hashes.
+- [x] Implement explicit causal ON and causal OFF sessions.
+- [x] Disable retry reads and retry writes.
+- [x] Implement unique namespaces and integer application versions.
+- [x] Record parent and read dependencies on the same logical document `x`.
+- [x] Implement seeded stratified campaign order.
+- [x] Implement pilot, normal baseline, and adversarial campaign modes.
+- [x] Preserve raw histories, manifests, fault events, errors, and hashes.
 
 ## Tests and gates
 

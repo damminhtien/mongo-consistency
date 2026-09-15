@@ -32,6 +32,18 @@ def _preflight(
             "history schema is invalid",
             errors=errors,
         )
+    if history.manifest.get("cleanup_status") == "ERROR":
+        return None, _result(
+            Outcome.HARNESS_ERROR,
+            "fault cleanup failed and the cluster state is not trusted",
+            error=history.manifest.get("cleanup_error"),
+        )
+    if history.manifest.get("runner_error"):
+        return None, _result(
+            Outcome.HARNESS_ERROR,
+            "runner recorded an execution error",
+            error=history.manifest["runner_error"],
+        )
     actual_property = history.manifest.get("property")
     if actual_property != property_name:
         return None, _result(

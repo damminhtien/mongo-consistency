@@ -189,7 +189,7 @@ def operation_record_from_events(
     operation.actual_role = event.get("actual_role")
     operation.start_ns = event.get("started_ns", operation.start_ns)
     operation.end_ns = event.get("end_ns", operation.end_ns)
-    if event.get("status") != "SUCCESS":
+    if event.get("status") != "SUCCESS" and operation.operation_status == "SUCCESS":
         operation.operation_status = "ERROR"
         operation.error_message = event.get("error_message")
         operation.response_received = False
