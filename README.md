@@ -10,6 +10,7 @@ Current status: planning only. No experiment result or universal consistency gua
 - [Project plan](docs/project-plan.md) — technology decision, thesis, research questions, variables, metrics, and scope.
 - [Experimental protocol](docs/experimental-protocol.md) — history schema, executable predicates, fault schedules, and outcome rules.
 - [Report and reproducibility plan](docs/report-plan.md) — report structure, figures, tables, evidence standards, and expected artifacts.
+- [Execution TODO](TODO.md) — ordered implementation checklist with gates and evidence requirements.
 
 ## Source and provenance
 
