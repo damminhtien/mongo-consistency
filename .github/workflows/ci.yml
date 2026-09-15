@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-and-build-submission:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install document tooling
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            latexmk \
+            poppler-utils \
+            texlive-bibtex-extra \
+            texlive-latex-base \
+            texlive-latex-extra \
+            texlive-latex-recommended
+
+      - name: Run unit tests
+        run: make test
+
+      - name: Check documentation
+        run: make check-docs
+
+      - name: Build Canvas submission package
+        run: make submission
+
+      - name: Verify submission outputs
+        run: |
+          test -s output/pdf/mongo-consistency-report.pdf
+          test -s output/submission/mongo-consistency-submission.zip
+          test -s output/submission/manifest.txt
+          grep -F "Source revision: $GITHUB_SHA" output/submission/manifest.txt
+
+      - name: Upload submission build
+        uses: actions/upload-artifact@v4
+        with:
+          name: mongo-consistency-submission-${{ github.sha }}
+          if-no-files-found: error
+          path: |
+            output/pdf/mongo-consistency-report.pdf
+            output/submission/mongo-consistency-submission.zip
+            output/submission/manifest.txt

@@ -1,0 +1,77 @@
+name: Release Canvas submission
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out tagged revision
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install document tooling
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            latexmk \
+            poppler-utils \
+            texlive-bibtex-extra \
+            texlive-latex-base \
+            texlive-latex-extra \
+            texlive-latex-recommended
+
+      - name: Re-run release gates
+        run: |
+          make test
+          make check-docs
+          make submission
+
+      - name: Verify release files
+        run: |
+          test -s output/pdf/mongo-consistency-report.pdf
+          test -s output/submission/mongo-consistency-submission.zip
+          test -s output/submission/manifest.txt
+          grep -F "Source revision: $GITHUB_SHA" output/submission/manifest.txt
+
+      - name: Upload release build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mongo-consistency-submission-${{ github.ref_name }}
+          if-no-files-found: error
+          path: |
+            output/pdf/mongo-consistency-report.pdf
+            output/submission/mongo-consistency-submission.zip
+            output/submission/manifest.txt
+
+      - name: Publish GitHub release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          assets=(
+            output/pdf/mongo-consistency-report.pdf
+            output/submission/mongo-consistency-submission.zip
+            output/submission/manifest.txt
+          )
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "${assets[@]}" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              --title "Canvas submission $GITHUB_REF_NAME" \
+              --generate-notes \
+              "${assets[@]}"
+          fi

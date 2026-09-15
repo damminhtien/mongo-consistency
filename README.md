@@ -43,3 +43,19 @@ The build writes the PDF to `output/pdf/` and the archive and manifest to `outpu
 Run `make check-docs` after changing Markdown, text, LaTeX, or PDF files. The checker scans the repository recursively, skips local agent metadata and tool caches, and checks prose, links, repeated structure, and unsupported claims. For PDFs it also runs `pdfinfo` and `pdftotext -layout`.
 
 Run `make test` to run the checker tests without requiring a MongoDB cluster.
+
+## CI and Canvas release
+
+The CI workflow runs `make test`, `make check-docs`, and `make submission`. It
+also uploads the generated PDF, archive, and manifest as a workflow artifact.
+
+Pushing a versioned tag such as `v1.0.0` starts the release workflow. It runs
+the same gates and publishes these `make submission` outputs to the GitHub
+Release:
+
+- `mongo-consistency-report.pdf`: the report to upload to Canvas;
+- `mongo-consistency-submission.zip`: the reproduction package; and
+- `manifest.txt`: SHA-256 checksums and the source revision.
+
+Choose the tag only after updating the team metadata and recorded experiment
+evidence in the source tree.
