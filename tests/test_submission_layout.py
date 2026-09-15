@@ -26,7 +26,9 @@ class SubmissionLayoutTests(unittest.TestCase):
 
     def test_makefile_exposes_submission_target(self) -> None:
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
-        self.assertIn(".PHONY: check-docs submission test", makefile)
+        self.assertIn(".PHONY:", makefile)
+        self.assertIn("check-docs", makefile)
+        self.assertIn("setup", makefile)
         self.assertIn("submission:", makefile)
         self.assertIn("scripts/build_submission.py", makefile)
 
@@ -36,6 +38,11 @@ class SubmissionLayoutTests(unittest.TestCase):
         self.assertIn('"AGENTS"', source)
         self.assertIn('"output"', source)
         self.assertIn('"tmp"', source)
+
+    def test_submission_package_includes_runtime_harness_sources(self) -> None:
+        source = (ROOT / "scripts/build_submission.py").read_text(encoding="utf-8")
+        for path in ("compose.yaml", "requirements.txt", "pyproject.toml", "infra"):
+            self.assertIn(path, source)
 
 
 if __name__ == "__main__":

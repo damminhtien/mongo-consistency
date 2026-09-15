@@ -1,0 +1,149 @@
+"""Check the pinned toolchain and initialize the Compose replica set."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import subprocess
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+COMPOSE_FILE = ROOT / "compose.yaml"
+
+
+class SetupError(RuntimeError):
+    """A setup prerequisite or initialization step failed."""
+
+
+def run(command: list[str], *, check: bool = True) -> subprocess.CompletedProcess[str]:
+    try:
+        result = subprocess.run(
+            command,
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            check=False,
+        )
+    except OSError as error:
+        raise SetupError(f"cannot run {' '.join(command)}: {error}") from error
+    if check and result.returncode:
+        details = (result.stderr or result.stdout).strip()
+        raise SetupError(f"command failed ({result.returncode}): {' '.join(command)}\n{details}")
+    return result
+
+
+def version_from_output(value: str) -> str:
+    match = re.search(r"(?<!\d)(\d+\.\d+\.\d+)(?!\d)", value)
+    return match.group(1) if match else value.strip()
+
+
+def check_local_tools() -> dict[str, str]:
+    python_version = ".".join(str(part) for part in sys.version_info[:3])
+    if python_version != "3.14.7":
+        raise SetupError(f"Python 3.14.7 is required; found {python_version}")
+    docker_version = version_from_output(run(["docker", "version", "--format", "{{.Server.Version}}"]).stdout)
+    compose_version = version_from_output(run(["docker", "compose", "version", "--short"]).stdout)
+    if docker_version != "29.7.2":
+        raise SetupError(f"Docker Engine 29.7.2 is required; found {docker_version}")
+    if compose_version != "5.5.0":
+        raise SetupError(f"Docker Compose 5.5.0 is required; found {compose_version}")
+    return {
+        "python": python_version,
+        "docker_engine": docker_version,
+        "docker_compose": compose_version,
+    }
+
+
+def image_digest() -> list[str]:
+    result = run(
+        [
+            "docker",
+            "image",
+            "inspect",
+            "mongo:8.0.32",
+            "--format",
+            "{{json .RepoDigests}}",
+        ]
+    )
+    try:
+        values = json.loads(result.stdout.strip())
+    except json.JSONDecodeError as error:
+        raise SetupError(f"cannot parse MongoDB image digest: {result.stdout!r}") from error
+    if not isinstance(values, list) or not values:
+        raise SetupError("MongoDB image has no resolved repository digest")
+    return [str(value) for value in values]
+
+
+def setup() -> dict[str, object]:
+    tools = check_local_tools()
+    run(["docker", "compose", "-f", str(COMPOSE_FILE), "config", "--quiet"])
+    run(["docker", "info", "--format", "{{.ServerVersion}}"])
+    run(
+        [
+            "docker",
+            "compose",
+            "-f",
+            str(COMPOSE_FILE),
+            "up",
+            "-d",
+            "mongo1",
+            "mongo2",
+            "mongo3",
+        ]
+    )
+    run(["docker", "compose", "-f", str(COMPOSE_FILE), "build", "runner"])
+    output_path = Path("/workspace/results/setup/replica-status.json")
+    run(
+        [
+            "docker",
+            "compose",
+            "-f",
+            str(COMPOSE_FILE),
+            "run",
+            "--rm",
+            "runner",
+            "scripts/initialize_replica_set.py",
+            "--output",
+            str(output_path),
+        ]
+    )
+    payload: dict[str, object] = {
+        "recorded_at": datetime.now(timezone.utc).isoformat(),
+        "target": {
+            "mongodb": "8.0.32",
+            "pymongo": "4.18.1",
+        },
+        "actual": {
+            **tools,
+            "mongodb_image": "mongo:8.0.32",
+            "mongodb_image_digests": image_digest(),
+        },
+        "compose_file": str(COMPOSE_FILE.relative_to(ROOT)),
+    }
+    setup_dir = ROOT / "results/setup"
+    setup_dir.mkdir(parents=True, exist_ok=True)
+    (setup_dir / "toolchain.json").write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return payload
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.parse_args()
+    try:
+        payload = setup()
+    except SetupError as error:
+        print(f"Setup failed: {error}", file=sys.stderr)
+        return 1
+    print(json.dumps(payload, sort_keys=True))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

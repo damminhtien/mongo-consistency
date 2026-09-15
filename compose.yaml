@@ -1,0 +1,70 @@
+name: mongo-consistency
+
+services:
+  mongo1:
+    image: mongo:8.0.32
+    hostname: mongo1
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all", "--port", "27017"]
+    networks: [client_net, replica_net]
+    ports: ["27017:27017"]
+    volumes: [mongo1-data:/data/db]
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet --host 127.0.0.1 --eval 'db.adminCommand({ping:1}).ok' | grep 1"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  mongo2:
+    image: mongo:8.0.32
+    hostname: mongo2
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all", "--port", "27017"]
+    networks: [client_net, replica_net]
+    ports: ["27018:27017"]
+    volumes: [mongo2-data:/data/db]
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet --host 127.0.0.1 --eval 'db.adminCommand({ping:1}).ok' | grep 1"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  mongo3:
+    image: mongo:8.0.32
+    hostname: mongo3
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all", "--port", "27017"]
+    networks: [client_net, replica_net]
+    ports: ["27019:27017"]
+    volumes: [mongo3-data:/data/db]
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet --host 127.0.0.1 --eval 'db.adminCommand({ping:1}).ok' | grep 1"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  runner:
+    build:
+      context: .
+      dockerfile: infra/runner/Dockerfile
+    networks: [client_net]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    volumes:
+      - ./results:/workspace/results:rw
+      - ./figures:/workspace/figures:rw
+    depends_on:
+      mongo1: {condition: service_healthy}
+      mongo2: {condition: service_healthy}
+      mongo3: {condition: service_healthy}
+    entrypoint: ["python"]
+
+networks:
+  client_net:
+    driver: bridge
+  replica_net:
+    driver: bridge
+
+volumes:
+  mongo1-data:
+  mongo2-data:
+  mongo3-data:

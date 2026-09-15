@@ -50,11 +50,21 @@ METADATA_KEYS = (
 )
 REPORT_FILENAME = "mongo-consistency-report.pdf"
 ARCHIVE_FILENAME = "mongo-consistency-submission.zip"
-PACKAGE_ROOT_FILES = ("Makefile", "README.md", "TODO.md", ".gitignore")
+PACKAGE_ROOT_FILES = (
+    "Makefile",
+    "README.md",
+    "TODO.md",
+    ".gitignore",
+    ".dockerignore",
+    "compose.yaml",
+    "pyproject.toml",
+    "requirements.txt",
+)
 PACKAGE_ROOT_DIRS = (
     "configs",
     "docs",
     "figures",
+    "infra",
     "results",
     "scripts",
     "src",
