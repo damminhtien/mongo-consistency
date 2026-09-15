@@ -2,6 +2,17 @@
 
 Source: [DSA5208 Scalable Distributed GRP Project](https://docs.google.com/document/d/1X4Lq5Za8d1jb-YOE-K-uBAOfwCax-soaJb-1WFeHJ80/edit), read on 15 September 2026. The Google Doc contains the agreed direction for this project.
 
+## Locked decisions
+
+Recorded on 15 September 2026:
+
+- The group has three members: DAM MINH TIEN (A0355091E), NGUYEN MINH DUC (Student ID pending), and VU NHAT MINH THU (Student ID pending).
+- MongoDB is the final database choice for this project.
+- The baseline is a three-member, data-bearing MongoDB replica set run with Docker Compose.
+- The selected toolchain is MongoDB server, PyMongo, Python, Docker Engine, and Docker Compose.
+
+The exact numeric versions are still an execution prerequisite. Record them after the environment and Compose image are fixed, then copy them into every trial manifest.
+
 ## System choice
 
 Use a MongoDB replica set with Python, PyMongo, and Docker Compose.

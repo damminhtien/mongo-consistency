@@ -8,6 +8,7 @@ The repository currently contains the project brief, design notes, and execution
 
 - [Assignment brief](docs/assignment.md): required work and submission material.
 - [Project plan](docs/project-plan.md): system choice, research questions, variables, and limits.
+- [Step 1 decisions](docs/step-1-decisions.md): confirmed choices and remaining gates before the campaign.
 - [Experimental protocol](docs/experimental-protocol.md): history format, checkers, fault cases, and metrics.
 - [Report plan](docs/report-plan.md): report sections, figures, tables, and reproduction material.
 - [Execution checklist](TODO.md): tasks in the order they should be done.

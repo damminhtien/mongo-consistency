@@ -27,9 +27,9 @@ The source gives 27 September 2026 as the Canvas deadline.
 
 ## 1. Fix the choices
 
-- [ ] Confirm the group has no more than three people.
-- [ ] Confirm MongoDB is the final database choice. Record a change and its reason if the choice changes.
-- [ ] Fix the baseline at three data-bearing members in Docker Compose.
+- [x] Confirm the group has no more than three people.
+- [x] Confirm MongoDB is the final database choice. Record a change and its reason if the choice changes.
+- [x] Fix the baseline at three data-bearing members in Docker Compose.
 - [ ] Record the MongoDB server, PyMongo, Python, Docker Engine, and Compose versions.
 - [ ] Choose the representation and ordering rule for logical versions.
 - [ ] Choose the trial count, timeout policy, seed policy, and clean-state policy.
