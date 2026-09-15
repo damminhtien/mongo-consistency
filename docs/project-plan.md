@@ -1,165 +1,133 @@
 # Project plan
 
-Source: [DSA5208 Scalable Distributed GRP Project](https://docs.google.com/document/d/1X4Lq5Za8d1jb-YOE-K-uBAOfwCax-soaJb-1WFeHJ80/edit), read on 15 September 2026. The Google Doc contains the agreed direction for this project.
+This plan follows the DSA5208 project brief, the local course slides, and the methodology review accepted on 15 September 2026.
+
+Slide sources kept outside the repository:
+
+- `Lec0.pdf`, page 16: replicated database project.
+- `Lec1.pdf`, pages 17-20: logical clocks and Lamport scalar time.
+- `Lec3.pdf`, pages 37-44: definitions and counterexample histories for RYW, WFR, MR, and MW.
+- `Lec3.pdf`, pages 47-53: MongoDB primary/secondary routing, read and write concerns, majority snapshots, and causal sessions.
 
 ## Locked decisions
 
-Recorded on 15 September 2026:
-
-- The group has three members: DAM MINH TIEN (A0355091E), NGUYEN MINH DUC (Student ID pending), and VU NHAT MINH THU (Student ID pending).
-- MongoDB is the final database choice for this project.
-- The baseline is a three-member, data-bearing MongoDB replica set run with Docker Compose.
-- The selected toolchain is MongoDB server, PyMongo, Python, Docker Engine, and Docker Compose.
-
-The exact numeric versions are still an execution prerequisite. Record them after the environment and Compose image are fixed, then copy them into every trial manifest.
-
-## System choice
-
-Use a MongoDB replica set with Python, PyMongo, and Docker Compose.
-
-### Why MongoDB
-
-- It gives the project a direct way to study RYW, MR, MW, and WFR.
-- The DSA5208 material connects these properties with read concern, write concern, majority snapshots, causal sessions, and Lamport clocks.
-- It offers useful configuration differences without requiring a large deployment.
-- Cassandra and ScyllaDB would require more work to relate quorum settings to all four properties.
-- CockroachDB and Google Spanner offer fewer weak-versus-strong contrasts for this particular study.
-
-### Deployment
-
-- Start with three data-bearing containers in one replica set.
-- Consider five members only after the three-member setup has passed the tests in `TODO.md`.
-- Use Docker Compose. Kubernetes and Docker Swarm are not part of the baseline.
-- Use Docker networking and, if needed, `tc`/`netem` or `iptables` for faults.
-
-Keep the deployment small. The time should go into the workloads and the analysis rather than into orchestration.
-
-## Working hypothesis
-
-The observed client-centric behaviour depends on read concern, write concern, causal session ordering, and the failure condition. Replication strength by itself does not describe the complete client history.
-
-Weak settings may expose stale or causally invalid histories when replicas lag or the network is partitioned. Stronger causal settings may preserve ordering by waiting, blocking, rejecting, or timing out instead of returning an invalid history.
-
-```text
-observed client consistency
-  = f(read concern, write concern, causal session, failure condition)
-```
-
-Measure the trade-off between fewer inconsistent histories and the possible cost in latency or availability during a failure. Treat this as a hypothesis until the tests provide evidence.
+- Database: MongoDB replica set.
+- Deployment: three data-bearing members in Docker Compose.
+- Toolchain target: MongoDB 8.0.32, PyMongo 4.18.1, Python 3.14.7, Docker Engine 29.7.2, and Docker Compose 5.5.0.
+- The actual versions and MongoDB image digest must be verified by `make setup` and copied into every trial manifest.
+- Configuration matrix: all eight C1-C8 cells.
+- RQ1 uses faults as instruments for creating adversarial replica states. RQ2 is the separate comparison of failure conditions.
+- Workload client: one logical writer and one explicit PyMongo session per trial.
+- Both causal ON and causal OFF use an explicit session; only `causal_consistency` changes.
+- Read routing: tagged secondary members for stale and fresh reads.
+- Write routing: one seed list and driver-selected primary.
+- Retries: disabled for reads and writes.
+- Raw histories and derived summaries are retained with manifests and hashes.
 
 ## Research questions
 
-- **RQ0:** How do MongoDB settings and failure conditions affect RYW, MR, MW, and WFR as seen by an application?
-- **RQ1:** How do read concern, write concern, and causal sessions change those four properties?
-- **RQ2:** Does behaviour seen during normal operation change after a node failure or network partition?
-- **RQ3:** Which mechanisms stop a client from reading causally older state under stronger settings?
-- **RQ4:** What consistency, availability, and latency trade-off appears during failure?
+- RQ0: How do MongoDB settings and failure conditions affect the four client-centric properties observed by an application?
+- RQ1: How do read concern, write concern, and causal sessions change RYW, MR, MW, and WFR?
+- RQ2: Does behaviour seen during normal operation change after a node failure or network partition?
+- RQ3: Which MongoDB mechanisms prevent causally older observations under stronger settings?
+- RQ4: What consistency, availability, and latency trade-off appears during failure?
 
-Main comparison: is majority replication enough for client-centric causal consistency, or does causal session state add another ordering constraint?
+RQ1 reports configuration effects. Its stale-secondary and election schedules are test instruments, not a claim that configuration, failure type, and property form one undifferentiated research factor. RQ2 will compare normal operation, secondary failure, primary election, and network partition as topology conditions.
 
-## Variables and settings
+## Prediction matrix
 
-### Variables
+The matrix is frozen before the main result files are created. A guaranteed cell means that a successful violating history is not expected under the documented semantics. An unguaranteed cell means that the schedule may expose a counterexample; it does not predict a violation on every repetition.
 
-- Read concern: `local` or `majority`.
-- Write concern: `w: 1` or `majority`.
-- Causal session: enabled or disabled.
-- Failure condition: normal operation, secondary failure, primary failure and election, or network partition.
-- Optional replication delay or packet loss, only when it answers a specific stale-state question.
+| ID | Read concern | Write concern | Causal session | Properties with a documented guarantee target |
+| --- | --- | --- | --- | --- |
+| C1 | `local` | `w:1` | off | none |
+| C2 | `local` | `w:1` | on | none |
+| C3 | `majority` | `w:1` | on | MR, WFR |
+| C4 | `local` | `majority` | on | MW |
+| C5 | `majority` | `majority` | off | none assumed |
+| C6 | `majority` | `majority` | on | RYW, MR, MW, WFR |
+| C7 | `majority` | `w:1` | off | none |
+| C8 | `local` | `majority` | off | none |
 
-### Candidate settings
+C7 and C8 complete the factorial design with explicit ablation questions. They are not an unmotivated expansion of the matrix.
 
-| ID | Read concern | Write concern | Causal session |
-| --- | --- | --- | --- |
-| C1 | `local` | `w: 1` | off |
-| C2 | `local` | `w: 1` | on |
-| C3 | `majority` | `w: 1` | on |
-| C4 | `local` | `majority` | on |
-| C5 | `majority` | `majority` | off |
-| C6 | `majority` | `majority` | on |
+## Logical history
 
-Do not run every possible combination by default. Pick settings that lead to different predictions and explain the choice. Complete the prediction matrix before looking at the main results.
+Each trial creates a unique namespace and one logical document `x`. The document stores an append-only list of updates. Each update contains an application version, a write ID, the effect written by the operation, and explicit dependency fields.
 
-## Method
+The version is an integer allocated by the single logical writer for that trial. It is not a Lamport timestamp. Client sequence numbers and dependency IDs define the tested history. MongoDB server timestamps and cluster metadata are recorded for diagnosis only.
 
-Use short histories designed to find a counterexample to one property. A final value check is not enough.
+MW and WFR must operate on the same logical item `x`. A different-key history is invalid for these Lecture 3 predicates.
 
-The program has five parts:
+The observer reads the entire logical document in one query. For MW, W2 visible without W1 is a counterexample. For WFR, a dependent W2 visible without the version read by R1 is a counterexample.
 
-1. workload generator;
-2. MongoDB cluster;
-3. operation history recorder;
-4. offline consistency checkers; and
-5. metrics and plots.
+## Property schedules
 
-Keep the generator separate from the checker. The checker must be able to analyse a saved history without running the workload again.
+- RYW: isolate replication traffic to one tagged secondary, write a new version through the primary, then read the same key from the stale secondary.
+- MR: isolate one secondary, read a fresh version from another secondary, then read from the stale secondary.
+- MW: complete W1 on the old primary, create the partition, wait for the majority side to elect a new primary, complete W2 on the new primary, and inspect one snapshot of `x`.
+- WFR: read a version on the old side before the partition, complete a dependent write on the new primary after election, and inspect one snapshot of the same `x`.
+- Normal control: run the same four short histories without an injected fault.
 
-The event fields and predicates are in [experimental-protocol.md](experimental-protocol.md).
+The runner never uses the generic sequence `partition -> wait for election -> run all workloads`. Each property has its own registered barriers, fault interval, operation order, and cleanup step.
 
-## Fault cases
+The Compose topology provides separate client and replica paths. The fault controller can block member replication traffic while the runner still reaches a selected stale member. If that precondition cannot be established, the trial is `UNSUPPORTED` and is excluded from database metrics.
 
-- **Normal operation:** measure the baseline behaviour and latency.
-- **Secondary failure:** stop one secondary and record availability and any change in the prediction.
-- **Primary failure:** stop the current primary and record the election, temporary write failures, recovery time, and post-election behaviour.
-- **Network partition:** keep the isolated member running so it can become stale. Record which client and replication paths are blocked.
-- **Optional faults:** add latency, packet loss, or bandwidth limits only when the change answers a written question.
+## Campaign
 
-The partition test should let the runner query a stale member while replication traffic to that member is blocked. If the network layout cannot provide those two paths separately, record the limitation and change the test rather than calling a node crash a partition.
+- Pilot: five adversarial repetitions for each of the 32 configuration/property cells, plus one normal smoke trial for each cell.
+- Normal main baseline: `8 x 4 x 10 = 320` histories.
+- Adversarial main campaign: `8 x 4 x 30 = 960` histories.
+- Main total: 1,280 histories.
+- Each case receives a unique trial ID and namespace.
+- Case order is a seeded, stratified shuffle using `20260915 + campaign_ordinal`.
+- A trial is never overwritten. A rerun receives a new trial ID and retains the old trace.
 
-## Metrics
+The main campaign uses 30 repetitions for repeatability of registered histories, not as a universal probability estimate. If the pilot shows that a valid schedule remains timing-dependent, run a separate 100-repetition extension only for the affected key cells and report Wilson intervals.
 
-- Violation rate: `violating successful histories / successful histories`.
-- Availability rate: `successful operations / attempted operations`.
-- Latency: p50, p95, and p99, plus the mean when it helps explain a result.
-- Recovery: time from primary failure to usable post-election service.
+## Timeouts and outcomes
 
-An operation that blocks, times out, or fails before producing a successful history is `UNAVAILABLE`. It is not a consistency violation.
+- Connection timeout: 2 seconds.
+- Server selection timeout: 5 seconds.
+- Operation/socket deadline: 5 seconds.
+- `wtimeoutMS`: 5 seconds where applicable.
+- Topology convergence and election barrier: 30 seconds.
+- Subtrial deadline: 60 seconds.
 
-No observed violation is a result of the tested workload and fault schedule. It is not proof of a universal guarantee.
+History outcomes are `PASS`, `VIOLATION`, `UNAVAILABLE`, and `INDETERMINATE`. `HARNESS_ERROR` and `UNSUPPORTED` are infrastructure classifications and do not enter database metrics. A write timeout or lost write response is `INDETERMINATE` because the mutation may have occurred.
 
-## Report
+## Factorial analysis
 
-Report title:
+For each property and schedule, compute consistency, completion, availability, and latency separately. Report the main effects of read concern, write concern, and causal session, plus `RC x CS`, `WC x CS`, `RC x WC`, and the three-way interaction where valid.
 
-> Experimental Evaluation of Client-Centric Consistency in MongoDB under Replica Failures and Network Partitions
+For a metric `Y`:
 
-For each result, show the question, theory, prediction, experiment, recorded history, checker output, and explanation. The full report outline is in [report-plan.md](report-plan.md).
+```text
+Delta_CS(rc,wc) = Y(rc,wc,on) - Y(rc,wc,off)
+Delta_RC(wc,cs) = Y(majority,wc,cs) - Y(local,wc,cs)
+Delta_WC(rc,cs) = Y(rc,majority,cs) - Y(rc,w:1,cs)
+```
 
-## Limits
+Consistency violation rate is `VIOLATION / (PASS + VIOLATION)`. Operation success rate and history completion rate are reported separately. `UNAVAILABLE`, `INDETERMINATE`, `HARNESS_ERROR`, and `UNSUPPORTED` remain visible in their own counts.
 
-- Three containers on one laptop are logical replicas, not three independent machines.
-- Docker network faults are synthetic and do not reproduce a real WAN.
-- A finite set of trials cannot establish a universal guarantee.
-- Scheduler and replication timing can vary. Repeat trials and retain the raw histories.
-- Small synthetic workloads improve causal isolation but limit external validity.
-- Conclusions apply only to the MongoDB and PyMongo versions and settings that were tested.
+## Reproduction and report
 
-## Reproduction target
+The implementation provides:
 
 ```bash
 make setup
+make pilot
 make experiment
 make analyse
+make submission
 ```
 
-Expected output directories:
+`make analyse` reads canonical raw histories and manifests without a live MongoDB connection. The report follows the sequence question, theory, prediction, adversarial experiment, recorded history, checker, and explanation. It includes the four slide-style property histories, architecture and fault diagrams, prediction matrix, factorial contrasts, outcome counts, representative traces, latency, recovery, limitations, and AI-use disclosure.
 
-```text
-results/raw/       raw operation histories
-results/summary/   aggregated metrics
-figures/           generated plots
-scripts/           setup and fault scripts
-src/               runner and checkers
-tests/             checker tests
-```
+## Limits
 
-Use MongoDB documentation and course theory to define the expected behaviour. Use the experiments to look for counterexamples and measure availability and latency.
-
-## Sources
-
-- DSA5208 Lecture 1: physical and logical time, causal precedence, and Lamport clocks.
-- DSA5208 Lecture 3: the four client-centric models, MongoDB read/write concern, majority snapshots, and causal sessions.
-- MongoDB documentation for causal consistency, read concern, write concern, replica sets, elections, and the server version used.
-- PyMongo documentation for sessions and read/write concern APIs.
-- Documentation for each fault-injection tool used.
-- The AI-use disclosure required by the course.
+- Three containers on one laptop are logical replicas, not independent machines.
+- Docker network isolation is a synthetic fault, not a real WAN.
+- A finite campaign cannot prove a universal guarantee.
+- MongoDB internal causal metadata is inferred only through observable behaviour; it is not directly inspected by the runner.
+- Conclusions apply only to the recorded software versions, image digest, topology, schedules, and workloads.

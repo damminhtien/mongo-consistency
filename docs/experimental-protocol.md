@@ -1,185 +1,182 @@
 # Experimental protocol
 
-This protocol defines the records and checks used in each MongoDB trial. It does not assign results in advance.
+## Trial unit
 
-## Trial record
+A trial is one configuration, property, schedule, seed, and unique namespace. The three-member replica set stays alive for the trial. The runner does not reset the database after each property. A trial records the initial document state `x=v0`; that initialization is outside the property predicate.
 
-Each trial has:
+Each trial has a manifest with these fields:
 
-- one MongoDB setting;
-- one fault condition and schedule;
-- one target property, or a documented workload covering more than one property;
-- one workload designed to find a counterexample; and
-- the complete operation history returned by the system.
-
-The checker uses logical versions and causal dependencies. Invocation and response times are recorded for latency and debugging, not as the consistency test.
-
-## Configuration fields
-
-Record these fields for every trial:
-
-| Field | Meaning |
+| Field | Requirement |
 | --- | --- |
-| `configuration_id` | C1 to C6, or a documented extension. |
+| `schema_version` | Version of the raw-history schema. |
+| `trial_id` | Globally unique trial identifier. |
+| `campaign_id` | `pilot`, `normal`, or `adversarial`. |
+| `configuration_id` | One of C1-C8. |
 | `read_concern` | `local` or `majority`. |
-| `write_concern` | `w: 1` or `majority`. |
-| `causal_session` | Whether causal session ordering is enabled. |
-| `mongodb_version` | Exact server version. |
-| `pymongo_version` | Exact client library version. |
-| `replica_set_members` | Member identities and roles. |
-| `fault_condition` | Normal, secondary failure, primary failure/election, or partition. |
+| `write_concern` | `w:1` or `majority`, including timeout settings. |
+| `causal_session` | `true` or `false`; both use an explicit session. |
+| `property` | `RYW`, `MR`, `MW`, or `WFR`. |
+| `schedule_id` | Registered fault and operation schedule. |
+| `seed` | `20260915 + campaign_ordinal`. |
+| `software_versions` | Python, PyMongo, Docker, Compose, and MongoDB versions. |
+| `image_digest` | Resolved MongoDB image digest. |
+| `members` | Member names, addresses, and roles at setup. |
+| `timeout_policy` | Connection, operation, election, and subtrial limits. |
+| `fault_policy` | Fault events, targets, and cleanup result. |
+| `prediction_commit` | Commit containing the frozen prediction manifest. |
+| `runner_version` | Runner source revision and schema version. |
+| `checker_version` | Offline checker source revision and schema version. |
+| `history_hash` | SHA-256 of canonical raw history bytes. |
 
-## Operation history
+## Logical history
 
-Write one structured record for each attempted operation. The record contains:
+The workload uses one logical document per trial:
+
+```json
+{
+  "_id": "trial-id/x",
+  "updates": [
+    {
+      "write_id": "w1",
+      "version": 1,
+      "effect": "set-v1",
+      "parent_write_id": null,
+      "depends_on_read_id": null,
+      "depends_on_version": null
+    }
+  ]
+}
+```
+
+One logical writer allocates integer versions. The checker never treats a Lamport tuple, server timestamp, or wall-clock timestamp as evidence that one application update supersedes another. `parent_write_id`, `depends_on_read_id`, and `depends_on_version` are explicit application dependencies. Server metadata is diagnostic only.
+
+MW and WFR use this same document. A history using `x` for one operation and `y` for the other is rejected as an invalid fixture for either predicate.
+
+The observer reads the complete `x` document once. It records the returned update list, the observed version set, and the read timestamp. It does not combine fields from multiple reads.
+
+## Recorded operation
+
+Every operation record includes:
 
 ```text
-trial_id
-client_id
-session_id
 operation_id
-operation_type
-key
-value_or_version
-target_node
+trial_id
+property
+kind
+requested_member
+actual_server_address
+actual_role
+session_id
+causal_session
 read_concern
 write_concern
-causal_session_enabled
-invocation_time
-response_time
-success_or_error
+start_ns
+end_ns
+operation_status
+error_code
+error_message
+timeout_category
+fault_event_id
 dependency_metadata
+document_version_before
+document_version_after
 ```
 
-The version field identifies the logical state read or written. A dependent write carries its read dependency, for example `y.source_version = v_r`.
+The requested member is the routing intent. The command monitor supplies the actual server address. The runner records the role observed during setup and the command timing. A successful primary write uses the driver-selected primary; tagged secondary reads use a named secondary tag.
 
-Useful additional fields include:
+## Property checkers
 
-- `client_sequence` for program order within one client;
-- `fault_event_id` and fault start/end markers;
-- `replica_set_member_id` and the observed role;
-- `error_code` and timeout category;
-- `history_hash` and serialization version; and
-- runner and container image identifiers.
+The checkers consume a canonical history and return one outcome plus a reason. They do not infer hidden database state.
 
-Use one canonical serialization so the same history produces the same checker input every time.
+- RYW passes when the read of `x` returns the version written by the preceding write or a later version. A lower observed version is a violation.
+- MR passes when the second read returns the version from the first read or a later version. A lower second observation is a violation.
+- MW passes when the observer sees a state containing the successor write without the predecessor write only if the schedule defines that state as the tested outcome. The checker marks a completed predecessor and successor on the same `x`; a successor that is visible while the predecessor is absent is a violation.
+- WFR passes when a write that explicitly depends on the version read by R1 is observed together with its dependency. A dependent successor on `x` without the version read by R1 is a violation.
 
-## Checker predicates
+The checkers require the expected operation IDs, same-key identity, dependency fields, and a complete observer snapshot. Missing or contradictory records are not converted into a database violation.
 
-Let `W_c(x, v_w)` be a write of version `v_w` to key `x`, and let `R_c(x, v_r)` be a later read by the same client.
+## Outcomes
 
-### Read-your-writes (RYW)
+| Outcome | Meaning | Included in database metrics |
+| --- | --- | --- |
+| `PASS` | The recorded complete history satisfies the property. | Yes. |
+| `VIOLATION` | The recorded complete history contradicts the property. | Yes. |
+| `UNAVAILABLE` | The required read or write could not be served under the schedule. | No for violation rate; retained separately. |
+| `INDETERMINATE` | A required result is ambiguous, such as a lost write response or timeout after a possible mutation. | No for violation rate; retained separately. |
+| `HARNESS_ERROR` | The runner, fault controller, or recorder failed independently of the database outcome. | No. |
+| `UNSUPPORTED` | A required topology precondition could not be established. | No. |
 
-After `W_c(x, v_w)`, a later `R_c(x, v_r)` is a counterexample when:
+The consistency violation rate is `VIOLATION / (PASS + VIOLATION)`. A write timeout or lost write response is `INDETERMINATE`, never an assumed failed write.
+
+## Network and fault control
+
+Compose creates two paths:
+
+- `replica_net` carries member-to-member replication and election traffic.
+- `client_net` carries runner-to-member traffic.
+
+The fault controller is a separate process with a narrow control interface. It applies named events to replica traffic while the runner keeps client access to the selected member. The runner has no Docker socket, Docker credentials, host filesystem mount, or access to unrelated host data. If a stale-member client path cannot be preserved, the trial is `UNSUPPORTED`.
+
+Every schedule has an event ID, start condition, target members, expected topology state, cleanup action, and cleanup verification. Cleanup must restore a stable three-member replica set before the next trial.
+
+## Schedules
+
+### RYW
+
+1. Confirm a stable replica set and record `v0`.
+2. Isolate replication traffic to the tagged stale secondary while preserving client access to it.
+3. Write `v1` on the current primary.
+4. Read `x` from the tagged stale secondary in the same explicit session.
+5. Record the read result, heal replication, and verify stability.
+
+### MR
+
+1. Confirm a stable replica set and record `v0`.
+2. Isolate one tagged secondary while preserving client access.
+3. Read `x` from a fresh secondary and record its version.
+4. Read `x` from the isolated stale secondary using the same explicit session.
+5. Record both observations, heal replication, and verify stability.
+
+### MW
+
+1. Complete W1 on the old primary and record its write ID on `x`.
+2. Apply the partition while the workload is ready to issue W2.
+3. Wait for a new primary with the 30-second topology barrier.
+4. Complete W2 on the new primary, on the same `x`, with its `parent_write_id` set to W1.
+5. Run one observer snapshot of `x`.
+6. Heal the partition and verify a stable replica set.
+
+The workload is not postponed until after election. W1 is before the partition, and W2 is issued only after the election barrier has completed. The schedule therefore distinguishes predecessor completion from successor visibility.
+
+### WFR
+
+1. Complete R1 on the old side and record the observed version of `x`.
+2. Apply the partition while the workload is ready to issue the dependent write.
+3. Wait for a new primary with the 30-second topology barrier.
+4. Complete W2 on the new primary, on the same `x`, with `depends_on_read_id` and `depends_on_version` set from R1.
+5. Run one observer snapshot of `x`.
+6. Heal the partition and verify a stable replica set.
+
+### Normal control
+
+The control schedule runs the same operation order and dependency metadata without an injected fault. It uses a fresh namespace and the same configuration cell. It is a baseline for completion, latency, and ordinary operation rather than a substitute for the adversarial schedule.
+
+## Timeouts and campaign order
 
 ```text
-v_r < v_w
+connectTimeoutMS=2000
+serverSelectionTimeoutMS=5000
+socketTimeoutMS=5000
+operation_deadline=5000ms
+wtimeoutMS=5000 where applicable
+election_barrier=30000ms
+subtrial_deadline=60000ms
+retryWrites=false
+retryReads=false
 ```
 
-Use client or session order to define later. Include both operations and the relevant member details in the checker output.
+The campaign uses a seeded, stratified shuffle. The seed is `20260915 + campaign_ordinal`. Each case receives a new trial ID and namespace. The normal baseline contains 320 histories. The adversarial campaign contains 960 histories. Pilot execution uses five adversarial repetitions and one normal smoke trial per configuration/property cell.
 
-### Monotonic reads (MR)
+## Offline analysis
 
-For successive reads `R_i(x, v_i)` and `R_(i+1)(x, v_j)` by one client, a counterexample has:
-
-```text
-v_j < v_i
-```
-
-Compare the logical versions returned to the client, not their response timestamps.
-
-### Monotonic writes (MW)
-
-For two writes by one client, flag a counterexample if the second write becomes visible while the required predecessor is not visible in the same history.
-
-Before the campaign, specify how visibility is observed and test that rule with fixtures. Do not replace visibility with a wall-clock comparison.
-
-### Writes-follow-reads (WFR)
-
-After a client reads version `v_r`, its dependent write records the dependency, for example:
-
-```text
-y.source_version = v_r
-```
-
-Flag a counterexample if the dependent write becomes visible in a state older than the version it depends on.
-
-## Result labels
-
-Use three labels:
-
-- **PASS:** the successful history satisfies the target property.
-- **VIOLATION:** the successful history fails the target predicate.
-- **UNAVAILABLE:** the operation blocks, times out, or fails before a successful history exists.
-
-Do not count `UNAVAILABLE` as a consistency violation. Keep it in its own count in raw records and summaries.
-
-## Fault schedules
-
-### Normal operation
-
-Run the workload without an injected fault. Record baseline availability and latency.
-
-### Secondary failure
-
-Stop one secondary during or between selected operations. Record whether operations continue and whether the result differs from the prediction.
-
-### Primary failure and election
-
-Stop the current primary. Record:
-
-- the election interval;
-- write errors or temporary unavailability;
-- recovery time;
-- the elected member; and
-- histories after the election.
-
-### Network partition
-
-Keep the isolated member alive and record the client and replication paths that are blocked. If the runner cannot reach the stale member separately from the replication path, mark that test as unsupported and do not describe it as a stale-read experiment.
-
-### Optional network changes
-
-Add latency, packet loss, or bandwidth limits only when the change answers a named question. Log the setting with the trial.
-
-## Trial procedure
-
-For every selected setting and fault case:
-
-1. Save software, replica-set, and fault-controller versions.
-2. Reset the database to a known state.
-3. Start the history recorder.
-4. Apply the registered fault schedule.
-5. Run the workload.
-6. Save responses, errors, versions, dependencies, and fault events.
-7. Run the checker without reconnecting to MongoDB.
-8. Assign PASS, VIOLATION, or UNAVAILABLE.
-9. Repeat using the registered repetition count and schedule.
-10. Save the raw trace used for each number or counterexample in the report.
-
-## Tests before the campaign
-
-Add unit tests for:
-
-- a valid RYW history and an RYW counterexample;
-- a valid MR history and an MR counterexample;
-- valid and invalid MW visibility order;
-- a valid WFR dependency and a WFR counterexample;
-- unavailable operations that must not count as violations; and
-- malformed histories that produce an error instead of a false result.
-
-For a fixed canonical history, checker output must be deterministic. The analysis command must work from `results/raw/` without a live cluster.
-
-## Minimum summary
-
-For each setting, fault case, and property, report each available measure:
-
-- attempted operations;
-- successful histories;
-- PASS, VIOLATION, and UNAVAILABLE counts;
-- violation rate;
-- availability rate;
-- p50, p95, and p99 latency; and
-- recovery time after primary failure/election.
-
-Every table cell names the workload, fault schedule, version range, and repetition count behind it. No cell is a universal guarantee.
+`make analyse` reads only raw histories, manifests, and the frozen prediction manifest. It recomputes checker outcomes, outcome counts, operation success, history completion, consistency violation rate, p50/p95/p99 latency, election and recovery time, and the read-concern, write-concern, causal-session main effects and interactions. It writes summaries and figures without connecting to MongoDB.

@@ -1,61 +1,50 @@
-# MongoDB Client-Centric Consistency Experiments
+# MongoDB consistency experiment
 
-Repository for the DSA5208 group project on client-centric consistency in a MongoDB replica set.
+The project records a reproducible DSA5208 experiment for MongoDB client-visible consistency. The implementation records raw operation histories, checks RYW, MR, MW, and WFR offline, and builds the submission package from those records.
 
-The repository currently contains the project brief, design notes, and execution checklist. No cluster run or experiment result has been recorded yet.
+The cluster runner is being built against a three-member MongoDB replica set in Docker Compose. Until a campaign produces raw histories, the repository makes no result claim.
 
-## Files
+## Canonical documents
 
-- [Assignment brief](docs/assignment.md): required work and submission material.
-- [Project plan](docs/project-plan.md): system choice, research questions, variables, and limits.
-- [Step 1 decisions](docs/step-1-decisions.md): confirmed choices and remaining gates before the campaign.
-- [Experimental protocol](docs/experimental-protocol.md): history format, checkers, fault cases, and metrics.
-- [Report plan](docs/report-plan.md): report sections, figures, tables, and reproduction material.
-- [Execution checklist](TODO.md): tasks in the order they should be done.
+- [Assignment summary](docs/assignment.md)
+- [Project plan](docs/project-plan.md)
+- [Slide alignment](docs/slide-alignment.md)
+- [Step 1 decisions](docs/step-1-decisions.md)
+- [Experimental protocol](docs/experimental-protocol.md)
+- [Report plan](docs/report-plan.md)
+- [Work list](TODO.md)
 
-## Source
-
-The documents were prepared from [DSA5208 Scalable Distributed GRP Project](https://docs.google.com/document/d/1X4Lq5Za8d1jb-YOE-K-uBAOfwCax-soaJb-1WFeHJ80/edit), read on 15 September 2026. The Google Doc contains both the course brief and the agreed project plan. Use that document if a requirement here is unclear.
-
-## Intended commands
+## Commands
 
 ```bash
+make test
+make check-docs
 make setup
+make pilot
 make experiment
 make analyse
 make submission
 ```
 
-The cluster and analysis targets remain planned. `make submission` is available now: it checks the source documents, compiles the LaTeX report, checks the extracted PDF text, and writes a filtered zip archive with a SHA-256 manifest. It requires `latexmk` or a LaTeX engine with `bibtex`.
+`make setup` checks the pinned toolchain, starts and verifies the local replica set, and records the MongoDB image digest. `make pilot` and `make experiment` require Docker. `make analyse` consumes raw histories and does not require a live MongoDB connection. `make submission` builds the PDF and reproduction archive.
 
-## Submission layout
+The main campaign has 320 normal-control histories and 960 adversarial histories, for 1,280 histories total. The pilot is smaller and is used to validate timing and topology preconditions before the main campaign.
 
-- [Report source](submission/report.tex): LaTeX entry point.
-- [Report sections](submission/sections): one file per report section.
-- [Report bibliography](submission/report.bib): course, MongoDB, PyMongo, and fault-tool sources.
-- [Build metadata](submission/metadata.mk): course, team, date, and AI-use disclosure fields.
-- [Package notes](submission/package-readme.md): archive contents and evidence status.
+## Layout
 
-The build writes the PDF to `output/pdf/` and the archive and manifest to `output/submission/`. Generated output and temporary files are ignored. Local `.codex/` and `AGENTS*` files are never included in the archive.
+```text
+configs/       frozen configurations, schedules, predictions, and campaign rules
+src/           history model, checkers, runner, routing, faults, and analysis
+scripts/       command entry points and validation tools
+tests/         offline fixtures and integration checks
+results/raw/   canonical trial histories and manifests
+results/summary derived tables and metrics
+figures/       generated report figures
+submission/    LaTeX report and package metadata
+```
 
-## Documentation checks
+## Safety and reproducibility
 
-Run `make check-docs` after changing Markdown, text, LaTeX, or PDF files. The checker scans the repository recursively, skips local agent metadata and tool caches, and checks prose, links, repeated structure, and unsupported claims. For PDFs it also runs `pdfinfo` and `pdftotext -layout`.
+The runner has no Docker socket, Docker credentials, host filesystem mount, or unrelated host-data access. Reads and writes use `retryReads=false` and `retryWrites=false`. A possible mutation after a timeout is recorded as `INDETERMINATE`. `HARNESS_ERROR` and `UNSUPPORTED` remain outside database metrics.
 
-Run `make test` to run the checker tests without requiring a MongoDB cluster.
-
-## CI and Canvas release
-
-The CI workflow runs `make test`, `make check-docs`, and `make submission`. It
-also uploads the generated PDF, archive, and manifest as a workflow artifact.
-
-Pushing a versioned tag such as `v1.0.0` starts the release workflow. It runs
-the same gates and publishes these `make submission` outputs to the GitHub
-Release:
-
-- `mongo-consistency-report.pdf`: the report to upload to Canvas;
-- `mongo-consistency-submission.zip`: the reproduction package; and
-- `manifest.txt`: SHA-256 checksums and the source revision.
-
-Choose the tag only after updating the team metadata and recorded experiment
-evidence in the source tree.
+Every trial has a unique namespace, a seeded campaign ordinal, actual routing details, software versions, a fault event log, and a canonical history hash. The prediction manifest is committed before result files. Agentic metadata such as `.codex/` and `AGENTS*` is ignored and is not part of the submission repository.
