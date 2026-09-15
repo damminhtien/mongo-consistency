@@ -1,37 +1,37 @@
 # Experimental protocol
 
-This document turns the working plan into an implementation-facing protocol. It defines what must be recorded and how successful histories are classified. It does not prescribe results.
+This protocol defines the records and checks used in each MongoDB trial. It does not assign results in advance.
 
-## 1. Experiment contract
+## Trial record
 
-Each trial must identify:
+Each trial has:
 
-- one MongoDB configuration;
-- one fault condition and fault schedule;
-- one target consistency property, or one explicitly documented multi-property workload;
-- one adversarial workload intended to find a counterexample; and
-- the exact operation history returned by the system.
+- one MongoDB setting;
+- one fault condition and schedule;
+- one target property, or a documented workload covering more than one property;
+- one workload designed to find a counterexample; and
+- the complete operation history returned by the system.
 
-The checker must evaluate recorded logical versions and causal dependencies. Wall-clock order can describe invocation and response intervals, but must not be used as the consistency predicate itself.
+The checker uses logical versions and causal dependencies. Invocation and response times are recorded for latency and debugging, not as the consistency test.
 
-## 2. Configuration record
+## Configuration fields
 
-Every trial records at least:
+Record these fields for every trial:
 
 | Field | Meaning |
 | --- | --- |
-| `configuration_id` | One of C1–C6, or a documented extension. |
+| `configuration_id` | C1 to C6, or a documented extension. |
 | `read_concern` | `local` or `majority`. |
 | `write_concern` | `w: 1` or `majority`. |
 | `causal_session` | Whether causal session ordering is enabled. |
 | `mongodb_version` | Exact server version. |
 | `pymongo_version` | Exact client library version. |
-| `replica_set_members` | Member identities and roles for the trial. |
+| `replica_set_members` | Member identities and roles. |
 | `fault_condition` | Normal, secondary failure, primary failure/election, or partition. |
 
-## 3. Operation-history schema
+## Operation history
 
-The recorder should emit one structured record per attempted operation. Required fields from the plan are:
+Write one structured record for each attempted operation. The record contains:
 
 ```text
 trial_id
@@ -51,137 +51,135 @@ success_or_error
 dependency_metadata
 ```
 
-The value/version field must make the logical state observed or written explicit. For writes that depend on a prior read, encode the dependency directly; for example, a dependent write may carry `y.source_version = v_r`.
+The version field identifies the logical state read or written. A dependent write carries its read dependency, for example `y.source_version = v_r`.
 
-Recommended additional fields:
+Useful additional fields include:
 
-- `client_sequence` for per-client program order;
+- `client_sequence` for program order within one client;
 - `fault_event_id` and fault start/end markers;
-- `replica_set_member_id` and observed role;
+- `replica_set_member_id` and the observed role;
 - `error_code` and timeout category;
-- `history_hash` or canonical serialization version; and
+- `history_hash` and serialization version; and
 - runner and container image identifiers.
 
-Additional fields are useful only if they remain reproducible and do not replace the logical predicates below.
+Use one canonical serialization so the same history produces the same checker input every time.
 
-## 4. Formal checker predicates
+## Checker predicates
 
-Use the following planned logical versions. Let `W_c(x, v_w)` be a client write of version `v_w` for key `x`, and `R_c(x, v_r)` be a later client read returning version `v_r`.
+Let `W_c(x, v_w)` be a write of version `v_w` to key `x`, and let `R_c(x, v_r)` be a later read by the same client.
 
 ### Read-your-writes (RYW)
 
-If `W_c(x, v_w)` happens before a later `R_c(x, v_r)`, the history is a counterexample when:
+After `W_c(x, v_w)`, a later `R_c(x, v_r)` is a counterexample when:
 
 ```text
 v_r < v_w
 ```
 
-The checker must scope “later” to the recorded client/session ordering and retain enough metadata to explain the counterexample.
+Use client or session order to define later. Include both operations and the relevant member details in the checker output.
 
 ### Monotonic reads (MR)
 
-For successive reads by one client, `R_i(x, v_i)` followed by `R_(i+1)(x, v_j)`, the history is a counterexample when:
+For successive reads `R_i(x, v_i)` and `R_(i+1)(x, v_j)` by one client, a counterexample has:
 
 ```text
 v_j < v_i
 ```
 
-The predicate is about the client’s observed logical versions, not about response timestamps alone.
+Compare the logical versions returned to the client, not their response timestamps.
 
 ### Monotonic writes (MW)
 
-For two writes by the same client with program order `W1 -> W2`, a counterexample exists if `W2` becomes visible while the causal predecessor `W1` is not yet visible in the required history.
+For two writes by one client, flag a counterexample if the second write becomes visible while the required predecessor is not visible in the same history.
 
-The implementation must define and test the visibility observation used for this predicate before running the campaign. Do not substitute a wall-clock comparison for visibility.
+Before the campaign, specify how visibility is observed and test that rule with fixtures. Do not replace visibility with a wall-clock comparison.
 
 ### Writes-follow-reads (WFR)
 
-If a client reads version `v_r` and then performs a dependent write, encode the dependency explicitly, for example:
+After a client reads version `v_r`, its dependent write records the dependency, for example:
 
 ```text
 y.source_version = v_r
 ```
 
-The history is a counterexample if the dependent write becomes visible in a state older than the version on which it depends.
+Flag a counterexample if the dependent write becomes visible in a state older than the version it depends on.
 
-## 5. Outcome classes
+## Result labels
 
-Every attempted history or operation must be classified as one of:
+Use three labels:
 
-- **PASS:** a successful history satisfies the target predicate.
-- **VIOLATION:** a successful history violates the target client-centric predicate.
-- **UNAVAILABLE:** the operation blocks, times out, or fails before producing a successful history.
+- **PASS:** the successful history satisfies the target property.
+- **VIOLATION:** the successful history fails the target predicate.
+- **UNAVAILABLE:** the operation blocks, times out, or fails before a successful history exists.
 
-`UNAVAILABLE` is not a consistency violation. Summaries must keep these categories separate rather than treating an error or timeout as evidence of stale data.
+Do not count `UNAVAILABLE` as a consistency violation. Keep it in its own count in raw records and summaries.
 
-## 6. Fault schedules
+## Fault schedules
 
-### Baseline
+### Normal operation
 
-Run the adversarial workload under normal operation to establish baseline availability and latency.
+Run the workload without an injected fault. Record baseline availability and latency.
 
 ### Secondary failure
 
-Stop one secondary during or between selected operations. Record whether operations remain available and whether the observed behaviour differs from the pre-registered prediction.
+Stop one secondary during or between selected operations. Record whether operations continue and whether the result differs from the prediction.
 
 ### Primary failure and election
 
 Stop the current primary. Record:
 
 - the election interval;
-- temporary write unavailability or errors;
+- write errors or temporary unavailability;
 - recovery time;
 - the elected member; and
-- post-election histories relevant to the target property.
+- histories after the election.
 
 ### Network partition
 
-Prefer a controlled partition that keeps the isolated member alive and stale. Record which client and replication paths are blocked. If the runner cannot query the stale member independently from the replication path, record that as a protocol limitation rather than claiming a stale-read test was performed.
+Keep the isolated member alive and record the client and replication paths that are blocked. If the runner cannot reach the stale member separately from the replication path, mark that test as unsupported and do not describe it as a stale-read experiment.
 
-### Optional network impairments
+### Optional network changes
 
-Add latency, packet loss, or bandwidth restriction only when it answers a clear question and the impairment is logged with the trial. These are optional; complexity alone is not a reason to add them.
+Add latency, packet loss, or bandwidth limits only when the change answers a named question. Log the setting with the trial.
 
-## 7. Trial procedure
+## Trial procedure
 
-For each selected configuration and fault scenario:
+For every selected setting and fault case:
 
-1. Record software, replica-set, and fault-controller identities.
-2. Initialize a clean, known logical state.
-3. Start the operation-history recorder.
-4. Apply the pre-registered fault schedule.
-5. Run the adversarial workload.
-6. Persist raw responses, errors, versions, dependencies, and fault events.
-7. Run the offline checker independently of the workload generator.
-8. Classify each target history as PASS, VIOLATION, or UNAVAILABLE.
-9. Repeat the trial under the documented repetition count and schedule variation.
-10. Generate aggregate summaries and preserve the raw trace used for every reported counterexample.
+1. Save software, replica-set, and fault-controller versions.
+2. Reset the database to a known state.
+3. Start the history recorder.
+4. Apply the registered fault schedule.
+5. Run the workload.
+6. Save responses, errors, versions, dependencies, and fault events.
+7. Run the checker without reconnecting to MongoDB.
+8. Assign PASS, VIOLATION, or UNAVAILABLE.
+9. Repeat using the registered repetition count and schedule.
+10. Save the raw trace used for each number or counterexample in the report.
 
-## 8. Required assertions and tests
+## Tests before the campaign
 
-The implementation should include unit tests for:
+Add unit tests for:
 
-- an RYW counterexample and a valid RYW history;
-- an MR counterexample and a valid MR history;
-- an MW visibility-order counterexample and a valid order;
-- a WFR dependency counterexample and a valid dependent write;
-- unavailable operations that must not be counted as violations; and
-- malformed or incomplete history records that fail closed with an explicit diagnostic.
+- a valid RYW history and an RYW counterexample;
+- a valid MR history and an MR counterexample;
+- valid and invalid MW visibility order;
+- a valid WFR dependency and a WFR counterexample;
+- unavailable operations that must not count as violations; and
+- malformed histories that produce an error instead of a false result.
 
-The checker should be deterministic for a fixed canonical history. A result summary must be reproducible from `results/raw/` without connecting to MongoDB again.
+For a fixed canonical history, checker output must be deterministic. The analysis command must work from `results/raw/` without a live cluster.
 
-## 9. Minimum analysis outputs
+## Minimum summary
 
-For every configuration × fault-condition × consistency-property cell, report where applicable:
+For each setting, fault case, and property, report each available measure:
 
 - attempted operations;
 - successful histories;
-- PASS histories;
-- VIOLATION histories;
-- UNAVAILABLE operations;
+- PASS, VIOLATION, and UNAVAILABLE counts;
 - violation rate;
 - availability rate;
-- p50/p95/p99 latency; and
-- recovery time for primary failure/election.
+- p50, p95, and p99 latency; and
+- recovery time after primary failure/election.
 
-No cell should be presented as a universal guarantee. The report must include the workload, fault schedule, version scope, and number of repetitions behind the cell.
+Every table cell names the workload, fault schedule, version range, and repetition count behind it. No cell is a universal guarantee.

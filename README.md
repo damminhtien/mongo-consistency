@@ -1,27 +1,27 @@
 # MongoDB Client-Centric Consistency Experiments
 
-This repository contains the planning and reproducibility material for the DSA5208 group project on client-centric consistency in a MongoDB replica set.
+Repository for the DSA5208 group project on client-centric consistency in a MongoDB replica set.
 
-Current status: planning only. No experiment result or universal consistency guarantee is claimed by these documents.
+The repository currently contains the project brief, design notes, and execution checklist. No cluster run or experiment result has been recorded yet.
 
-## Documents
+## Files
 
-- [Assignment brief](docs/assignment.md) — normalized requirements, deliverables, and deadline.
-- [Project plan](docs/project-plan.md) — technology decision, thesis, research questions, variables, metrics, and scope.
-- [Experimental protocol](docs/experimental-protocol.md) — history schema, executable predicates, fault schedules, and outcome rules.
-- [Report and reproducibility plan](docs/report-plan.md) — report structure, figures, tables, evidence standards, and expected artifacts.
-- [Execution TODO](TODO.md) — ordered implementation checklist with gates and evidence requirements.
+- [Assignment brief](docs/assignment.md): required work and submission material.
+- [Project plan](docs/project-plan.md): system choice, research questions, variables, and limits.
+- [Experimental protocol](docs/experimental-protocol.md): history format, checkers, fault cases, and metrics.
+- [Report plan](docs/report-plan.md): report sections, figures, tables, and reproduction material.
+- [Execution checklist](TODO.md): tasks in the order they should be done.
 
-## Source and provenance
+## Source
 
-These documents were normalized from the Google Drive document [DSA5208 Scalable Distributed GRP Project](https://docs.google.com/document/d/1X4Lq5Za8d1jb-YOE-K-uBAOfwCax-soaJb-1WFeHJ80/edit), read on 2026-09-15. The source document contains both the assignment brief and the agreed working plan.
+The documents were prepared from [DSA5208 Scalable Distributed GRP Project](https://docs.google.com/document/d/1X4Lq5Za8d1jb-YOE-K-uBAOfwCax-soaJb-1WFeHJ80/edit), read on 15 September 2026. The Google Doc contains both the course brief and the agreed project plan. Use the course document if a requirement in this repository is unclear.
 
-The source remains authoritative for the course requirements. This repository is the working record for implementation decisions and experimental evidence; it must not turn planned predictions into post-hoc claims.
+## Intended commands
 
-## Planned workflow
+```bash
+make setup
+make experiment
+make analyse
+```
 
-1. `make setup` — start and initialize the three-node replica set.
-2. `make experiment` — run selected adversarial histories and record raw traces.
-3. `make analyse` — run independent checkers and generate summaries/figures.
-
-The commands and implementation do not exist yet. They are the first delivery target described by the plan.
+These commands are part of the target interface. The implementation has not been added yet.

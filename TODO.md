@@ -1,287 +1,285 @@
-# Execution TODO
+# Execution checklist
 
-This is the implementation checklist for the MongoDB client-centric consistency project. Work from top to bottom unless a task is explicitly marked optional. Keep this file checked against the actual repository state; do not check an item because a command merely exists.
+Use this list in order. Mark an item only after it has been checked in the repository or in a recorded trial.
 
-Source: [DSA5208 Scalable Distributed GRP Project](https://docs.google.com/document/d/1X4Lq5Za8d1jb-YOE-K-uBAOfwCax-soaJb-1WFeHJ80/edit), including the [project plan](docs/project-plan.md), [experimental protocol](docs/experimental-protocol.md), and [report plan](docs/report-plan.md).
+Source: [DSA5208 project brief and plan](https://docs.google.com/document/d/1X4Lq5Za8d1jb-YOE-K-uBAOfwCax-soaJb-1WFeHJ80/edit), read on 15 September 2026.
 
-Deadline stated by the source: submit the report, code, scripts, and reproduction instructions through Canvas no later than **27 September 2026**.
+The source gives 27 September 2026 as the Canvas deadline.
 
-## Definition of done
+## Finish conditions
 
-- [ ] A fresh checkout can set up a reproducible three-member MongoDB replica set.
-- [ ] The selected configurations and pre-registered predictions are recorded before result analysis.
-- [ ] Adversarial workloads target RYW, MR, MW, and WFR under normal operation, node failure, and network partition.
-- [ ] The independent checker evaluates logical versions and explicit dependencies, not wall-clock timestamps.
-- [ ] `PASS`, `VIOLATION`, and `UNAVAILABLE` remain separate in raw records, summaries, and the report.
-- [ ] Raw histories can be replayed offline to regenerate summaries and figures deterministically.
-- [ ] The PDF report, source code, scripts, tests, citations, and AI-use disclosure are complete and reproducible.
+- [ ] A fresh checkout can start a three-member MongoDB replica set.
+- [ ] The chosen settings and predictions are recorded before the main results are analysed.
+- [ ] Workloads cover RYW, MR, MW, and WFR during normal operation, node failure, and network partition.
+- [ ] The checker uses logical versions and recorded dependencies, not wall-clock time.
+- [ ] `PASS`, `VIOLATION`, and `UNAVAILABLE` stay separate in records, tables, and prose.
+- [ ] Raw histories can be replayed offline to rebuild tables and figures.
+- [ ] The PDF, code, scripts, tests, citations, and reproduction steps are ready for submission.
 
-## Completed groundwork
+## Already written
 
-- [x] Normalize the assignment brief into [docs/assignment.md](docs/assignment.md).
-- [x] Record the MongoDB/PyMongo/Docker Compose decision in [docs/project-plan.md](docs/project-plan.md).
-- [x] Record the history schema, predicates, fault schedules, and outcome classes in [docs/experimental-protocol.md](docs/experimental-protocol.md).
-- [x] Record the proposed paper structure, figures, tables, and evidence rules in [docs/report-plan.md](docs/report-plan.md).
+- [x] Put the course requirements in [docs/assignment.md](docs/assignment.md).
+- [x] Put the system choice, research questions, settings, and limits in [docs/project-plan.md](docs/project-plan.md).
+- [x] Put the history format, checker rules, fault cases, and metrics in [docs/experimental-protocol.md](docs/experimental-protocol.md).
+- [x] Put the report structure and output list in [docs/report-plan.md](docs/report-plan.md).
 
-## 0. Freeze scope and decisions
+## 1. Fix the choices
 
-- [ ] Confirm the group roster has no more than three people; do not put unverified names into the report.
-- [ ] Confirm MongoDB replica set is the final technology choice; record any change and its rationale.
-- [ ] Freeze the baseline as three data-bearing MongoDB members in Docker Compose.
-- [ ] Write down the exact MongoDB server version, PyMongo version, Python version, Docker Engine version, and Compose version to be used.
-- [ ] Decide how logical versions are represented and compared; document the ordering rule before implementing workloads.
-- [ ] Decide the trial repetition count, timeout policy, workload seed policy, and clean-state policy before the pilot.
-- [ ] Decide which configurations are in the main campaign. Do not run the full Cartesian product without a distinct prediction for each selected cell.
-- [ ] Record out-of-scope items: Kubernetes, Docker Swarm, Prometheus/Grafana, service meshes, and advanced network impairments that do not answer a specific question.
-- [ ] Start a decision log in the repository or commit messages for changes to versions, configuration selection, predicates, or fault topology.
+- [ ] Confirm the group has no more than three people.
+- [ ] Confirm MongoDB is the final database choice. Record a change and its reason if the choice changes.
+- [ ] Fix the baseline at three data-bearing members in Docker Compose.
+- [ ] Record the MongoDB server, PyMongo, Python, Docker Engine, and Compose versions.
+- [ ] Choose the representation and ordering rule for logical versions.
+- [ ] Choose the trial count, timeout policy, seed policy, and clean-state policy.
+- [ ] Choose the settings for the main campaign and explain why each one has a different prediction.
+- [ ] Keep Kubernetes, Docker Swarm, Prometheus, Grafana, service meshes, and unnecessary network impairments out of the baseline.
+- [ ] Record changes to versions, settings, predicates, or topology in the repository history.
 
-### Gate 0 — scope is reproducible
+### Checkpoint
 
-- [ ] A reviewer can identify the exact stack, baseline topology, selected configurations, repetitions, and planned fault scenarios without guessing.
-- [ ] No result-dependent decision remains hidden in code or in the analysis notebook/script.
+- [ ] A reviewer can find the stack, topology, settings, trial count, and fault cases without asking for missing details.
+- [ ] No decision depends on a result that has not been collected yet.
 
-## 1. Bootstrap the repository
+## 2. Set up the repository
 
-- [ ] Create the implementation layout:
-  - [ ] `src/` for the runner, recorder, checker, and analysis modules.
-  - [ ] `scripts/` for setup, teardown, replica-set initialization, and fault injection.
-  - [ ] `tests/` for checker, schema, and harness tests.
-  - [ ] `configs/` for versioned experiment and fault schedules.
-  - [ ] `results/raw/` for canonical operation histories.
-  - [ ] `results/summary/` for derived metrics and tables.
-  - [ ] `figures/` for generated plots.
-- [ ] Add a pinned Python dependency manifest and a documented environment creation command.
+- [ ] Create `src/` for the runner, recorder, checker, and analysis code.
+- [ ] Create `scripts/` for setup, teardown, replica-set initialization, and fault injection.
+- [ ] Create `tests/` for checker, schema, and harness tests.
+- [ ] Create `configs/` for settings, workloads, repetitions, and fault schedules.
+- [ ] Create `results/raw/` for operation histories.
+- [ ] Create `results/summary/` for derived metrics and tables.
+- [ ] Create `figures/` for generated plots.
+- [ ] Add a pinned Python dependency file and a documented environment setup command.
 - [ ] Add a `Makefile` with `setup`, `experiment`, `analyse`, `test`, and cleanup targets.
-- [ ] Add `.gitignore` rules for virtual environments, temporary cluster state, logs, caches, and generated files that should not be tracked.
-- [ ] Define which raw traces and figures are committed as report evidence and which are generated artifacts; include at least small fixtures for offline tests.
-- [ ] Add a repository-level configuration/schema version to every machine-readable artifact.
-- [ ] Ensure no credentials, tokens, personal browser data, or unrelated host data can be read by the runner or uploaded as an artifact.
+- [ ] Ignore virtual environments, Docker state, logs, caches, and generated output that should not be committed.
+- [ ] Decide which raw histories and figures belong in Git. Keep small fixtures for offline tests.
+- [ ] Add a schema version to each machine-readable result file.
+- [ ] Check that the runner cannot read credentials, browser data, or unrelated host files.
 
-### Gate 1 — command surface exists
+### Checkpoint
 
-- [ ] `make test` runs without a live MongoDB cluster for checker fixtures.
-- [ ] `make setup`, `make experiment`, and `make analyse` fail with a clear message when their prerequisites are missing.
-- [ ] A clean checkout contains enough instructions to discover the intended execution order.
+- [ ] `make test` works without a running MongoDB cluster.
+- [ ] Each of `make setup`, `make experiment`, and `make analyse` reports missing prerequisites clearly.
+- [ ] The repository documents the command order from a clean checkout.
 
-## 2. Build and validate the Docker Compose harness
+## 3. Build the Docker Compose harness
 
-- [ ] Define three uniquely named data-bearing MongoDB services with persistent-but-disposable test volumes.
-- [ ] Configure one replica-set name and stable service-to-service addresses.
-- [ ] Add health checks and readiness polling; do not assume container start means replica-set readiness.
-- [ ] Implement idempotent replica-set initialization and verify the expected member count and roles.
+- [ ] Define three named MongoDB services with disposable test volumes.
+- [ ] Set one replica-set name and stable service addresses.
+- [ ] Add health checks and readiness polling.
+- [ ] Make replica-set initialization idempotent.
 - [ ] Make `make setup` wait for one `PRIMARY` and the expected `SECONDARY` members.
-- [ ] Implement clean teardown/reset so each trial can start from a known state.
-- [ ] Add a health/status command that records member IDs, roles, states, and server versions.
-- [ ] Test a normal read/write round trip through PyMongo using the pinned driver version.
-- [ ] Test stopping and restarting one secondary without corrupting the harness.
-- [ ] Test stopping the current primary, waiting for election, and reconnecting after the new primary is available.
-- [ ] Verify the runner can target the intended member when the experiment requires a direct stale-member read.
-- [ ] Record any limitation where the client path and replication path cannot be separated.
+- [ ] Add a reset command that removes trial data and returns to a known state.
+- [ ] Add a status command that records member IDs, roles, states, and server versions.
+- [ ] Run a PyMongo read/write round trip with the pinned driver.
+- [ ] Stop and restart one secondary and verify the set recovers.
+- [ ] Stop the current primary, wait for an election, and verify the client reconnects.
+- [ ] Verify that the runner can reach a selected member when a direct stale-member read is needed.
+- [ ] Record any limitation that prevents separate client and replication paths.
 
-### Gate 2 — three-node baseline is stable
+### Checkpoint
 
 - [ ] A fresh `make setup` reaches the expected topology repeatedly.
-- [ ] A reset removes prior trial state and does not depend on manual Docker Desktop actions.
-- [ ] Secondary failure and primary election are observable through structured events, not only terminal output.
-- [ ] The harness can be stopped and recreated without changing the documented configuration.
+- [ ] Reset and teardown do not depend on manual Docker Desktop actions.
+- [ ] Secondary failure and primary election appear as structured events.
+- [ ] The setup can be recreated without undocumented changes.
 
-## 3. Define the data model and logical history contract
+## 4. Define data and logical history
 
-- [ ] Choose a minimal document/key model that can express ordered writes, observed versions, and dependent writes.
-- [ ] Define the logical version domain and total/partial ordering used by each checker.
-- [ ] Ensure every write and read record contains the key and the logical version/value observed or produced.
-- [ ] Encode client program order explicitly, for example with a per-client sequence number.
-- [ ] Encode causal dependencies explicitly; for WFR, record a field such as `y.source_version = v_r`.
-- [ ] Do not use wall-clock timestamps, MongoDB object-ID ordering, or response time as a substitute for logical version ordering.
-- [ ] Define how visibility is observed for MW before writing the MW checker tests.
-- [ ] Define how a history is considered complete, truncated, malformed, or invalid.
-- [ ] Define canonical serialization and hashing for a history so the same input yields the same analysis result.
+- [ ] Choose a small document model that represents ordered writes, observed versions, and dependent writes.
+- [ ] Define the logical version type and comparison rule.
+- [ ] Put the key and logical version/value in every read and write record.
+- [ ] Put client program order in every relevant record, for example with `client_sequence`.
+- [ ] Put causal dependencies in the record. For WFR, store a value such as `y.source_version = v_r`.
+- [ ] Do not use wall-clock time, ObjectId order, or response order as the version order.
+- [ ] Define how MW visibility will be observed and tested.
+- [ ] Define how the checker handles an incomplete, malformed, or truncated history.
+- [ ] Define a canonical serialization and hash for a history.
 
-## 4. Implement the independent history recorder
+## 5. Record operations and faults
 
-- [ ] Emit one structured record per attempted operation.
-- [ ] Include the required fields:
-  - [ ] `trial_id`, `client_id`, `session_id`, and `operation_id`.
-  - [ ] `operation_type`, `key`, and `value_or_version`.
-  - [ ] `target_node`, read concern, write concern, and causal-session flag.
-  - [ ] Invocation/response interval, success/error, and dependency metadata.
-- [ ] Add client sequence, fault event ID, member ID/role, error code, timeout category, and runner/container identifiers where available.
-- [ ] Flush records safely during faults so a process failure does not silently erase the history prefix.
-- [ ] Record fault start/end events in the same trial namespace as operations.
-- [ ] Record the configuration manifest and software versions beside every raw history.
-- [ ] Validate records on write and again during offline replay.
-- [ ] Add a small fixture history for each required consistency property and each outcome class.
+- [ ] Write one structured record for every attempted operation.
+- [ ] Include `trial_id`, `client_id`, `session_id`, and `operation_id`.
+- [ ] Include `operation_type`, `key`, and `value_or_version`.
+- [ ] Include `target_node`, read concern, write concern, and causal-session state.
+- [ ] Include invocation time, response time, success/error, and dependency metadata.
+- [ ] Add client sequence, fault event ID, member ID/role, error code, timeout type, runner ID, and container image when available.
+- [ ] Flush records during faults so a failed process does not silently lose the history prefix.
+- [ ] Record fault start and end events under the same trial ID.
+- [ ] Store the settings manifest and software versions beside each raw history.
+- [ ] Validate records when they are written and during replay.
+- [ ] Add one small fixture for each property and each result label.
 
-## 5. Implement and test the formal checkers first
+## 6. Write the checkers before the workloads
 
-- [ ] Implement a strict parser/validator that rejects or explicitly diagnoses missing fields, duplicate operation IDs, impossible dependencies, and unknown schema versions.
-- [ ] Implement RYW: after `W_c(x, v_w)` and a later `R_c(x, v_r)`, flag a counterexample when `v_r < v_w`.
-- [ ] Implement MR: for successive reads `R_i(x, v_i)` and `R_(i+1)(x, v_j)` by one client, flag a counterexample when `v_j < v_i`.
-- [ ] Implement MW using the previously documented visibility observation for ordered writes `W1 -> W2`.
-- [ ] Implement WFR using explicit read-to-dependent-write metadata and the documented visibility rule.
-- [ ] Return structured evidence for every finding: trial, operations, versions, dependency, member, configuration, and fault event.
-- [ ] Classify outcomes exactly as `PASS`, `VIOLATION`, or `UNAVAILABLE`.
-- [ ] Ensure errors, blocks, and timeouts before a successful history are never counted as consistency violations.
-- [ ] Add unit tests for a valid history and a minimal counterexample for RYW, MR, MW, and WFR.
-- [ ] Add tests proving unavailable operations are excluded from the violation denominator.
-- [ ] Add tests for malformed records and verify fail-closed diagnostics.
-- [ ] Add deterministic replay tests: identical canonical history plus checker version produces identical output.
+- [ ] Add a strict parser that reports missing fields, duplicate IDs, bad dependencies, and unknown schema versions.
+- [ ] RYW: after `W_c(x, v_w)` and a later `R_c(x, v_r)`, report a counterexample when `v_r < v_w`.
+- [ ] MR: for successive reads `R_i(x, v_i)` and `R_(i+1)(x, v_j)`, report a counterexample when `v_j < v_i`.
+- [ ] MW: for two ordered writes, use the documented visibility rule to find a missing predecessor.
+- [ ] WFR: use the recorded read dependency and the documented visibility rule for the dependent write.
+- [ ] Return the trial, operations, versions, members, setting, and fault event for every finding.
+- [ ] Return exactly `PASS`, `VIOLATION`, or `UNAVAILABLE` for each target history.
+- [ ] Keep blocks, timeouts, and errors before a successful history out of the violation count.
+- [ ] Add valid and counterexample fixtures for RYW, MR, MW, and WFR.
+- [ ] Add tests that prove an unavailable operation is not a violation.
+- [ ] Add malformed-history tests that fail with a useful error.
+- [ ] Add replay tests showing identical output for identical canonical input.
 
-### Gate 3 — checker contract is trusted
+### Checkpoint
 
-- [ ] All checker tests pass without MongoDB.
-- [ ] Each predicate is executable from a fixture and produces an inspectable counterexample.
-- [ ] A reviewer can explain every denominator and every outcome class from the checker output.
-- [ ] The checker has no dependency on workload-generator implementation details.
+- [ ] Checker tests pass without MongoDB.
+- [ ] Each predicate produces inspectable evidence from a fixture.
+- [ ] The denominator for every rate is clear from the checker output.
+- [ ] The checker does not import or call the workload generator.
 
-## 6. Build adversarial workloads
+## 7. Build four adversarial workloads
 
-- [ ] Implement one minimal deterministic workload/state machine per property before adding random or high-throughput workloads.
-- [ ] RYW workload: write a version, then read the same key through the selected client/session path.
-- [ ] MR workload: read an initial version, then force or target a later read that could return an older replica state.
-- [ ] MW workload: issue two ordered writes and observe whether the second can become visible without the required predecessor.
-- [ ] WFR workload: read a version, attach it as explicit dependency metadata to a dependent write, and test visibility of the dependent result.
-- [ ] Add valid control histories for each workload so a detected violation is not caused by an invalid workload itself.
-- [ ] Make client IDs, session IDs, operation IDs, and logical sequences deterministic for a fixed seed.
-- [ ] Keep workload generation separate from checking and analysis.
-- [ ] Define per-workload timeouts and a bounded stop condition for blocked operations.
-- [ ] Store the exact workload parameters and seed in the trial manifest.
+- [ ] Implement one small deterministic workload for each property before adding random or high-rate traffic.
+- [ ] RYW: write a version, then read the same key through the selected client/session path.
+- [ ] MR: read a version, then attempt a later read from a replica state that could be older.
+- [ ] MW: issue two ordered writes and inspect the visibility of the second and its predecessor.
+- [ ] WFR: read a version, attach it to a dependent write, and inspect the dependent result.
+- [ ] Add a valid control history for each workload.
+- [ ] Make IDs and client sequences deterministic for a fixed seed.
+- [ ] Keep workload generation separate from checking and aggregation.
+- [ ] Set a timeout and a bounded stop rule for a blocked operation.
+- [ ] Save workload parameters and seed in the trial manifest.
 
-## 7. Pre-register predictions and select the campaign
+## 8. Write predictions before the campaign
 
 - [ ] Create the prediction matrix before running the main campaign.
-- [ ] For each selected configuration × fault condition × property, record expected `PASS`, possible `VIOLATION`, or expected `UNAVAILABLE` behaviour and the theory/rationale.
-- [ ] Cover the candidate configurations:
-  - [ ] C1: `local` / `w: 1` / causal off.
-  - [ ] C2: `local` / `w: 1` / causal on.
-  - [ ] C3: `majority` / `w: 1` / causal on.
-  - [ ] C4: `local` / `majority` / causal on.
-  - [ ] C5: `majority` / `majority` / causal off.
-  - [ ] C6: `majority` / `majority` / causal on.
-- [ ] If a configuration is removed from the main campaign, document why its prediction is redundant or not testable.
-- [ ] Confirm the matrix was committed/versioned before result analysis begins.
-- [ ] Define the exact normal, secondary-failure, primary-failure/election, and partition schedules to be run for each selected configuration.
-- [ ] Define the repetition count and any fixed/randomized schedule order.
+- [ ] For every selected setting, fault case, and property, record the expected result and the theory behind it.
+- [ ] Review C1: `local` / `w: 1` / causal off.
+- [ ] Review C2: `local` / `w: 1` / causal on.
+- [ ] Review C3: `majority` / `w: 1` / causal on.
+- [ ] Review C4: `local` / `majority` / causal on.
+- [ ] Review C5: `majority` / `majority` / causal off.
+- [ ] Review C6: `majority` / `majority` / causal on.
+- [ ] Remove redundant settings from the main campaign only with a written reason.
+- [ ] Record the normal, secondary-failure, primary-failure/election, and partition schedule for each selected setting.
+- [ ] Record the repetition count and schedule order.
+- [ ] Commit the matrix before committing the main result files.
 
-### Gate 4 — no post-hoc predictions
+### Checkpoint
 
-- [ ] The prediction matrix has a commit timestamp/SHA or other repository evidence predating the main result artifacts.
-- [ ] The analysis code reads predictions as input and cannot silently rewrite them from observations.
+- [ ] The prediction matrix has a commit SHA older than the main result files.
+- [ ] Analysis reads the matrix and cannot rewrite it from observations.
 
-## 8. Implement controlled fault injection
+## 9. Add controlled faults
 
-- [ ] Normal operation: establish baseline availability and latency.
-- [ ] Secondary failure: stop one secondary, record the fault event, run the selected workload, and restore the member.
-- [ ] Primary failure: identify the current primary, stop it, record election and temporary unavailability, wait for recovery, and run post-election checks.
-- [ ] Network partition: keep the isolated member alive and block the explicitly documented client/replication path.
-- [ ] Verify that a partition test can actually query a stale member when that is part of the question; otherwise mark the test unsupported and redesign the topology.
-- [ ] Record exact fault start/end times for operational diagnostics while keeping logical predicates independent of those times.
-- [ ] Add cleanup and recovery checks after every fault so one trial cannot contaminate the next.
-- [ ] Add latency, packet loss, or bandwidth restrictions only after writing the question they answer and the expected effect.
-- [ ] Do not treat a killed node as equivalent to a network partition.
+- [ ] Normal operation: record baseline availability and latency.
+- [ ] Secondary failure: stop one secondary, record the event, run the workload, and restore the member.
+- [ ] Primary failure: identify the primary, stop it, record election and temporary unavailability, wait for recovery, and run post-election checks.
+- [ ] Network partition: keep the member alive and block the documented client or replication path.
+- [ ] Verify that the partition test can reach a stale member if that is part of the question.
+- [ ] If it cannot, mark the test unsupported and change the topology. Do not call a node crash a partition.
+- [ ] Record the fault interval for diagnosis. Do not use it as a consistency predicate.
+- [ ] Add latency, packet loss, or bandwidth limits only after writing the question and prediction they support.
+- [ ] Clean up and verify the replica set after every fault.
 
-## 9. Run the pilot and quality gates
+## 10. Run the pilot
 
-- [ ] Run checker fixtures and confirm all four predicates before connecting to MongoDB.
-- [ ] Run one end-to-end trial for each selected configuration under normal operation.
-- [ ] Run one bounded secondary-failure and primary-election smoke trial.
-- [ ] Run a partition smoke trial and inspect whether the intended stale-state path is real.
-- [ ] Verify every raw record contains the required fields and links to the trial manifest.
-- [ ] Manually inspect at least one trace for each property, including one unavailable case.
-- [ ] Confirm the analysis result can be regenerated after deleting all derived summaries and figures.
-- [ ] Confirm the checker does not count timeouts/errors as violations.
-- [ ] Fix schema, topology, or instrumentation problems now; do not patch them silently during the full campaign.
-- [ ] Freeze the pilot-approved versions, configurations, workload parameters, and fault schedules.
+- [ ] Run all checker fixtures.
+- [ ] Run one normal-operation trial for every selected setting.
+- [ ] Run one bounded secondary-failure trial.
+- [ ] Run one primary-election trial.
+- [ ] Run one partition trial and inspect whether the intended stale path exists.
+- [ ] Check every raw record against the schema.
+- [ ] Check that each history links to its setting, software manifest, and fault events.
+- [ ] Inspect at least one trace for each property and one unavailable operation.
+- [ ] Delete derived summaries and figures, then rebuild them from raw histories.
+- [ ] Fix schema, topology, and instrumentation issues before the main campaign.
+- [ ] Freeze the versions, settings, workloads, repetitions, and fault schedules used by the pilot.
 
-### Gate 5 — pilot is publishable evidence
+### Checkpoint
 
-- [ ] The pilot produces a complete raw history, checker output, manifest, and reproducible summary.
-- [ ] No required field, fault event, member identity, or outcome category is missing.
-- [ ] The partition topology is either validated or explicitly recorded as unavailable for the intended stale-read test.
+- [ ] The pilot produces raw history, checker output, manifest, and summary.
+- [ ] No member identity, fault event, required field, or result label is missing.
+- [ ] The partition path is verified or clearly marked unsupported.
 
-## 10. Run the main campaign
+## 11. Run the main campaign
 
-- [ ] Create a unique trial ID for every configuration × fault × property × repetition.
-- [ ] Reset to known logical state before every independent trial.
-- [ ] Record the exact code/configuration/checker versions used by every trial.
-- [ ] Run the pre-registered normal-operation scenarios.
-- [ ] Run the pre-registered secondary-failure scenarios.
-- [ ] Run the pre-registered primary-failure/election scenarios.
-- [ ] Run the pre-registered network-partition scenarios.
-- [ ] Preserve raw histories even when a run fails or becomes unavailable.
-- [ ] Record aborted, timed-out, and infrastructure-failure trials separately from valid unavailable operations.
-- [ ] Monitor disk space and output integrity without changing the workload or dropping traces.
-- [ ] Repeat failed trials only under a documented retry rule; never overwrite the original failed record.
-- [ ] Do not add configurations or fault types because their preliminary results look interesting unless the change is recorded as a new campaign.
+- [ ] Give every setting, fault case, property, and repetition a unique trial ID.
+- [ ] Reset the database before every independent trial.
+- [ ] Record code, settings, checker, server, driver, and container versions.
+- [ ] Run the registered normal-operation cases.
+- [ ] Run the registered secondary-failure cases.
+- [ ] Run the registered primary-failure/election cases.
+- [ ] Run the registered network-partition cases.
+- [ ] Keep raw histories for failed and unavailable trials.
+- [ ] Separate infrastructure failures from valid unavailable operations.
+- [ ] Watch disk space and file integrity without dropping traces.
+- [ ] Retry a failed trial only under a written rule. Never overwrite the original record.
+- [ ] Start a new campaign if settings or schedules change after the first main run.
 
-### Optional 5-member extension
+### Optional five-member comparison
 
-- [ ] Only consider five data-bearing members after the three-node campaign passes all gates.
-- [ ] Re-run setup, election, failure, partition, and checker smoke tests before collecting comparison results.
-- [ ] Keep five-member results clearly separated from the baseline and state why the extension answers a question.
+- [ ] Start only after the three-member campaign passes all checkpoints.
+- [ ] Repeat setup, election, failure, partition, and checker smoke tests.
+- [ ] Keep five-member results separate and state the question they answer.
 
-## 11. Analyse results offline
+## 12. Analyse raw histories
 
-- [ ] Make `make analyse` consume raw histories and manifests, not a live MongoDB connection.
+- [ ] Make `make analyse` read histories and manifests without a live MongoDB connection.
 - [ ] Validate and canonicalize every input history before aggregation.
 - [ ] Compute violation rate as `violating successful histories / successful histories`.
 - [ ] Compute availability rate as `successful operations / attempted operations`.
-- [ ] Keep `PASS`, `VIOLATION`, and `UNAVAILABLE` counts visible for every cell.
-- [ ] Report p50, p95, and p99 latency; do not report only the mean.
-- [ ] Measure primary-failure/election recovery time where the event is meaningful.
-- [ ] Generate the configuration × failure × property result matrix/heatmap.
-- [ ] Generate at least one exact-version counterexample trace for every reported real violation.
-- [ ] Generate a prediction-versus-observation-versus-explanation table.
-- [ ] Record repetition counts, workload shape, fault schedule, and software versions behind every aggregate.
-- [ ] Check for contradictory or impossible records and fail the analysis with an actionable diagnostic.
-- [ ] Confirm that zero observed violations is worded as bounded evidence, never as proof of a universal guarantee.
-- [ ] Review results separately for normal operation, secondary failure, election, and partition; do not collapse all failures into one category.
+- [ ] Show PASS, VIOLATION, and UNAVAILABLE counts for every setting, fault case, and property.
+- [ ] Report p50, p95, and p99 latency. Add the mean only as a secondary number.
+- [ ] Measure recovery after primary failure/election where the event is meaningful.
+- [ ] Generate the settings x fault cases x properties result table or heatmap.
+- [ ] Generate a counterexample trace for every real violation discussed in the report.
+- [ ] Generate a prediction, observation, and explanation table.
+- [ ] Record repetitions, workload, fault schedule, and software versions behind every aggregate.
+- [ ] Stop on contradictory or impossible records and report the cause.
+- [ ] Describe zero violations as an observation under the tested schedule, never as a universal proof.
+- [ ] Keep normal operation, secondary failure, election, and partition results separate.
 
-### Gate 6 — analysis is auditable
+### Checkpoint
 
-- [ ] A reviewer can trace every reported number to raw histories and a checker version.
-- [ ] Re-running analysis from the same raw inputs produces byte-stable or explicitly versioned equivalent outputs.
-- [ ] No plot or table contains a cell whose denominator or outcome classification is ambiguous.
+- [ ] Every reported number maps to raw histories and a checker version.
+- [ ] Re-running analysis with the same inputs gives the same output or a documented equivalent.
+- [ ] Every table denominator and result label is unambiguous.
 
-## 12. Write and verify the report
+## 13. Write the report
 
-- [ ] Write the abstract only after the analysis is frozen.
-- [ ] Describe the research questions and contribution.
-- [ ] Describe RYW, MR, MW, WFR, logical versions, causal precedence, and the relevant MongoDB semantics.
-- [ ] Describe the deployment architecture, exact versions, installation, reset, and fault controls.
-- [ ] Include the pre-measurement prediction matrix and explain why each configuration was selected.
-- [ ] Describe the workload generators, history schema, formal predicates, controls, repetitions, and fault model.
-- [ ] Present results with PASS/VIOLATION/UNAVAILABLE separation, availability, latency, and recovery metrics.
-- [ ] Explain representative histories and the mechanisms behind observed behaviour.
-- [ ] State all threats to validity: one-host logical replicas, synthetic Docker networking, nondeterministic scheduling/replication, finite trials, minimal workloads, and exact-version scope.
-- [ ] Describe the three-command reproduction workflow: `make setup`, `make experiment`, `make analyse`.
-- [ ] Add the conclusion with bounded claims and unanswered questions.
-- [ ] Add references for course lectures, MongoDB, PyMongo, fault-injection tooling, and AI usage.
-- [ ] Add appendices with Compose/setup commands, fault scripts, selected raw traces, checker pseudocode, and extra plots.
-- [ ] Include the priority figures: architecture, four minimal counterexamples, fault topology, result heatmap, representative trace, consistency/availability trade-off, and latency distribution.
-- [ ] Include the priority tables: predicates, versions, predictions, controls/variables, quantitative results, prediction/observation/explanation, and limitations/mitigations.
-- [ ] Remove installation screenshots unless one directly proves an experimental observation.
+- [ ] Write the abstract after the analysis is fixed.
+- [ ] State the research questions and the contribution.
+- [ ] Define RYW, MR, MW, WFR, logical versions, causal precedence, and the MongoDB settings used.
+- [ ] Describe the topology, exact versions, installation, reset, and fault controls.
+- [ ] Include the prediction matrix and the reason for each setting.
+- [ ] Describe workloads, history fields, predicates, controls, repetitions, and faults.
+- [ ] Present results with separate PASS, VIOLATION, and UNAVAILABLE counts, availability, latency, and recovery.
+- [ ] Explain representative histories and the system behaviour that produced them.
+- [ ] State the limits of one-host containers, synthetic network faults, timing variation, finite trials, small workloads, and version scope.
+- [ ] Document `make setup`, `make experiment`, and `make analyse`.
+- [ ] Add the conclusion with claims limited to the tested system.
+- [ ] Cite course lectures, MongoDB, PyMongo, fault-injection tools, and the required AI-use disclosure.
+- [ ] Add the appendix with Compose/setup commands, fault scripts, selected traces, checker pseudocode, and extra plots.
+- [ ] Add the architecture, counterexample, fault-topology, result, violation-trace, trade-off, and latency figures.
+- [ ] Add the properties, versions, predictions, controls, results, explanation, and limits tables.
+- [ ] Leave installation screenshots out unless one proves an experimental observation.
 
-## 13. Reproducibility and submission closeout
+## 14. Reproduce and submit
 
-- [ ] Test from a fresh checkout on the documented host/environment.
-- [ ] Run the complete command sequence without undocumented manual edits.
-- [ ] Verify Compose teardown/reset leaves no hidden state that changes results.
-- [ ] Verify all source code, scripts, tests, and brief reproduction instructions are present.
-- [ ] Verify report references point to the exact versions and tools actually used.
-- [ ] Verify raw traces used in the report are present, readable, and linked to summaries/figures.
-- [ ] Verify the final PDF opens, has readable figures/tables, and contains no placeholder text.
-- [ ] Verify the AI-use disclosure is complete and accurate.
-- [ ] Record the final repository commit SHA and the commands used for the final artifact build.
-- [ ] Submit the PDF and reproducibility package to Canvas before 27 September 2026.
-- [ ] Archive the final raw-data manifest, summary manifest, figure manifest, and report checksum if permitted by the course submission rules.
+- [ ] Test from a fresh checkout on the documented host.
+- [ ] Run the command sequence without undocumented manual edits.
+- [ ] Check that teardown and reset leave no hidden state.
+- [ ] Check that all code, scripts, tests, and short reproduction instructions are present.
+- [ ] Check that references match the versions and tools actually used.
+- [ ] Check that every trace used by the report is readable and linked to its summary and figure.
+- [ ] Open the final PDF and inspect figures, tables, and placeholder text.
+- [ ] Add the required disclosure of any AI or generative tools used.
+- [ ] Record the final commit SHA and the commands used to build the submitted files.
+- [ ] Submit the PDF and reproduction package to Canvas by 27 September 2026.
+- [ ] Keep a copy of the final raw-data, summary, figure, and report manifests if the course permits it.
 
-## 14. Parking lot — do only with a written question
+## 15. Later work only with a clear question
 
-- [ ] Five-member replica set after the three-node baseline is stable.
-- [ ] Controlled latency injection.
-- [ ] Controlled packet loss.
-- [ ] Bandwidth restriction.
-- [ ] Any orchestration or observability stack beyond Docker Compose and the experiment scripts.
+- [ ] Five-member replica set.
+- [ ] Controlled latency.
+- [ ] Packet loss.
+- [ ] Bandwidth limits.
+- [ ] Extra orchestration or monitoring services.
 
-Do not check a parking-lot item merely to make the system look more sophisticated. Each extension must have a research question, prediction, fault schedule, and interpretation plan.
+For any later item, write the question, prediction, fault schedule, and analysis plan first.

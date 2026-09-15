@@ -1,83 +1,76 @@
-# Report and reproducibility plan
+# Report plan
 
-## 1. Proposed report
+## Title
 
-Proposed title:
+Experimental Evaluation of Client-Centric Consistency in MongoDB under Replica Failures and Network Partitions
 
-> Experimental Evaluation of Client-Centric Consistency in MongoDB under Replica Failures and Network Partitions
+Write each result in this order: question, theory, prediction, experiment, recorded history, checker output, and explanation.
 
-The report should read as a small experimental-systems paper, not as an installation log. Each result should follow:
+## Sections
 
-```text
-Question -> Theory -> Prediction -> Adversarial Experiment
-         -> Recorded History -> Checker -> Explanation
-```
+1. **Abstract:** question, method, main measurements, and limits of the claims.
+2. **Introduction:** motivation, contribution, and research questions.
+3. **Background and formal model:** RYW, MR, MW, WFR, causal precedence, logical versions, and MongoDB semantics used in the tests.
+4. **Deployment and settings:** architecture, exact software versions, installation steps, and selected settings.
+5. **Predictions:** the prediction matrix and the reason for each prediction, written before reading the main results.
+6. **Method and fault model:** workloads, history fields, checker predicates, controls, repetitions, and fault schedules.
+7. **Results:** counts, rates, latency, recovery, and representative histories.
+8. **Discussion:** prediction versus observation, mechanisms, and the consistency, availability, and latency trade-off.
+9. **Limits:** container topology, synthetic network faults, timing variation, finite trials, workload scope, and version scope.
+10. **Reproduction:** commands, repository layout, and steps for rebuilding tables and figures.
+11. **Conclusion:** findings limited to the tested system and open questions.
+12. **References and tool-use disclosure:** MongoDB, PyMongo, course material, fault-injection tools, and the required AI-use disclosure.
 
-## 2. Section outline
+Put Compose commands, fault scripts, selected raw traces, checker pseudocode, and extra plots in the appendix.
 
-1. **Abstract** — question, method, main measured trade-offs, and scope of claims.
-2. **Introduction** — motivation, contribution, and research questions.
-3. **Background and formal model** — RYW, MR, MW, WFR, causal precedence, logical versions, and relevant MongoDB semantics.
-4. **MongoDB deployment and configuration** — architecture, software versions, installation procedure, and selected configurations.
-5. **Predictions and hypotheses** — predictions written before measurements are interpreted.
-6. **Experimental methodology and fault model** — workloads, history schema, checker predicates, controls, repetitions, and faults.
-7. **Results** — quantitative summaries, representative traces, and availability/latency effects.
-8. **Discussion** — prediction versus observation, mechanisms, and consistency–availability–latency trade-offs.
-9. **Threats to validity and limitations** — container topology, synthetic network faults, nondeterminism, finite sampling, workload scope, and version scope.
-10. **Reproducibility** — setup, experiment, analysis commands, repository layout, and how to regenerate tables and figures.
-11. **Conclusion** — bounded conclusions and unanswered questions.
-12. **References and AI usage** — all technical sources and the required AI-use disclosure.
+## Figures
 
-Appendix material should include installation commands, Docker Compose configuration, fault scripts, selected raw traces, checker pseudocode, and additional plots.
+1. Test setup: runner, MongoDB replica set, fault controller, history recorder, and checker.
+2. One minimal counterexample history for each of RYW, MR, MW, and WFR.
+3. The three fault layouts: normal operation, node crash, and network partition.
+4. Results by setting, fault case, and consistency property.
+5. One real violation trace with logical versions and member identities.
+6. Consistency versus availability.
+7. Latency distribution with p50, p95, and p99, an ECDF, or a box plot.
 
-## 3. Priority figures
+Do not use terminal, Docker Desktop, VS Code, or installation screenshots in the main report unless a screenshot proves an observation.
 
-1. Experimental architecture: runner, MongoDB replica set, fault controller, history recorder, and checker.
-2. Four minimal counterexample histories for RYW, MR, MW, and WFR.
-3. Fault topology for normal operation, node crash, and network partition.
-4. Main-result heatmap across configuration × failure × consistency property.
-5. One representative real violation trace with exact versions and node identities.
-6. Consistency/availability trade-off.
-7. Latency distribution, preferably p50/p95/p99, ECDF, or box plot.
+## Tables
 
-Do not use terminal, Docker Desktop, VS Code, or installation screenshots in the main report unless a screenshot directly proves an experimental observation.
+1. Properties and executable checker predicates.
+2. Software, hardware, and deployment versions.
+3. Predictions made before the campaign.
+4. Controls and independent variables.
+5. Results: successful histories, violations, availability, and latency.
+6. Prediction, observation, and explanation.
+7. Limits and mitigations.
 
-## 4. Priority tables
+## Claims and evidence
 
-1. Formal consistency properties and executable violation predicates.
-2. Exact software, hardware, and deployment versions.
-3. Prediction matrix prepared before results.
-4. Experimental controls and independent variables.
-5. Main quantitative results: violations, successful histories, availability, and latency.
-6. Prediction versus observation versus explanation.
-7. Threats to validity and mitigations.
+The report needs to show five things:
 
-## 5. Evidence rules
+1. Predictions were recorded before the results were interpreted.
+2. Each reported violation has an executable predicate.
+3. The workloads tried to create the predicted counterexamples.
+4. A consistency violation is separate from an unavailable or timed-out operation.
+5. Another person can run the experiment from the documented commands.
 
-The project should make five facts obvious to the marker:
+Zero violations in a finite campaign means that no counterexample appeared under the tested workload and fault schedule. It does not establish a universal guarantee.
 
-1. Predictions were made before measurements were interpreted.
-2. Each alleged consistency violation has a formal, executable predicate.
-3. Experiments actively try to falsify predictions using adversarial replica states.
-4. Consistency violations are distinguished from unavailability and timeouts.
-5. The full experiment can be reproduced from a small documented command sequence.
+## Reproduction package
 
-Zero observed violations means only that no counterexample was observed under the tested workload and fault schedule. It does not prove a universal guarantee.
-
-## 6. Reproducibility package
-
-The repository should converge on this layout:
+Use this layout as the implementation grows:
 
 ```text
 results/raw/       raw operation histories
 results/summary/   aggregated metrics
 figures/           generated plots
-scripts/           setup and fault-injection scripts
+scripts/           setup and fault scripts
 src/               experiment runner and checkers
 tests/             checker unit tests
 ```
 
-Target commands:
+The target commands are:
 
 ```bash
 make setup
@@ -85,13 +78,13 @@ make experiment
 make analyse
 ```
 
-The analysis command must be able to regenerate summaries and plots from the raw histories without requiring a live cluster. Raw traces used in the report must remain linked to their configuration, fault schedule, software versions, and checker version.
+`make analyse` must rebuild the summaries and figures from `results/raw/` without a live cluster. Every trace used in the report must identify its setting, fault schedule, software versions, and checker version.
 
-## 7. Sources to cite
+## Sources
 
-- DSA5208 Lecture 1: physical and logical times, causal precedence, and Lamport logical clocks.
-- DSA5208 Lecture 3: the four client-centric models and MongoDB read/write concern, majority snapshots, and causal-session discussion.
-- Official MongoDB documentation for causal consistency, read concern, write concern, replica sets, elections, and the exact server version used.
-- PyMongo documentation for session and read/write concern APIs.
-- Documentation for any fault-injection tool used.
-- AI usage disclosure required by the assignment.
+- DSA5208 Lecture 1: physical and logical time, causal precedence, and Lamport clocks.
+- DSA5208 Lecture 3: the four client-centric models, MongoDB read/write concern, majority snapshots, and causal sessions.
+- MongoDB documentation for causal consistency, read concern, write concern, replica sets, elections, and the server version used.
+- PyMongo documentation for sessions and read/write concern APIs.
+- Documentation for each fault-injection tool used.
+- The AI-use disclosure required by the course.
