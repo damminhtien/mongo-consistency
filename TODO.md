@@ -22,6 +22,7 @@ The source gives 27 September 2026 as the Canvas deadline.
 - [x] Put the system choice, research questions, settings, and limits in [docs/project-plan.md](docs/project-plan.md).
 - [x] Put the history format, checker rules, fault cases, and metrics in [docs/experimental-protocol.md](docs/experimental-protocol.md).
 - [x] Put the report structure and output list in [docs/report-plan.md](docs/report-plan.md).
+- [x] Add repository documentation checks for Markdown, text, LaTeX, and PDF files.
 
 ## 1. Fix the choices
 
@@ -35,7 +36,7 @@ The source gives 27 September 2026 as the Canvas deadline.
 - [ ] Keep Kubernetes, Docker Swarm, Prometheus, Grafana, service meshes, and unnecessary network impairments out of the baseline.
 - [ ] Record changes to versions, settings, predicates, or topology in the repository history.
 
-### Checkpoint
+### Scope check
 
 - [ ] A reviewer can find the stack, topology, settings, trial count, and fault cases without asking for missing details.
 - [ ] No decision depends on a result that has not been collected yet.
@@ -56,7 +57,7 @@ The source gives 27 September 2026 as the Canvas deadline.
 - [ ] Add a schema version to each machine-readable result file.
 - [ ] Check that the runner cannot read credentials, browser data, or unrelated host files.
 
-### Checkpoint
+### Command check
 
 - [ ] `make test` works without a running MongoDB cluster.
 - [ ] Each of `make setup`, `make experiment`, and `make analyse` reports missing prerequisites clearly.
@@ -77,7 +78,7 @@ The source gives 27 September 2026 as the Canvas deadline.
 - [ ] Verify that the runner can reach a selected member when a direct stale-member read is needed.
 - [ ] Record any limitation that prevents separate client and replication paths.
 
-### Checkpoint
+### Harness check
 
 - [ ] A fresh `make setup` reaches the expected topology repeatedly.
 - [ ] Reset and teardown do not depend on manual Docker Desktop actions.
@@ -125,7 +126,7 @@ The source gives 27 September 2026 as the Canvas deadline.
 - [ ] Add malformed-history tests that fail with a useful error.
 - [ ] Add replay tests showing identical output for identical canonical input.
 
-### Checkpoint
+### Checker check
 
 - [ ] Checker tests pass without MongoDB.
 - [ ] Each predicate produces inspectable evidence from a fixture.
@@ -160,7 +161,7 @@ The source gives 27 September 2026 as the Canvas deadline.
 - [ ] Record the repetition count and schedule order.
 - [ ] Commit the matrix before committing the main result files.
 
-### Checkpoint
+### Prediction check
 
 - [ ] The prediction matrix has a commit SHA older than the main result files.
 - [ ] Analysis reads the matrix and cannot rewrite it from observations.
@@ -191,7 +192,7 @@ The source gives 27 September 2026 as the Canvas deadline.
 - [ ] Fix schema, topology, and instrumentation issues before the main campaign.
 - [ ] Freeze the versions, settings, workloads, repetitions, and fault schedules used by the pilot.
 
-### Checkpoint
+### Pilot check
 
 - [ ] The pilot produces raw history, checker output, manifest, and summary.
 - [ ] No member identity, fault event, required field, or result label is missing.
@@ -226,7 +227,7 @@ The source gives 27 September 2026 as the Canvas deadline.
 - [ ] Compute availability rate as `successful operations / attempted operations`.
 - [ ] Show PASS, VIOLATION, and UNAVAILABLE counts for every setting, fault case, and property.
 - [ ] Report p50, p95, and p99 latency. Add the mean only as a secondary number.
-- [ ] Measure recovery after primary failure/election where the event is meaningful.
+- [ ] Measure recovery after a recorded primary failure/election.
 - [ ] Generate the settings x fault cases x properties result table or heatmap.
 - [ ] Generate a counterexample trace for every real violation discussed in the report.
 - [ ] Generate a prediction, observation, and explanation table.
@@ -235,7 +236,7 @@ The source gives 27 September 2026 as the Canvas deadline.
 - [ ] Describe zero violations as an observation under the tested schedule, never as a universal proof.
 - [ ] Keep normal operation, secondary failure, election, and partition results separate.
 
-### Checkpoint
+### Analysis check
 
 - [ ] Every reported number maps to raw histories and a checker version.
 - [ ] Re-running analysis with the same inputs gives the same output or a documented equivalent.

@@ -14,7 +14,7 @@ The repository currently contains the project brief, design notes, and execution
 
 ## Source
 
-The documents were prepared from [DSA5208 Scalable Distributed GRP Project](https://docs.google.com/document/d/1X4Lq5Za8d1jb-YOE-K-uBAOfwCax-soaJb-1WFeHJ80/edit), read on 15 September 2026. The Google Doc contains both the course brief and the agreed project plan. Use the course document if a requirement in this repository is unclear.
+The documents were prepared from [DSA5208 Scalable Distributed GRP Project](https://docs.google.com/document/d/1X4Lq5Za8d1jb-YOE-K-uBAOfwCax-soaJb-1WFeHJ80/edit), read on 15 September 2026. The Google Doc contains both the course brief and the agreed project plan. Use that document if a requirement here is unclear.
 
 ## Intended commands
 
@@ -25,3 +25,9 @@ make analyse
 ```
 
 These commands are part of the target interface. The implementation has not been added yet.
+
+## Documentation checks
+
+Run `make check-docs` after changing Markdown, text, LaTeX, or PDF files. The checker scans the repository recursively, skips local agent metadata and tool caches, and checks prose, links, repeated structure, and unsupported claims. For PDFs it also runs `pdfinfo` and `pdftotext -layout`.
+
+Run `make test` to run the checker tests without requiring a MongoDB cluster.
