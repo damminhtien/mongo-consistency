@@ -1,0 +1,11 @@
+\section{Method and fault model}
+
+The runner has five separate responsibilities: generate a short workload, issue operations to MongoDB, record the complete history, check the history offline, and aggregate metrics. Keeping the checker independent of the generator makes a saved trace sufficient for replay.
+
+Each operation record contains \texttt{trial\_id}, \texttt{client\_id}, \texttt{session\_id}, \texttt{operation\_id}, operation type, key, value or version, target member, read concern, write concern, causal-session state, invocation and response times, success or error, and dependency metadata. Client sequence, fault event, member role, error code, timeout class, serialization version, and history hash are recorded when available.
+
+The four deterministic workloads attempt one property at a time. RYW writes and then reads one key through the selected client path. MR performs successive reads that can reach different member states. MW issues ordered writes and observes their visibility. WFR reads a version, attaches that version as a dependent-write field, and checks the dependent result. Control histories cover the corresponding valid ordering.
+
+Normal trials provide a baseline. A secondary-failure trial stops one secondary and records the fault interval. A primary-failure trial records the stopped member, election interval, temporary errors, elected member, and post-election recovery. A partition trial records which client and replication paths were blocked and verifies whether a stale-member path was reachable.
+
+The minimum summary contains attempted operations, successful histories, counts for the three result labels, violation rate, availability rate, p50, p95, and p99 latency, and recovery time after an election. Violation rate uses violating successful histories divided by successful histories. Availability rate uses successful operations divided by attempted operations.

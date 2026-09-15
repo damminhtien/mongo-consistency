@@ -1,0 +1,25 @@
+\section{Reproduction}
+
+The source tree reserves the following paths:
+
+\begin{verbatim}
+configs/            settings, workloads, repetitions, fault schedules
+results/raw/        operation histories and trial manifests
+results/summary/    derived tables and metrics
+figures/            plots generated from raw histories
+scripts/            setup, teardown, fault, build, and check commands
+src/                runner, recorder, checker, and analysis code
+tests/              offline and harness tests
+submission/         LaTeX source, bibliography, and metadata
+\end{verbatim}
+
+The target interface is:
+
+\begin{verbatim}
+make setup
+make experiment
+make analyse
+make submission
+\end{verbatim}
+
+The current checkout implements the documentation check and report packaging target. The cluster runner, workloads, checker predicates, and analysis command remain registered work items in \texttt{TODO.md}. The report build can therefore be tested before MongoDB is installed, while the final archive remains explicit about missing evidence.

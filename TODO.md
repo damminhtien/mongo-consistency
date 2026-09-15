@@ -23,6 +23,7 @@ The source gives 27 September 2026 as the Canvas deadline.
 - [x] Put the history format, checker rules, fault cases, and metrics in [docs/experimental-protocol.md](docs/experimental-protocol.md).
 - [x] Put the report structure and output list in [docs/report-plan.md](docs/report-plan.md).
 - [x] Add repository documentation checks for Markdown, text, LaTeX, and PDF files.
+- [x] Add a LaTeX report layout and `make submission` package build.
 
 ## 1. Fix the choices
 

@@ -1,0 +1,67 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[a4paper,margin=2.3cm]{geometry}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{longtable}
+\usepackage{textcomp}
+\usepackage{url}
+\usepackage[hidelinks]{hyperref}
+
+\input{submission/generated-metadata.tex}
+\graphicspath{{submission/figures/}}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{5pt}
+
+\title{\ProjectTitle}
+\author{\TeamName\\\TeamMembers}
+\date{\SubmissionDate}
+
+\begin{document}
+
+\maketitle
+
+\begin{center}
+\textbf{\CourseCode{} project submission}
+\end{center}
+
+\section*{Submission status}
+
+\begin{tabular}{@{}p{0.34\linewidth}p{0.58\linewidth}@{}}
+\toprule
+Report source & \texttt{submission/report.tex} \\
+Evidence state & \texttt{NOT COLLECTED} in this checkout \\
+Result labels & \texttt{PASS}, \texttt{VIOLATION}, and \texttt{UNAVAILABLE} \\
+Reproduction entry point & \texttt{make submission} \\
+\bottomrule
+\end{tabular}
+
+\vfill
+
+\noindent Team data and experiment evidence must be updated in the source tree before the final Canvas upload. The build keeps missing measurements visible instead of assigning values.
+
+\newpage
+
+\input{submission/sections/01-abstract.tex}
+\input{submission/sections/02-introduction.tex}
+\input{submission/sections/03-background.tex}
+\input{submission/sections/04-deployment.tex}
+\input{submission/sections/05-predictions.tex}
+\input{submission/sections/06-method.tex}
+\input{submission/sections/07-results.tex}
+\input{submission/sections/08-discussion.tex}
+\input{submission/sections/09-limits.tex}
+\input{submission/sections/10-reproduction.tex}
+\input{submission/sections/11-conclusion.tex}
+
+\bibliographystyle{plain}
+\bibliography{submission/report}
+
+\input{submission/sections/12-tool-use.tex}
+\appendix
+\input{submission/sections/13-appendix.tex}
+
+\end{document}

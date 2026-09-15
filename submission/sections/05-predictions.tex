@@ -1,0 +1,24 @@
+\section{Predictions}
+
+The prediction matrix must be committed before the main result files. The matrix describes expected behaviour from the settings and fault model; it is not rewritten from observations.
+
+\begin{longtable}{@{}p{0.10\linewidth}p{0.23\linewidth}p{0.24\linewidth}p{0.32\linewidth}@{}}
+\caption{Prediction matrix to freeze before the main campaign.}\label{tab:predictions}\\
+\toprule
+ID & Setting & Expected protection & Expected failure response \\
+\midrule
+\endfirsthead
+\toprule
+ID & Setting & Expected protection & Expected failure response \\
+\midrule
+\endhead
+C1 & local, \texttt{w: 1}, causal off & Weakest ordering signal & A stale or causally older successful read is possible under a suitable stale path; an operation can also be unavailable. \\
+C2 & local, \texttt{w: 1}, causal on & Session metadata is present, but local reads and primary-only writes limit the documented causal guarantees & The client may wait or fail, or may return a successful history outside the protected combination. \\
+C3 & majority, \texttt{w: 1}, causal on & Majority reads and primary-only writes provide a mixed durability and ordering case & A failure can produce waiting or unavailable operations; the prediction must be checked against recorded histories. \\
+C4 & local, majority, causal on & Majority acknowledgement for writes with local reads & The read path can still expose a state that differs from the write path during faults. \\
+C5 & majority, majority, causal off & Majority visibility without session ordering & Successful operations should be compared with C6 to isolate the causal-session effect. \\
+C6 & majority, majority, causal on & Strongest candidate causal setting in the matrix & A counterexample may become an unavailable operation rather than a returned older state. \\
+\bottomrule
+\end{longtable}
+
+These are testable predictions for the registered workloads and fault schedules. They are not results. Each row needs the chosen repetitions, seed policy, reset rule, and version manifest before the main campaign starts.

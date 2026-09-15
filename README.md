@@ -22,9 +22,20 @@ The documents were prepared from [DSA5208 Scalable Distributed GRP Project](http
 make setup
 make experiment
 make analyse
+make submission
 ```
 
-These commands are part of the target interface. The implementation has not been added yet.
+The cluster and analysis targets remain planned. `make submission` is available now: it checks the source documents, compiles the LaTeX report, checks the extracted PDF text, and writes a filtered zip archive with a SHA-256 manifest. It requires `latexmk` or a LaTeX engine with `bibtex`.
+
+## Submission layout
+
+- [Report source](submission/report.tex): LaTeX entry point.
+- [Report sections](submission/sections): one file per report section.
+- [Report bibliography](submission/report.bib): course, MongoDB, PyMongo, and fault-tool sources.
+- [Build metadata](submission/metadata.mk): course, team, date, and AI-use disclosure fields.
+- [Package notes](submission/package-readme.md): archive contents and evidence status.
+
+The build writes the PDF to `output/pdf/` and the archive and manifest to `output/submission/`. Generated output and temporary files are ignored. Local `.codex/` and `AGENTS*` files are never included in the archive.
 
 ## Documentation checks
 

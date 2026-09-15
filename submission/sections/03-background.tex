@@ -1,0 +1,14 @@
+\section{Background and formal model}
+
+Let $v$ denote a logical version ordered by the version rule used by the experiment. A write is written as $W_c(x,v)$ and a read as $R_c(x,v)$. The checker compares versions and recorded dependencies; response timestamps are used for latency and diagnosis only.
+
+\begin{description}
+\item[RYW] After client $c$ writes $W_c(x,v_w)$, a later read of $x$ must not return a version $v_r < v_w$.
+\item[MR] For successive reads of the same key by one client, the later returned version must not be lower than the earlier version.
+\item[MW] Ordered writes by one client must become visible in the recorded order under the stated visibility observation.
+\item[WFR] A write that records a dependency on a read version must not become visible in a state older than that dependency.
+\end{description}
+
+MongoDB causal sessions track operation and cluster time, but the documented causal guarantees depend on the read and write concerns used by the operations in the session \cite{mongodb-read-isolation,pymongo-sessions}. The campaign treats those settings as independent inputs and records the exact combination for each trial.
+
+The result labels have distinct meanings. \texttt{PASS} means that a successful history satisfies its target predicate. \texttt{VIOLATION} means that a successful history contains a counterexample for the predicate. \texttt{UNAVAILABLE} means that the required operation did not produce a successful history because it blocked, timed out, or failed.

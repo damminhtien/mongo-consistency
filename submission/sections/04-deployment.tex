@@ -1,0 +1,25 @@
+\section{Deployment and settings}
+
+The baseline deployment is a three-member MongoDB replica set in Docker Compose. The runner uses Python and PyMongo. The design keeps the cluster on one host and records the server version, driver version, Python version, Docker Engine version, Compose version, member identities, and observed roles with each trial \cite{mongodb-replication}.
+
+The candidate settings are listed in Table~\ref{tab:settings}. The final campaign must retain only settings with distinct predictions or a written reason for retaining a control. The exact values used in a run belong in its settings manifest rather than in a report-only table.
+
+\begin{table}[ht]
+\centering
+\caption{Candidate read, write, and session settings.}
+\label{tab:settings}
+\begin{tabular}{@{}llll@{}}
+\toprule
+ID & Read concern & Write concern & Causal session \\
+\midrule
+C1 & \texttt{local} & \texttt{w: 1} & off \\
+C2 & \texttt{local} & \texttt{w: 1} & on \\
+C3 & \texttt{majority} & \texttt{w: 1} & on \\
+C4 & \texttt{local} & \texttt{majority} & on \\
+C5 & \texttt{majority} & \texttt{majority} & off \\
+C6 & \texttt{majority} & \texttt{majority} & on \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The fault cases are normal operation, one secondary stopped, primary failure followed by election, and a network partition. A partition is counted only when the isolated member stays alive and the blocked client or replication paths are recorded. A node stop is not labelled a partition.
