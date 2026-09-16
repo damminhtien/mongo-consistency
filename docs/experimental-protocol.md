@@ -185,6 +185,8 @@ retryReads=false
 
 The campaign uses a seeded, stratified shuffle. The seed is `20260915 + campaign_ordinal`. Each case receives a new trial ID and namespace. The normal baseline contains 320 histories. The adversarial campaign contains 960 histories. Pilot execution uses five adversarial repetitions and one normal smoke trial per configuration/property cell.
 
+The runner publishes each history and the campaign manifest with an atomic file replacement. A first `SIGINT` or `SIGTERM` requests a graceful stop: the active trial is allowed to finish its cleanup, the partial manifest is marked `INTERRUPTED`, and the process exits with status 130. A second signal force-stops the runner; histories already published remain valid. Re-running `make experiment` uses `--resume`, reconstructs the same shuffled ordinal list, validates every existing history against its trial ID, configuration, property, adversarial flag, and seed, and skips only validated files. It never reuses a file with a different case identity. The manifest records the expected and completed counts and the first missing ordinal. A fresh run is available with `make experiment-fresh` only when the campaign output directory is empty.
+
 ## Offline analysis
 
 `make analyse` reads only raw histories, manifests, and the frozen prediction manifest. It recomputes checker outcomes, outcome counts, operation success, history completion, consistency violation rate, p50/p95/p99 latency, election and recovery time, and the read-concern, write-concern, causal-session main effects and interactions. It writes summaries and figures without connecting to MongoDB.

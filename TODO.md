@@ -48,6 +48,7 @@ The project is complete when the documents, implementation, raw histories, analy
 - [x] Implement seeded stratified campaign order.
 - [x] Implement pilot, normal baseline, and adversarial campaign modes.
 - [x] Preserve raw histories, manifests, fault events, errors, and hashes.
+- [x] Add atomic history/manifest writes, graceful shutdown, and deterministic campaign resume.
 
 ## Tests and gates
 

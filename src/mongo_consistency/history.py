@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -123,7 +124,7 @@ def write_history(path: Path, history: History) -> str:
         raise ValueError(f"Cannot write invalid history: {'; '.join(errors)}")
     path.parent.mkdir(parents=True, exist_ok=True)
     history.history_hash = compute_history_hash(history)
-    path.write_bytes(
+    payload = (
         json.dumps(
             history.to_dict(),
             ensure_ascii=True,
@@ -132,4 +133,10 @@ def write_history(path: Path, history: History) -> str:
         ).encode("utf-8")
         + b"\n"
     )
+    temporary_path = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    try:
+        temporary_path.write_bytes(payload)
+        os.replace(temporary_path, path)
+    finally:
+        temporary_path.unlink(missing_ok=True)
     return history.history_hash

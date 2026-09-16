@@ -70,6 +70,7 @@ services:
       dockerfile: infra/runner/Dockerfile
     networks: [client_net]
     read_only: true
+    stop_grace_period: 90s
     tmpfs: [/tmp]
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]

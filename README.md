@@ -23,11 +23,14 @@ make check-schemas
 make setup
 make pilot
 make experiment
+make experiment-fresh
 make analyse
 make submission
 ```
 
 `make setup` checks the pinned toolchain, starts and verifies the local replica set, and records the MongoDB image digest. `make check-schemas` validates the record contracts and any generated records. `make pilot` and `make experiment` require Docker. `make analyse` consumes raw histories and does not require a live MongoDB connection. `make submission` builds the PDF and reproduction archive.
+
+`make experiment` is resumable. The first Ctrl-C or termination request finishes the active trial and writes an `INTERRUPTED` manifest; running the command again validates and skips completed histories. Use `make experiment-fresh` only for an empty campaign directory.
 
 The main campaign has 320 normal-control histories and 960 adversarial histories, for 1,280 histories total. The pilot is smaller and is used to validate timing and topology preconditions before the main campaign.
 

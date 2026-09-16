@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 import random
+import signal
 import subprocess
 import sys
 import time
@@ -15,13 +16,50 @@ from typing import Any
 
 from mongo_consistency.config import load_configurations, load_json
 from mongo_consistency.faults import FaultControllerClient
-from mongo_consistency.history import write_history
+from mongo_consistency.history import compute_history_hash, read_history, write_history
 from mongo_consistency.models import History, OperationRecord
 from mongo_consistency.trial import TIMEOUT_POLICY, MongoTrial
 from mongo_consistency.workloads import run_property
 
 ROOT = Path(__file__).resolve().parents[1]
 PROPERTIES = ("RYW", "MR", "MW", "WFR")
+
+
+class CampaignShutdown:
+    """Request a clean stop after the current trial, with a force-stop fallback."""
+
+    def __init__(self) -> None:
+        self.requested = False
+        self.force_requested = False
+        self._previous_handlers: dict[int, Any] = {}
+
+    def install(self) -> None:
+        for signal_number in (signal.SIGINT, signal.SIGTERM):
+            self._previous_handlers[signal_number] = signal.getsignal(signal_number)
+            signal.signal(signal_number, self._handle)
+
+    def restore(self) -> None:
+        for signal_number, handler in self._previous_handlers.items():
+            signal.signal(signal_number, handler)
+        self._previous_handlers.clear()
+
+    def _handle(self, signal_number: int, _frame: Any) -> None:
+        if self.requested:
+            self.force_requested = True
+            raise KeyboardInterrupt
+        self.requested = True
+        signal_name = signal.Signals(signal_number).name
+        print(
+            json.dumps(
+                {
+                    "status": "SHUTDOWN_REQUESTED",
+                    "signal": signal_name,
+                    "message": "finishing the current trial before stopping",
+                },
+                sort_keys=True,
+            ),
+            flush=True,
+        )
 
 
 def _file_hash(path: Path) -> str | None:
@@ -125,6 +163,24 @@ def adversarial_cases(
     ]
 
 
+def trial_id_for(
+    campaign: str,
+    ordinal: int,
+    configuration_id: str,
+    property_name: str,
+) -> str:
+    return f"{campaign}-{ordinal:05d}-{configuration_id}-{property_name.lower()}"
+
+
+def schedule_id_for(property_name: str) -> str:
+    return {
+        "RYW": "ryw-stale-secondary",
+        "MR": "mr-stale-secondary",
+        "MW": "mw-election",
+        "WFR": "wfr-election",
+    }[property_name]
+
+
 def error_history(
     *,
     trial_id: str,
@@ -189,13 +245,8 @@ def run_case(
 ) -> dict[str, Any]:
     metadata = dict(runtime_metadata or campaign_runtime_metadata(output_root))
     seed = int(metadata["seed_base"]) + ordinal
-    trial_id = f"{campaign}-{ordinal:05d}-{configuration['id']}-{property_name.lower()}"
-    schedule_id = {
-        "RYW": "ryw-stale-secondary",
-        "MR": "mr-stale-secondary",
-        "MW": "mw-election",
-        "WFR": "wfr-election",
-    }[property_name]
+    trial_id = trial_id_for(campaign, ordinal, configuration["id"], property_name)
+    schedule_id = schedule_id_for(property_name)
     history: History
     trial: MongoTrial | None = None
     trial_metadata = {key: value for key, value in metadata.items() if key != "seed_base"}
@@ -253,10 +304,13 @@ def run_case(
                 fault_events=list(trial.fault_events),
                 metadata={"runner_python": sys.version},
             )
+    history.manifest["campaign_ordinal"] = ordinal
+    history.manifest["adversarial"] = adversarial
     path = output_root / campaign / f"{trial_id}.json"
     history_hash = write_history(path, history)
     return {
         "trial_id": trial_id,
+        "ordinal": ordinal,
         "campaign": campaign,
         "configuration_id": configuration["id"],
         "property": property_name,
@@ -264,11 +318,158 @@ def run_case(
         "seed": seed,
         "path": path.as_posix(),
         "history_hash": history_hash,
+        "runner_version": history.manifest.get("runner_version"),
         "runner_error": history.manifest.get("runner_error"),
     }
 
 
-def run_campaign(campaign: str, output_root: Path) -> dict[str, Any]:
+def _record_from_history(
+    path: Path,
+    *,
+    campaign: str,
+    ordinal: int,
+    configuration_id: str,
+    property_name: str,
+    adversarial: bool,
+    seed: int,
+) -> dict[str, Any]:
+    """Load one completed history only when it matches the deterministic case."""
+
+    history = read_history(path)
+    manifest = history.manifest
+    expected = {
+        "trial_id": trial_id_for(campaign, ordinal, configuration_id, property_name),
+        "campaign_id": campaign,
+        "configuration_id": configuration_id,
+        "property": property_name,
+        "adversarial": adversarial,
+        "seed": seed,
+    }
+    mismatches = [
+        f"{field}={manifest.get(field)!r}, expected {value!r}"
+        for field, value in expected.items()
+        if manifest.get(field) != value
+    ]
+    if mismatches:
+        raise ValueError(f"cannot resume {path}: " + "; ".join(mismatches))
+    return {
+        "trial_id": expected["trial_id"],
+        "ordinal": ordinal,
+        "campaign": campaign,
+        "configuration_id": configuration_id,
+        "property": property_name,
+        "adversarial": adversarial,
+        "seed": seed,
+        "path": path.as_posix(),
+        "history_hash": history.history_hash or compute_history_hash(history),
+        "runner_version": manifest.get("runner_version"),
+        "runner_error": manifest.get("runner_error"),
+    }
+
+
+def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
+    """Publish a manifest atomically so interruption cannot leave partial JSON."""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary_path = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    try:
+        temporary_path.write_text(
+            json.dumps(payload, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        os.replace(temporary_path, path)
+    finally:
+        temporary_path.unlink(missing_ok=True)
+
+
+def _campaign_manifest(
+    *,
+    campaign: str,
+    seed_base: int,
+    runtime_metadata: dict[str, Any],
+    records_by_ordinal: dict[int, dict[str, Any]],
+    expected_case_count: int,
+    started_ns: int,
+    status: str,
+    resumed: bool,
+    finished_ns: int | None = None,
+    error: str | None = None,
+) -> dict[str, Any]:
+    records = [records_by_ordinal[ordinal] for ordinal in sorted(records_by_ordinal)]
+    runner_versions = sorted(
+        {
+            str(record["runner_version"])
+            for record in records
+            if record.get("runner_version")
+        }
+    )
+    completed_ordinals = set(records_by_ordinal)
+    next_ordinal = next(
+        (
+            ordinal
+            for ordinal in range(1, expected_case_count + 1)
+            if ordinal not in completed_ordinals
+        ),
+        expected_case_count + 1,
+    )
+    payload: dict[str, Any] = {
+        "schema_version": "campaign-run.v1",
+        "campaign": campaign,
+        "status": status,
+        "seed_base": seed_base,
+        "expected_case_count": expected_case_count,
+        "case_count": len(records),
+        "completed_case_count": len(records),
+        "next_ordinal": next_ordinal,
+        "started_ns": started_ns,
+        "last_updated_ns": time.monotonic_ns(),
+        "software_versions": runtime_metadata["software_versions"],
+        "image_digest": runtime_metadata["image_digest"],
+        "prediction_commit": runtime_metadata["prediction_commit"],
+        "prediction_manifest_hash": runtime_metadata["prediction_manifest_hash"],
+        "runner_versions": runner_versions,
+        "resumed": resumed,
+        "records": records,
+    }
+    if finished_ns is not None:
+        payload["finished_ns"] = finished_ns
+    if error is not None:
+        payload["error"] = error
+    return payload
+
+
+def _check_previous_manifest(
+    path: Path,
+    *,
+    campaign: str,
+    seed_base: int,
+    expected_case_count: int,
+) -> None:
+    if not path.is_file():
+        return
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise ValueError(f"cannot read existing campaign manifest {path}: {error}") from error
+    if not isinstance(payload, dict):
+        raise ValueError(f"existing campaign manifest {path} is not an object")
+    if payload.get("campaign") != campaign:
+        raise ValueError(f"existing campaign manifest belongs to {payload.get('campaign')!r}")
+    if payload.get("seed_base") != seed_base:
+        raise ValueError("existing campaign manifest uses a different seed base")
+    recorded_count = payload.get("expected_case_count")
+    if recorded_count is not None and recorded_count != expected_case_count:
+        raise ValueError("existing campaign manifest uses a different case count")
+    if payload.get("status") == "COMPLETE" and payload.get("case_count") != expected_case_count:
+        raise ValueError("completed campaign manifest is missing cases")
+
+
+def run_campaign(
+    campaign: str,
+    output_root: Path,
+    *,
+    resume: bool = False,
+) -> dict[str, Any]:
     configurations = load_configurations(ROOT / "configs/configurations.json")
     campaign_config = load_json(ROOT / "configs/campaign.json")
     runtime_metadata = campaign_runtime_metadata(output_root)
@@ -288,11 +489,75 @@ def run_campaign(campaign: str, output_root: Path) -> dict[str, Any]:
         if value
     )
     controller = controller_from_environment() if any(case[2] for case in cases) else None
-    records: list[dict[str, Any]] = []
+    seed_base = int(campaign_config["seed_base"])
+    expected_case_count = len(cases)
+    campaign_dir = output_root / campaign
+    manifest_path = campaign_dir / "campaign-manifest.json"
+    if not resume:
+        _check_previous_manifest(
+            manifest_path,
+            campaign=campaign,
+            seed_base=seed_base,
+            expected_case_count=expected_case_count,
+        )
+        existing_paths = [
+            campaign_dir / f"{trial_id_for(campaign, ordinal, configuration_id, property_name)}.json"
+            for ordinal, (configuration_id, property_name, _adversarial) in enumerate(cases, start=1)
+        ]
+        if any(path.is_file() for path in existing_paths):
+            raise ValueError(
+                f"{campaign_dir} already contains campaign histories; use --resume to continue"
+            )
+
+    if resume:
+        _check_previous_manifest(
+            manifest_path,
+            campaign=campaign,
+            seed_base=seed_base,
+            expected_case_count=expected_case_count,
+        )
+
+    records_by_ordinal: dict[int, dict[str, Any]] = {}
+    if resume:
+        for ordinal, (configuration_id, property_name, adversarial) in enumerate(cases, start=1):
+            path = campaign_dir / f"{trial_id_for(campaign, ordinal, configuration_id, property_name)}.json"
+            if path.is_file():
+                records_by_ordinal[ordinal] = _record_from_history(
+                    path,
+                    campaign=campaign,
+                    ordinal=ordinal,
+                    configuration_id=configuration_id,
+                    property_name=property_name,
+                    adversarial=adversarial,
+                    seed=seed_base + ordinal,
+                )
+
     started = time.monotonic_ns()
-    for ordinal, (configuration_id, property_name, adversarial) in enumerate(cases, start=1):
-        records.append(
-            run_case(
+    shutdown = CampaignShutdown()
+    _write_json_atomic(
+        manifest_path,
+        _campaign_manifest(
+            campaign=campaign,
+            seed_base=seed_base,
+            runtime_metadata=runtime_metadata,
+            records_by_ordinal=records_by_ordinal,
+            expected_case_count=expected_case_count,
+            started_ns=started,
+            status="RUNNING",
+            resumed=resume,
+        ),
+    )
+    interrupted = False
+    fatal_error: str | None = None
+    shutdown.install()
+    try:
+        for ordinal, (configuration_id, property_name, adversarial) in enumerate(cases, start=1):
+            if shutdown.requested:
+                interrupted = True
+                break
+            if ordinal in records_by_ordinal:
+                continue
+            record = run_case(
                 campaign=campaign,
                 ordinal=ordinal,
                 configuration=configurations[configuration_id],
@@ -303,34 +568,72 @@ def run_campaign(campaign: str, output_root: Path) -> dict[str, Any]:
                 output_root=output_root,
                 runtime_metadata=runtime_metadata,
             )
+            records_by_ordinal[ordinal] = record
+            print(json.dumps(record, sort_keys=True), flush=True)
+            _write_json_atomic(
+                manifest_path,
+                _campaign_manifest(
+                    campaign=campaign,
+                    seed_base=seed_base,
+                    runtime_metadata=runtime_metadata,
+                    records_by_ordinal=records_by_ordinal,
+                    expected_case_count=expected_case_count,
+                    started_ns=started,
+                    status="RUNNING",
+                    resumed=resume,
+                ),
+            )
+            if shutdown.requested:
+                interrupted = True
+                break
+    except KeyboardInterrupt:
+        interrupted = True
+    except Exception as error:  # noqa: BLE001
+        fatal_error = str(error)
+        raise
+    finally:
+        shutdown.restore()
+        status = "FAILED" if fatal_error is not None else "INTERRUPTED" if interrupted else "COMPLETE"
+        final_manifest = _campaign_manifest(
+            campaign=campaign,
+            seed_base=seed_base,
+            runtime_metadata=runtime_metadata,
+            records_by_ordinal=records_by_ordinal,
+            expected_case_count=expected_case_count,
+            started_ns=started,
+            status=status,
+            resumed=resume,
+            finished_ns=time.monotonic_ns(),
+            error=fatal_error,
         )
-        print(json.dumps(records[-1], sort_keys=True), flush=True)
-    manifest = {
-        "schema_version": "campaign-run.v1",
-        "campaign": campaign,
-        "seed_base": int(campaign_config["seed_base"]),
-        "software_versions": runtime_metadata["software_versions"],
-        "image_digest": runtime_metadata["image_digest"],
-        "prediction_commit": runtime_metadata["prediction_commit"],
-        "prediction_manifest_hash": runtime_metadata["prediction_manifest_hash"],
-        "case_count": len(records),
-        "started_ns": started,
-        "finished_ns": time.monotonic_ns(),
-        "records": records,
-    }
-    manifest_path = output_root / campaign / "campaign-manifest.json"
-    manifest_path.parent.mkdir(parents=True, exist_ok=True)
-    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    return manifest
+        _write_json_atomic(manifest_path, final_manifest)
+    return final_manifest
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--campaign", choices=("normal", "pilot", "experiment"), required=True)
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="reuse and validate completed histories in the campaign directory",
+    )
     parser.add_argument("--output-root", type=Path, default=ROOT / "results/raw")
     args = parser.parse_args()
-    run_campaign(args.campaign, args.output_root)
-    return 0
+    manifest = run_campaign(args.campaign, args.output_root, resume=args.resume)
+    print(
+        json.dumps(
+            {
+                "campaign": args.campaign,
+                "status": manifest["status"],
+                "completed_case_count": manifest["completed_case_count"],
+                "expected_case_count": manifest["expected_case_count"],
+            },
+            sort_keys=True,
+        ),
+        flush=True,
+    )
+    return 130 if manifest["status"] == "INTERRUPTED" else 0
 
 
 if __name__ == "__main__":

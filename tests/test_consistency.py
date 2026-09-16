@@ -216,6 +216,21 @@ class CheckerTests(unittest.TestCase):
         self.assertEqual(written_hash, loaded.history_hash)
         self.assertEqual(Outcome.PASS, check_history(loaded).outcome)
 
+    def test_history_write_is_atomic_from_the_reader_perspective(self) -> None:
+        history = base_history(
+            "RYW",
+            [
+                operation("write", "write", version=1, write_id="w1"),
+                operation("read", "read", observed_version=1),
+            ],
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = root / "history.json"
+            write_history(path, history)
+            self.assertTrue(path.is_file())
+            self.assertEqual([], list(root.glob("*.tmp")))
+
 
 if __name__ == "__main__":
     unittest.main()
