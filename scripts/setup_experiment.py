@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -39,6 +40,19 @@ def run(command: list[str], *, check: bool = True) -> subprocess.CompletedProces
 def version_from_output(value: str) -> str:
     match = re.search(r"(?<!\d)(\d+\.\d+\.\d+)(?!\d)", value)
     return match.group(1) if match else value.strip()
+
+
+def file_hash(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for block in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def source_revision() -> str:
+    result = run(["git", "rev-parse", "HEAD"], check=False)
+    return result.stdout.strip() if result.returncode == 0 else "unknown"
 
 
 def check_local_tools() -> dict[str, str]:
@@ -115,7 +129,7 @@ def setup() -> dict[str, object]:
         ]
     )
     payload: dict[str, object] = {
-        "recorded_at": datetime.now(timezone.utc).isoformat(),
+        "recorded_at": datetime.now(UTC).isoformat(),
         "target": {
             "mongodb": "8.0.32",
             "pymongo": "4.18.1",
@@ -125,6 +139,8 @@ def setup() -> dict[str, object]:
             "mongodb_image": "mongo:8.0.32",
             "mongodb_image_digests": image_digest(),
         },
+        "source_revision": source_revision(),
+        "prediction_manifest_hash": file_hash(ROOT / "configs/predictions.json"),
         "compose_file": str(COMPOSE_FILE.relative_to(ROOT)),
     }
     setup_dir = ROOT / "results/setup"

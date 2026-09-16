@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/mongo-consistency/outcome.v1.json",
+  "title": "Checked history outcome",
+  "type": "object",
+  "required": ["outcome", "reason", "details"],
+  "properties": {
+    "outcome": {
+      "enum": ["PASS", "VIOLATION", "UNAVAILABLE", "INDETERMINATE", "HARNESS_ERROR", "UNSUPPORTED"]
+    },
+    "reason": {"type": "string", "minLength": 1},
+    "details": {"type": "object"}
+  },
+  "additionalProperties": false
+}

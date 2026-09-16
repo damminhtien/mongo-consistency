@@ -7,9 +7,10 @@ usable on machines that only have the Python standard library installed.
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from threading import Lock
-from typing import Any, Callable
+from typing import Any
 
 from .models import OperationRecord
 
@@ -187,6 +188,7 @@ def operation_record_from_events(
     operation.requested_member = operation.requested_member
     operation.actual_server_address = event.get("actual_server_address")
     operation.actual_role = event.get("actual_role")
+    operation.command_name = event.get("command_name")
     operation.start_ns = event.get("started_ns", operation.start_ns)
     operation.end_ns = event.get("end_ns", operation.end_ns)
     if event.get("status") != "SUCCESS" and operation.operation_status == "SUCCESS":

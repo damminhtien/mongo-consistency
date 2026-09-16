@@ -10,5 +10,6 @@ RUN python -m pip install --no-cache-dir --requirement /tmp/requirements.txt
 COPY src /workspace/src
 COPY scripts /workspace/scripts
 COPY configs /workspace/configs
+COPY schemas /workspace/schemas
 
 USER 65532:65532

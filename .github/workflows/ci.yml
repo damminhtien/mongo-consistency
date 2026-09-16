@@ -24,7 +24,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.14.7"
 
       - name: Install document tooling
         run: |
@@ -43,6 +43,9 @@ jobs:
 
       - name: Check documentation
         run: make check-docs
+
+      - name: Check record schemas
+        run: make check-schemas
 
       - name: Build Canvas submission package
         run: make submission

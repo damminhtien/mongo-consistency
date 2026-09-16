@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/mongo-consistency/summary.v1.json",
+  "title": "MongoDB consistency analysis summary",
+  "type": "object",
+  "required": ["schema_version", "status", "history_count", "outcome_counts", "groups", "factorial", "predictions"],
+  "properties": {
+    "schema_version": {"const": "summary.v1"},
+    "status": {"enum": ["DATA", "NO_DATA"]},
+    "history_count": {"type": "integer", "minimum": 0},
+    "outcome_counts": {
+      "type": "object",
+      "required": ["PASS", "VIOLATION", "UNAVAILABLE", "INDETERMINATE", "HARNESS_ERROR", "UNSUPPORTED"],
+      "additionalProperties": {"type": "integer", "minimum": 0}
+    },
+    "groups": {"type": "array", "items": {"type": "object"}},
+    "factorial": {"type": "object"},
+    "predictions": {"type": "object"}
+  },
+  "additionalProperties": true
+}

@@ -77,6 +77,8 @@ def validate_history(history: History | dict[str, Any]) -> list[str]:
             ("version", operation.version),
             ("observed_version", operation.observed_version),
             ("depends_on_version", operation.depends_on_version),
+            ("document_version_before", operation.document_version_before),
+            ("document_version_after", operation.document_version_after),
         ):
             if version is not None and (
                 isinstance(version, bool) or not isinstance(version, int) or version < 0
@@ -116,6 +118,9 @@ def read_history(path: Path) -> History:
 def write_history(path: Path, history: History) -> str:
     """Write a canonical JSON history and return its hash."""
 
+    errors = validate_history(history)
+    if errors:
+        raise ValueError(f"Cannot write invalid history: {'; '.join(errors)}")
     path.parent.mkdir(parents=True, exist_ok=True)
     history.history_hash = compute_history_hash(history)
     path.write_bytes(

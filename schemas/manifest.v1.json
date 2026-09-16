@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/mongo-consistency/manifest.v1.json",
+  "title": "MongoDB consistency trial manifest",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "trial_id",
+    "campaign_id",
+    "configuration_id",
+    "read_concern",
+    "write_concern",
+    "causal_session",
+    "property",
+    "schedule_id",
+    "seed",
+    "namespace",
+    "timeout_policy"
+  ],
+  "properties": {
+    "schema_version": {"const": "manifest.v1"},
+    "trial_id": {"type": "string", "minLength": 1},
+    "campaign_id": {"enum": ["pilot", "normal", "experiment"]},
+    "configuration_id": {"pattern": "^C[1-8]$"},
+    "read_concern": {"enum": ["local", "majority"]},
+    "write_concern": {"enum": ["w:1", "majority"]},
+    "causal_session": {"type": "boolean"},
+    "property": {"enum": ["RYW", "MR", "MW", "WFR"]},
+    "schedule_id": {"type": "string", "minLength": 1},
+    "seed": {"type": "integer", "minimum": 0},
+    "adversarial": {"type": "boolean"},
+    "namespace": {
+      "type": "object",
+      "required": ["database", "collection", "document_id"],
+      "properties": {
+        "database": {"type": "string", "minLength": 1},
+        "collection": {"type": "string", "minLength": 1},
+        "document_id": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": true
+    },
+    "timeout_policy": {
+      "type": "object",
+      "required": [
+        "connect_ms",
+        "server_selection_ms",
+        "operation_ms",
+        "write_concern_ms",
+        "election_barrier_ms",
+        "subtrial_ms"
+      ],
+      "additionalProperties": {"type": "integer", "minimum": 0}
+    },
+    "software_versions": {"type": "object"},
+    "image_digest": {"type": ["string", "array", "null"]},
+    "members": {"type": "array"},
+    "fault_policy": {"type": "object"},
+    "prediction_commit": {"type": ["string", "null"]},
+    "prediction_manifest_hash": {"type": ["string", "null"]},
+    "runner_version": {"type": ["string", "null"]},
+    "checker_version": {"type": ["string", "null"]}
+  },
+  "additionalProperties": true
+}

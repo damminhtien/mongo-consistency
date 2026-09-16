@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/mongo-consistency/history.v1.json",
+  "title": "MongoDB consistency history",
+  "type": "object",
+  "required": ["schema_version", "manifest", "operations", "fault_events", "metadata", "history_hash"],
+  "properties": {
+    "schema_version": {"const": "history.v1"},
+    "manifest": {"$ref": "manifest.v1.json"},
+    "operations": {
+      "type": "array",
+      "items": {"$ref": "operation.v1.json"}
+    },
+    "fault_events": {
+      "type": "array",
+      "items": {"$ref": "fault-event.v1.json"}
+    },
+    "metadata": {"type": "object"},
+    "history_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  },
+  "additionalProperties": false
+}

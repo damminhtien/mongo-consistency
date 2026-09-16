@@ -39,10 +39,13 @@ class OperationRecord:
     operation_id: str
     kind: str
     key: str
+    trial_id: str | None = None
+    property: str | None = None
     operation_status: str = "SUCCESS"
     requested_member: str | None = None
     actual_server_address: str | None = None
     actual_role: str | None = None
+    command_name: str | None = None
     session_id: str | None = None
     causal_session: bool | None = None
     read_concern: str | None = None
@@ -62,6 +65,8 @@ class OperationRecord:
     depends_on_read_id: str | None = None
     depends_on_version: int | None = None
     dependency_metadata: dict[str, Any] = field(default_factory=dict)
+    document_version_before: int | None = None
+    document_version_after: int | None = None
     response_received: bool = True
 
     def to_dict(self) -> dict[str, Any]:
@@ -71,7 +76,7 @@ class OperationRecord:
         return payload
 
     @classmethod
-    def from_dict(cls, payload: dict[str, Any]) -> "OperationRecord":
+    def from_dict(cls, payload: dict[str, Any]) -> OperationRecord:
         values = dict(payload)
         values["observed_versions"] = tuple(values.get("observed_versions", ()))
         values["observed_updates"] = tuple(
@@ -104,7 +109,7 @@ class History:
         return payload
 
     @classmethod
-    def from_dict(cls, payload: dict[str, Any]) -> "History":
+    def from_dict(cls, payload: dict[str, Any]) -> History:
         return cls(
             schema_version=str(payload.get("schema_version", "")),
             manifest=dict(payload.get("manifest", {})),

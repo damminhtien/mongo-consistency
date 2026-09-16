@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable
-from typing import Any
+from types import TracebackType
+from typing import Any, Self
 
 from .driver import (
     ClientSettings,
@@ -17,7 +18,6 @@ from .driver import (
 )
 from .models import History, OperationRecord
 
-
 NETWORK_ERRORS = frozenset(
     {
         "AutoReconnect",
@@ -28,6 +28,19 @@ NETWORK_ERRORS = frozenset(
         "WriteConcernError",
     }
 )
+
+TIMEOUT_POLICY = {
+    "connect_ms": 2000,
+    "server_selection_ms": 5000,
+    "operation_ms": 5000,
+    "write_concern_ms": 5000,
+    "election_barrier_ms": 30000,
+    "subtrial_ms": 60000,
+}
+
+
+class SubtrialDeadlineExceeded(RuntimeError):
+    """Raised before an operation would exceed the trial deadline."""
 
 
 def classify_exception(error: Exception, kind: str) -> tuple[str, str | None]:
@@ -51,12 +64,17 @@ class MongoTrial:
         property_name: str,
         schedule_id: str,
         seed: int,
+        runtime_metadata: dict[str, Any] | None = None,
+        subtrial_deadline_seconds: float = 60.0,
     ) -> None:
         self.configuration = configuration
         self.trial_id = trial_id
         self.property_name = property_name
         self.schedule_id = schedule_id
         self.seed = seed
+        self.started_ns = time.monotonic_ns()
+        self.deadline_ns = self.started_ns + int(subtrial_deadline_seconds * 1_000_000_000)
+        self.runtime_metadata = dict(runtime_metadata or {})
         self.database_name = f"mc_{trial_id.replace('-', '_')}"
         self.collection_name = "logical"
         self.document_id = f"{trial_id}/x"
@@ -88,17 +106,13 @@ class MongoTrial:
             },
             "retry_reads": False,
             "retry_writes": False,
-            "timeout_policy": {
-                "connect_ms": 2000,
-                "server_selection_ms": 5000,
-                "operation_ms": 5000,
-                "write_concern_ms": 5000,
-                "election_barrier_ms": 30000,
-                "subtrial_ms": 60000,
-            },
+            "timeout_policy": dict(TIMEOUT_POLICY),
         }
+        self.manifest.update(self.runtime_metadata)
+        self.manifest["subtrial_started_ns"] = self.started_ns
 
-    def __enter__(self) -> "MongoTrial":
+    def __enter__(self) -> Self:
+        self.ensure_deadline()
         self.client.admin.command("ping")
         self.refresh_roles()
         pymongo = __import__("pymongo")
@@ -109,7 +123,12 @@ class MongoTrial:
         self.manifest["driver_version"] = pymongo.version
         return self
 
-    def __exit__(self, _exc_type: Any, _exc: Any, _traceback: Any) -> None:
+    def __exit__(
+        self,
+        _exc_type: type[BaseException] | None,
+        _exc: BaseException | None,
+        _traceback: TracebackType | None,
+    ) -> None:
         self.close()
 
     @property
@@ -149,11 +168,58 @@ class MongoTrial:
     def set_campaign(self, campaign_id: str) -> None:
         self.manifest["campaign_id"] = campaign_id
 
+    def set_adversarial(self, adversarial: bool) -> None:
+        self.manifest["adversarial"] = bool(adversarial)
+
+    def ensure_deadline(self) -> None:
+        if time.monotonic_ns() >= self.deadline_ns:
+            self.manifest["subtrial_deadline_exceeded"] = True
+            raise SubtrialDeadlineExceeded(
+                f"subtrial exceeded {TIMEOUT_POLICY['subtrial_ms']}ms deadline"
+            )
+
+    def stable_topology(self) -> dict[str, Any]:
+        """Return replica-set status when exactly one primary and two secondaries exist."""
+
+        self.ensure_deadline()
+        status = self.client.admin.command("replSetGetStatus")
+        members = status.get("members", [])
+        primary_count = sum(member.get("stateStr") == "PRIMARY" for member in members)
+        secondary_count = sum(member.get("stateStr") == "SECONDARY" for member in members)
+        if len(members) != 3 or primary_count != 1 or secondary_count != 2:
+            raise RuntimeError(f"replica set is not stable: {status}")
+        self.refresh_roles()
+        return status
+
+    def wait_for_stable_topology(self, timeout_seconds: float = 30.0) -> dict[str, Any]:
+        """Wait for one primary and two secondaries without extending the trial deadline."""
+
+        deadline = min(
+            time.monotonic() + timeout_seconds,
+            self.deadline_ns / 1_000_000_000,
+        )
+        last_error: Exception | None = None
+        while time.monotonic() < deadline:
+            try:
+                return self.stable_topology()
+            except Exception as error:  # noqa: BLE001  # Topology is transient here.
+                last_error = error
+            time.sleep(0.25)
+        raise RuntimeError(f"replica set did not become stable: {last_error}")
+
     def set_steps(self, steps: dict[str, str]) -> None:
         self.manifest["property_steps"] = dict(steps)
 
     def add_fault_event(self, event: dict[str, Any]) -> None:
         self.fault_events.append(dict(event))
+
+    def update_fault_event(self, event_id: str, updates: dict[str, Any]) -> None:
+        """Update the retained copy of one fault event."""
+
+        for event in reversed(self.fault_events):
+            if event.get("event_id") == event_id:
+                event.update(updates)
+                return
 
     def _collection(self, requested_member: str | None = None) -> Any:
         preference = tagged_secondary(requested_member) if requested_member else None
@@ -173,6 +239,7 @@ class MongoTrial:
     ) -> tuple[OperationRecord, Any | None]:
         if self.session is None:
             raise RuntimeError("trial session has not started")
+        self.ensure_deadline()
         wrapper_start = time.monotonic_ns()
         result: Any | None = None
         error: Exception | None = None
@@ -180,7 +247,7 @@ class MongoTrial:
         try:
             result = action()
             operation.operation_status = "SUCCESS"
-        except Exception as caught:  # PyMongo exposes many error subclasses.
+        except Exception as caught:  # noqa: BLE001  # PyMongo exposes many subclasses.
             error = caught
             operation.operation_status, operation.error_code = classify_exception(
                 caught, operation.kind
@@ -196,6 +263,13 @@ class MongoTrial:
             operation,
             self.monitor.events_for(operation.operation_id),
         )
+        if wrapper_end >= self.deadline_ns and operation.operation_status == "SUCCESS":
+            operation.operation_status = (
+                "INDETERMINATE" if operation.kind == "write" else "UNAVAILABLE"
+            )
+            operation.timeout_category = "subtrial_deadline"
+            operation.response_received = False
+            self.manifest["subtrial_deadline_exceeded"] = True
         if error is not None:
             operation.error_message = str(error)
             operation.response_received = False
@@ -209,10 +283,13 @@ class MongoTrial:
             operation_id="init",
             kind="setup",
             key="x",
+            trial_id=self.trial_id,
+            property=self.property_name,
             session_id=self.session_id,
             causal_session=bool(self.configuration["causal_session"]),
             write_concern=self.configuration["write_concern"],
             requested_member="primary",
+            document_version_after=0,
         )
 
         def action() -> Any:
@@ -261,6 +338,8 @@ class MongoTrial:
             operation_id=operation_id,
             kind="write",
             key="x",
+            trial_id=self.trial_id,
+            property=self.property_name,
             session_id=self.session_id,
             causal_session=bool(self.configuration["causal_session"]),
             write_concern=self.configuration["write_concern"],
@@ -275,6 +354,8 @@ class MongoTrial:
                 "depends_on_read_id": depends_on_read_id,
                 "depends_on_version": depends_on_version,
             },
+            document_version_before=version - 1 if version > 0 else None,
+            document_version_after=version,
             fault_event_id=fault_event_id,
         )
 
@@ -331,6 +412,8 @@ class MongoTrial:
             operation_id=operation_id,
             kind=kind,
             key="x",
+            trial_id=self.trial_id,
+            property=self.property_name,
             session_id=self.session_id,
             causal_session=bool(self.configuration["causal_session"]),
             read_concern=self.configuration["read_concern"],
@@ -357,11 +440,13 @@ class MongoTrial:
             )
             operation.observed_versions = tuple(versions)
             operation.observed_version = versions[-1] if versions else None
+            operation.document_version_after = operation.observed_version
             return document
 
         return self._execute(operation, action)[0]
 
     def history(self) -> History:
+        self.manifest["subtrial_finished_ns"] = time.monotonic_ns()
         self.refresh_roles()
         self.manifest["session_id"] = self.session_id
         return History(

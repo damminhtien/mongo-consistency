@@ -22,7 +22,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.14.7"
 
       - name: Install document tooling
         run: |
@@ -40,6 +40,7 @@ jobs:
         run: |
           make test
           make check-docs
+          make check-schemas
           make submission
 
       - name: Verify release files

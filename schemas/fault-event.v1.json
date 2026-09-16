@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/mongo-consistency/fault-event.v1.json",
+  "title": "MongoDB consistency fault event",
+  "type": "object",
+  "required": ["event_id", "action", "members", "start_ns", "status"],
+  "properties": {
+    "event_id": {"type": "string", "minLength": 1},
+    "action": {"enum": ["isolate", "heal"]},
+    "members": {"type": "array", "items": {"type": "string"}},
+    "start_ns": {"type": "integer", "minimum": 0},
+    "applied_ns": {"type": ["integer", "null"], "minimum": 0},
+    "end_ns": {"type": ["integer", "null"], "minimum": 0},
+    "election_start_ns": {"type": ["integer", "null"], "minimum": 0},
+    "election_end_ns": {"type": ["integer", "null"], "minimum": 0},
+    "recovery_start_ns": {"type": ["integer", "null"], "minimum": 0},
+    "recovery_end_ns": {"type": ["integer", "null"], "minimum": 0},
+    "new_primary": {"type": ["string", "null"]},
+    "status": {"enum": ["STARTED", "APPLIED", "ERROR"]},
+    "responses": {"type": "array"},
+    "error": {"type": ["string", "null"]}
+  },
+  "additionalProperties": true
+}

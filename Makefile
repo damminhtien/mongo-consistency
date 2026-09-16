@@ -1,9 +1,12 @@
 PYTHON ?= python3
 
-.PHONY: check-docs submission test setup pilot experiment analyse
+.PHONY: check-docs check-schemas submission test setup pilot experiment analyse
 
 check-docs:
 	$(PYTHON) scripts/check_documentation.py
+
+check-schemas:
+	PYTHONPATH=src $(PYTHON) scripts/validate_records.py
 
 submission:
 	$(PYTHON) scripts/build_submission.py

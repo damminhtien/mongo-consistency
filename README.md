@@ -19,6 +19,7 @@ The cluster runner is being built against a three-member MongoDB replica set in 
 ```bash
 make test
 make check-docs
+make check-schemas
 make setup
 make pilot
 make experiment
@@ -26,7 +27,7 @@ make analyse
 make submission
 ```
 
-`make setup` checks the pinned toolchain, starts and verifies the local replica set, and records the MongoDB image digest. `make pilot` and `make experiment` require Docker. `make analyse` consumes raw histories and does not require a live MongoDB connection. `make submission` builds the PDF and reproduction archive.
+`make setup` checks the pinned toolchain, starts and verifies the local replica set, and records the MongoDB image digest. `make check-schemas` validates the record contracts and any generated records. `make pilot` and `make experiment` require Docker. `make analyse` consumes raw histories and does not require a live MongoDB connection. `make submission` builds the PDF and reproduction archive.
 
 The main campaign has 320 normal-control histories and 960 adversarial histories, for 1,280 histories total. The pilot is smaller and is used to validate timing and topology preconditions before the main campaign.
 
@@ -38,8 +39,9 @@ src/           history model, checkers, runner, routing, faults, and analysis
 scripts/       command entry points and validation tools
 tests/         offline fixtures and integration checks
 results/raw/   canonical trial histories and manifests
-results/summary derived tables and metrics
+results/summary/ derived tables and metrics
 figures/       generated report figures
+schemas/       versioned record contracts
 submission/    LaTeX report and package metadata
 ```
 

@@ -68,29 +68,44 @@ def _fault_event(
         else:
             raise FaultControllerError(f"unknown fault action: {action}")
     except FaultControllerError as error:
-        event.update(
-            {
-                "status": "ERROR",
-                "error": str(error),
-                "end_ns": time.monotonic_ns(),
-            }
-        )
+        updates = {
+            "status": "ERROR",
+            "error": str(error),
+            "end_ns": time.monotonic_ns(),
+        }
+        event.update(updates)
+        trial.update_fault_event(event_id, updates)
         raise
     event.update(
         {
             "status": "APPLIED",
             "responses": responses,
+            "applied_ns": time.monotonic_ns(),
             "end_ns": time.monotonic_ns(),
         }
     )
+    trial.update_fault_event(event_id, event)
 
 
-def _wait_for_new_primary(trial: MongoTrial, old_primary: str) -> str:
+def _wait_for_new_primary(trial: MongoTrial, old_primary: str, event_id: str) -> str:
+    election_start_ns = time.monotonic_ns()
+    trial.update_fault_event(
+        event_id,
+        {"election_start_ns": election_start_ns},
+    )
     deadline = time.monotonic() + ELECTION_BARRIER_SECONDS
     while time.monotonic() < deadline:
+        trial.ensure_deadline()
         trial.refresh_roles()
         primary = trial.primary_member()
         if primary is not None and primary != old_primary:
+            trial.update_fault_event(
+                event_id,
+                {
+                    "election_end_ns": time.monotonic_ns(),
+                    "new_primary": primary,
+                },
+            )
             return primary
         time.sleep(0.25)
     raise ScheduleError(
@@ -130,6 +145,7 @@ def run_property(
     active_fault_members: list[str] = []
     fault_active = False
     try:
+        trial.wait_for_stable_topology(ELECTION_BARRIER_SECONDS)
         if property_name == "RYW":
             trial.set_steps({"write": "write", "read": "read"})
             stale, _fresh = _members_for_stale_read(trial)
@@ -171,12 +187,12 @@ def run_property(
                 fault_active = True
             trial.read(
                 "first_read",
-                requested_member=fresh if adversarial else fresh,
+                requested_member=fresh,
                 fault_event_id=event_id if fault_active else None,
             )
             trial.read(
                 "second_read",
-                requested_member=stale if adversarial else stale,
+                requested_member=stale,
                 fault_event_id=event_id if fault_active else None,
             )
             return
@@ -199,7 +215,7 @@ def run_property(
                 )
                 active_fault_members = [old_primary]
                 fault_active = True
-                _wait_for_new_primary(trial, old_primary)
+                _wait_for_new_primary(trial, old_primary, event_id)
             trial.write(
                 "second_write",
                 write_id="w2",
@@ -227,7 +243,7 @@ def run_property(
                 )
                 active_fault_members = [old_primary]
                 fault_active = True
-                _wait_for_new_primary(trial, old_primary)
+                _wait_for_new_primary(trial, old_primary, event_id)
             read_operation = next(operation for operation in trial.operations if operation.operation_id == "read")
             trial.write(
                 "write",
@@ -244,17 +260,35 @@ def run_property(
     except FaultControllerError as error:
         steps = list(trial.manifest.get("property_steps", {}).values())
         _mark_unsupported(trial, steps, str(error))
+    except ScheduleError as error:
+        steps = list(trial.manifest.get("property_steps", {}).values())
+        _mark_unsupported(trial, steps, str(error))
     finally:
         if fault_active and controller is not None:
+            heal_event_id = f"{event_id}-heal"
             try:
                 _fault_event(
                     trial,
                     controller,
-                    event_id=f"{event_id}-heal",
+                    event_id=heal_event_id,
                     action="heal",
                     members=active_fault_members,
                 )
-                trial.manifest["cleanup_status"] = "STABLE_PENDING_CHECK"
+                recovery_start_ns = time.monotonic_ns()
+                trial.update_fault_event(
+                    heal_event_id,
+                    {"recovery_start_ns": recovery_start_ns},
+                )
+                trial.wait_for_stable_topology(ELECTION_BARRIER_SECONDS)
+                recovery_end_ns = time.monotonic_ns()
+                trial.update_fault_event(
+                    heal_event_id,
+                    {"recovery_end_ns": recovery_end_ns},
+                )
+                trial.manifest["cleanup_status"] = "STABLE"
             except FaultControllerError as error:
+                trial.manifest["cleanup_status"] = "ERROR"
+                trial.manifest["cleanup_error"] = str(error)
+            except Exception as error:  # noqa: BLE001  # Cleanup must be recorded.
                 trial.manifest["cleanup_status"] = "ERROR"
                 trial.manifest["cleanup_error"] = str(error)

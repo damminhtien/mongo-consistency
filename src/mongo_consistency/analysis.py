@@ -7,9 +7,11 @@ import html
 import json
 import math
 import shutil
+import subprocess
 from collections import Counter, defaultdict
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from .checkers import check_history
 from .config import CONFIG_ROOT, load_configurations, load_predictions
@@ -63,11 +65,61 @@ def _operation_metrics(history: History) -> dict[str, Any]:
     }
 
 
+def _event_durations(history: History) -> dict[str, list[float]]:
+    """Extract election and recovery intervals from recorded fault events."""
+
+    election: list[float] = []
+    recovery: list[float] = []
+    for event in history.fault_events:
+        election_start = event.get("election_start_ns")
+        election_end = event.get("election_end_ns")
+        if isinstance(election_start, int) and isinstance(election_end, int) and election_end >= election_start:
+            election.append((election_end - election_start) / 1_000_000)
+        recovery_start = event.get("recovery_start_ns")
+        recovery_end = event.get("recovery_end_ns")
+        if isinstance(recovery_start, int) and isinstance(recovery_end, int) and recovery_end >= recovery_start:
+            recovery.append((recovery_end - recovery_start) / 1_000_000)
+    return {"election_ms": election, "recovery_ms": recovery}
+
+
+def _quantile_set(values: Iterable[float]) -> dict[str, float | None]:
+    values_list = list(values)
+    return {
+        "p50": quantile(values_list, 0.50),
+        "p95": quantile(values_list, 0.95),
+        "p99": quantile(values_list, 0.99),
+    }
+
+
+def _trace(history: History) -> list[dict[str, Any]]:
+    """Return compact operation fields for a representative-trace figure."""
+
+    return [
+        {
+            "operation_id": operation.operation_id,
+            "kind": operation.kind,
+            "status": operation.operation_status,
+            "requested_member": operation.requested_member,
+            "actual_server_address": operation.actual_server_address,
+            "actual_role": operation.actual_role,
+            "duration_ms": (
+                (operation.end_ns - operation.start_ns) / 1_000_000
+                if operation.start_ns is not None
+                and operation.end_ns is not None
+                and operation.end_ns >= operation.start_ns
+                else None
+            ),
+        }
+        for operation in history.operations
+        if operation.kind != "setup"
+    ]
+
+
 def _history_row(path: Path, raw_root: Path) -> dict[str, Any]:
     relative = path.relative_to(raw_root).as_posix()
     try:
         history = read_history(path)
-    except Exception as error:  # Malformed input is visible as a harness row.
+    except Exception as error:  # noqa: BLE001  # Malformed input is visible as a row.
         return {
             "path": relative,
             "outcome": Outcome.HARNESS_ERROR.value,
@@ -76,7 +128,15 @@ def _history_row(path: Path, raw_root: Path) -> dict[str, Any]:
             "property": None,
             "campaign_id": None,
             "adversarial": None,
-            "operation_metrics": {"attempted": 0, "successful": 0, "success_rate": None, "latency_ms": {}},
+            "operation_metrics": {
+                "attempted": 0,
+                "successful": 0,
+                "success_rate": None,
+                "latencies_ms": [],
+                "latency_ms": {},
+            },
+            "event_metrics": {"election_ms": [], "recovery_ms": []},
+            "trace": [],
         }
     result = check_history(history)
     manifest = history.manifest
@@ -93,6 +153,9 @@ def _history_row(path: Path, raw_root: Path) -> dict[str, Any]:
         "adversarial": manifest.get("adversarial", False),
         "seed": manifest.get("seed"),
         "operation_metrics": operations,
+        "event_metrics": _event_durations(history),
+        "trace": _trace(history),
+        "prediction_manifest_hash": manifest.get("prediction_manifest_hash"),
     }
 
 
@@ -127,6 +190,16 @@ def _group_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
         for row in rows
         for value in row["operation_metrics"].get("latencies_ms", [])
     ]
+    election_values = [
+        value
+        for row in rows
+        for value in row.get("event_metrics", {}).get("election_ms", [])
+    ]
+    recovery_values = [
+        value
+        for row in rows
+        for value in row.get("event_metrics", {}).get("recovery_ms", [])
+    ]
     decidable = counts[Outcome.PASS.value] + counts[Outcome.VIOLATION.value]
     completed = sum(
         counts[outcome.value]
@@ -143,11 +216,9 @@ def _group_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "consistency_violation_rate": _rate(counts[Outcome.VIOLATION.value], decidable),
         "operation_success_rate": _rate(operation_successful, operation_attempted),
         "history_completion_rate": _rate(completed, len(rows)),
-        "latency_ms": {
-            "p50": quantile(latency_values, 0.50),
-            "p95": quantile(latency_values, 0.95),
-            "p99": quantile(latency_values, 0.99),
-        },
+        "latency_ms": _quantile_set(latency_values),
+        "election_ms": _quantile_set(election_values),
+        "recovery_ms": _quantile_set(recovery_values),
     }
 
 
@@ -185,14 +256,14 @@ def _mean(values: Iterable[float]) -> float | None:
 
 
 def _factorial_contrast(
-    cells: dict[str, float],
+    cells: dict[str, float | None],
     configurations: dict[str, dict[str, Any]],
     factors: tuple[str, ...],
 ) -> float | None:
     signed: list[tuple[int, float]] = []
     for configuration_id, value in cells.items():
         configuration = configurations.get(configuration_id)
-        if configuration is None:
+        if configuration is None or value is None:
             continue
         sign = 1
         for factor in factors:
@@ -210,7 +281,7 @@ def factorial_analysis(
     summaries: list[dict[str, Any]],
     configurations: dict[str, dict[str, Any]],
 ) -> dict[str, Any]:
-    """Compute RC, WC, CS main effects and interactions for main adversarial cells."""
+    """Compute factorial contrasts for each main adversarial metric."""
 
     selected = [
         summary
@@ -235,22 +306,47 @@ def factorial_analysis(
             "causal_session",
         ),
     }
+    metric_getters = {
+        "consistency_violation_rate": lambda summary: summary["consistency_violation_rate"],
+        "operation_success_rate": lambda summary: summary["operation_success_rate"],
+        "history_completion_rate": lambda summary: summary["history_completion_rate"],
+        "latency_p50_ms": lambda summary: summary["latency_ms"]["p50"],
+        "election_p50_ms": lambda summary: summary["election_ms"]["p50"],
+        "recovery_p50_ms": lambda summary: summary["recovery_ms"]["p50"],
+    }
     output: dict[str, Any] = {"status": "NO_DATA", "properties": {}}
     for property_name, property_summaries in sorted(by_property.items()):
-        cells = {
-            str(summary["configuration_id"]): summary["consistency_violation_rate"]
-            for summary in property_summaries
-            if summary["consistency_violation_rate"] is not None
+        metric_cells = {
+            metric: {
+                str(summary["configuration_id"]): getter(summary)
+                for summary in property_summaries
+            }
+            for metric, getter in metric_getters.items()
         }
+        consistency_cells = metric_cells["consistency_violation_rate"]
         property_output = {
-            "cell_values": cells,
+            "cell_values": consistency_cells,
             "main_effects": {
-                name: _factorial_contrast(cells, configurations, (factor,))
+                name: _factorial_contrast(consistency_cells, configurations, (factor,))
                 for name, factor in factors.items()
             },
             "interactions": {
-                name: _factorial_contrast(cells, configurations, factor_tuple)
+                name: _factorial_contrast(consistency_cells, configurations, factor_tuple)
                 for name, factor_tuple in interactions.items()
+            },
+            "metrics": {
+                metric: {
+                    "cell_values": cells,
+                    "main_effects": {
+                        name: _factorial_contrast(cells, configurations, (factor,))
+                        for name, factor in factors.items()
+                    },
+                    "interactions": {
+                        name: _factorial_contrast(cells, configurations, factor_tuple)
+                        for name, factor_tuple in interactions.items()
+                    },
+                }
+                for metric, cells in metric_cells.items()
             },
             "delta_formulas": {
                 "Delta_CS": "Y(rc,wc,on) - Y(rc,wc,off)",
@@ -258,27 +354,267 @@ def factorial_analysis(
                 "Delta_WC": "Y(rc,majority,cs) - Y(rc,w:1,cs)",
             },
         }
-        if cells:
+        if any(value is not None for value in consistency_cells.values()):
             output["status"] = "DATA"
         output["properties"][property_name] = property_output
     return output
 
 
-def _svg(path: Path, title: str, lines: list[str]) -> None:
+def _svg(path: Path, title: str, body: str, *, height: int = 420) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    text = "".join(
-        f'<text x="40" y="{80 + index * 28}" font-family="sans-serif" font-size="16">{html.escape(line)}</text>'
-        for index, line in enumerate(lines)
-    )
-    height = max(140, 110 + len(lines) * 28)
-    content = (
-        '<svg xmlns="http://www.w3.org/2000/svg" width="1000" '
-        f'height="{height}" viewBox="0 0 1000 {height}">'
-        '<rect width="100%" height="100%" fill="white"/>'
-        f'<text x="40" y="42" font-family="sans-serif" font-size="22" font-weight="bold">{html.escape(title)}</text>'
-        f"{text}</svg>\n"
-    )
+    content = f'''<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="{height}" viewBox="0 0 1000 {height}">
+<defs>
+  <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+    <path d="M0,0 L8,4 L0,8 z" fill="#334155"/>
+  </marker>
+</defs>
+<rect width="100%" height="100%" fill="white"/>
+<text x="40" y="42" font-family="sans-serif" font-size="22" font-weight="bold">{html.escape(title)}</text>
+{body}
+</svg>
+'''
     path.write_text(content, encoding="utf-8")
+
+
+def _svg_text(
+    x: float,
+    y: float,
+    value: object,
+    *,
+    size: int = 15,
+    anchor: str = "start",
+    weight: str = "normal",
+    color: str = "#111827",
+) -> str:
+    return (
+        f'<text x="{x:g}" y="{y:g}" font-family="sans-serif" font-size="{size}px" '
+        f'text-anchor="{anchor}" font-weight="{weight}" fill="{color}">{html.escape(str(value))}</text>'
+    )
+
+
+def _svg_box(x: float, y: float, width: float, height: float, label: str, fill: str = "#e2e8f0") -> str:
+    return (
+        f'<rect x="{x:g}" y="{y:g}" width="{width:g}" height="{height:g}" '
+        f'rx="8" fill="{fill}" stroke="#475569"/>'
+        + _svg_text(x + width / 2, y + height / 2 + 5, label, anchor="middle", size=14)
+    )
+
+
+def _svg_arrow(x1: float, y1: float, x2: float, y2: float, label: str | None = None) -> str:
+    body = f'<line x1="{x1:g}" y1="{y1:g}" x2="{x2:g}" y2="{y2:g}" stroke="#334155" marker-end="url(#arrow)"/>'
+    if label:
+        body += _svg_text((x1 + x2) / 2, (y1 + y2) / 2 - 8, label, anchor="middle", size=12, color="#475569")
+    return body
+
+
+def _empty_figure(title: str, message: str) -> tuple[str, int]:
+    return _svg_text(500, 190, "NO_DATA", size=24, anchor="middle", weight="bold") + _svg_text(500, 225, message, anchor="middle"), 300
+
+
+def _timeline_body() -> tuple[str, int]:
+    rows = (
+        ("RYW", ("W(x,v1)", "R(x)")),
+        ("MR", ("R1(x)", "R2(x)")),
+        ("MW", ("W1(x,v1)", "partition + election", "W2(x,v2)", "snapshot(x)")),
+        ("WFR", ("R1(x,v1)", "partition + election", "W2(x,v2)", "snapshot(x)")),
+    )
+    body = ""
+    for row_index, (name, labels) in enumerate(rows):
+        y = 75 + row_index * 75
+        body += _svg_text(45, y + 28, name, size=16, weight="bold")
+        x = 120
+        for label_index, label in enumerate(labels):
+            width = 155 if "partition" in label else 125
+            fill = "#fee2e2" if "partition" in label else "#dbeafe"
+            body += _svg_box(x, y, width, 42, label, fill)
+            if label_index < len(labels) - 1:
+                body += _svg_arrow(x + width, y + 21, x + width + 28, y + 21)
+            x += width + 35
+    return body, 390
+
+
+def _architecture_body() -> tuple[str, int]:
+    body = _svg_box(45, 125, 170, 55, "runner", "#dcfce7")
+    body += _svg_box(330, 75, 180, 55, "mongo1 / primary", "#dbeafe")
+    body += _svg_box(330, 155, 180, 55, "mongo2 / secondary", "#dbeafe")
+    body += _svg_box(330, 235, 180, 55, "mongo3 / secondary", "#dbeafe")
+    body += _svg_box(700, 125, 210, 55, "fault controllers", "#fee2e2")
+    body += _svg_arrow(215, 145, 330, 102, "client_net")
+    body += _svg_arrow(215, 152, 330, 182)
+    body += _svg_arrow(215, 160, 330, 262)
+    body += _svg_arrow(510, 102, 700, 145, "replica_net control")
+    body += _svg_arrow(510, 182, 700, 152)
+    body += _svg_arrow(510, 262, 700, 160)
+    body += _svg_text(500, 355, "Client access is retained while replica-path traffic is controlled.", anchor="middle", color="#475569")
+    return body, 400
+
+
+def _fault_topology_body() -> tuple[str, int]:
+    body = _svg_text(90, 85, "Normal", size=17, weight="bold")
+    body += _svg_box(70, 110, 125, 45, "primary", "#dcfce7")
+    body += _svg_box(250, 110, 125, 45, "secondary", "#dbeafe")
+    body += _svg_box(430, 110, 125, 45, "secondary", "#dbeafe")
+    body += _svg_arrow(195, 132, 250, 132)
+    body += _svg_arrow(375, 132, 430, 132)
+    body += _svg_text(90, 225, "RYW / MR", size=17, weight="bold")
+    body += _svg_box(70, 250, 125, 45, "primary", "#dcfce7")
+    body += _svg_box(250, 250, 125, 45, "stale", "#fee2e2")
+    body += _svg_box(430, 250, 125, 45, "fresh", "#dbeafe")
+    body += _svg_text(312, 315, "one secondary replication path blocked", anchor="middle", size=13, color="#991b1b")
+    body += _svg_text(650, 85, "MW / WFR", size=17, weight="bold")
+    body += _svg_box(630, 110, 125, 45, "old primary", "#fee2e2")
+    body += _svg_box(810, 110, 125, 45, "new primary", "#dcfce7")
+    body += _svg_arrow(755, 132, 810, 132, "election")
+    body += _svg_text(782, 205, "old side isolated", anchor="middle", size=13, color="#991b1b")
+    return body, 340
+
+
+def _summary_for(summaries: list[dict[str, Any]], configuration_id: str, property_name: str) -> dict[str, Any] | None:
+    candidates = [
+        summary
+        for summary in summaries
+        if summary.get("configuration_id") == configuration_id
+        and summary.get("property") == property_name
+    ]
+    adversarial = [summary for summary in candidates if summary.get("campaign_id") == "experiment" and summary.get("adversarial")]
+    return (adversarial or candidates)[0] if (adversarial or candidates) else None
+
+
+def _heatmap_body(summaries: list[dict[str, Any]]) -> tuple[str, int]:
+    properties = ("RYW", "MR", "MW", "WFR")
+    body = ""
+    left = 150
+    top = 80
+    cell_width = 180
+    cell_height = 35
+    for column, property_name in enumerate(properties):
+        body += _svg_text(left + column * cell_width + cell_width / 2, top, property_name, anchor="middle", weight="bold")
+    for row, configuration_id in enumerate(f"C{number}" for number in range(1, 9)):
+        y = top + 12 + row * cell_height
+        body += _svg_text(125, y + 23, configuration_id, anchor="end", weight="bold")
+        for column, property_name in enumerate(properties):
+            summary = _summary_for(summaries, configuration_id, property_name)
+            counts = summary.get("outcomes", {}) if summary else {}
+            decidable = int(counts.get("PASS", 0)) + int(counts.get("VIOLATION", 0))
+            violations = int(counts.get("VIOLATION", 0))
+            rate = violations / decidable if decidable else None
+            if rate is None:
+                fill, label = "#f1f5f9", "NA"
+            else:
+                red = 255
+                green = max(80, int(220 - 120 * rate))
+                fill, label = f"rgb({red},{green},{green})", f"{violations}/{decidable}"
+            x = left + column * cell_width
+            body += f'<rect x="{x:g}" y="{y:g}" width="{cell_width - 8:g}" height="{cell_height - 5:g}" fill="{fill}" stroke="#cbd5e1"/>'
+            body += _svg_text(x + (cell_width - 8) / 2, y + 20, label, anchor="middle", size=13)
+    body += _svg_text(500, 390, "Cell label: VIOLATION / (PASS + VIOLATION); NA means no decidable history.", anchor="middle", size=13, color="#475569")
+    return body, 420
+
+
+def _factorial_body(factorial: dict[str, Any]) -> tuple[str, int]:
+    properties = factorial.get("properties", {})
+    if not properties:
+        return _empty_figure("Factorial interactions", "No experiment adversarial summaries are available." )
+    labels = ("RC", "WC", "CS", "RCxCS", "WCxCS", "RCxWC", "RCxWCxCS")
+    keys = (
+        "read_concern",
+        "write_concern",
+        "causal_session",
+        "read_concern_x_causal_session",
+        "write_concern_x_causal_session",
+        "read_concern_x_write_concern",
+        "read_concern_x_write_concern_x_causal_session",
+    )
+    body = ""
+    for row, property_name in enumerate(("RYW", "MR", "MW", "WFR")):
+        property_data = properties.get(property_name)
+        if not property_data:
+            continue
+        effects = property_data.get("main_effects", {}) | property_data.get("interactions", {})
+        y = 80 + row * 75
+        body += _svg_text(42, y + 20, property_name, size=15, weight="bold")
+        for index, (label, key) in enumerate(zip(labels, keys, strict=True)):
+            value = effects.get(key)
+            numeric = float(value) if isinstance(value, (int, float)) else 0.0
+            height = min(42.0, max(2.0, abs(numeric) * 42)) if value is not None else 2.0
+            x = 105 + index * 120
+            base = y + 45
+            fill = "#2563eb" if numeric >= 0 else "#dc2626"
+            body += f'<rect x="{x:g}" y="{base - height:g}" width="75" height="{height:g}" fill="{fill}" opacity="0.85"/>'
+            body += _svg_text(x + 37.5, y + 65, label, anchor="middle", size=11)
+            body += _svg_text(x + 37.5, base - height - 5, f"{numeric:.3f}" if value is not None else "NA", anchor="middle", size=10)
+    body += _svg_text(500, 390, "Blue is a positive contrast; red is a negative contrast for the checked metric.", anchor="middle", size=13, color="#475569")
+    return body, 420
+
+
+def _latency_body(summary: dict[str, Any]) -> tuple[str, int]:
+    latency = summary.get("latency_ms", {})
+    values = [("p50", latency.get("p50")), ("p95", latency.get("p95")), ("p99", latency.get("p99"))]
+    if not any(value is not None for _, value in values):
+        return _empty_figure("Operation latency", "No operation timings are available.")
+    maximum = max(float(value) for _, value in values if value is not None) or 1.0
+    body = ""
+    for index, (label, value) in enumerate(values):
+        x = 180 + index * 220
+        height = 220 * float(value or 0) / maximum
+        body += f'<rect x="{x:g}" y="{300 - height:g}" width="110" height="{height:g}" fill="#2563eb"/>'
+        body += _svg_text(x + 55, 330, label, anchor="middle", weight="bold")
+        body += _svg_text(x + 55, 285 - height, f"{float(value):.2f} ms" if value is not None else "NA", anchor="middle", size=13)
+    body += _svg_text(500, 385, "Quantiles use operation-level durations from raw histories.", anchor="middle", size=13, color="#475569")
+    return body, 420
+
+
+def _trace_body(rows: list[dict[str, Any]]) -> tuple[str, int]:
+    row = next((candidate for candidate in rows if candidate.get("trace")), None)
+    if row is None:
+        return _empty_figure("Representative trace", "No completed operation trace is available.")
+    body = _svg_text(45, 78, f"{row.get('path')}  hash={str(row.get('history_hash', ''))[:16]}", size=13, color="#475569")
+    columns = ((45, "operation"), (185, "kind"), (290, "requested"), (430, "actual"), (650, "role"), (780, "status"))
+    for x, label in columns:
+        body += _svg_text(x, 112, label, size=13, weight="bold")
+    for index, operation in enumerate(row["trace"][:7]):
+        y = 145 + index * 32
+        values = (
+            operation.get("operation_id"), operation.get("kind"), operation.get("requested_member"),
+            operation.get("actual_server_address"), operation.get("actual_role"), operation.get("status"),
+        )
+        for (x, _label), value in zip(columns, values, strict=True):
+            body += _svg_text(x, y, value or "NA", size=12)
+    return body, 390
+
+
+def _prediction_body(
+    predictions: dict[str, dict[str, Any]], summaries: list[dict[str, Any]],
+) -> tuple[str, int]:
+    properties = ("RYW", "MR", "MW", "WFR")
+    body = ""
+    left = 120
+    cell_width = 170
+    for column, property_name in enumerate(properties):
+        body += _svg_text(left + column * cell_width + 70, 80, property_name, anchor="middle", weight="bold")
+    for row, configuration_id in enumerate(f"C{number}" for number in range(1, 9)):
+        y = 98 + row * 34
+        body += _svg_text(95, y + 21, configuration_id, anchor="end", weight="bold")
+        target = set(predictions.get(configuration_id, {}).get("guarantee_targets", []))
+        for column, property_name in enumerate(properties):
+            summary = _summary_for(summaries, configuration_id, property_name)
+            label = "NA"
+            if summary:
+                counts = summary.get("outcomes", {})
+                if counts.get("VIOLATION", 0):
+                    label = "VIOLATION"
+                elif counts.get("PASS", 0):
+                    label = "PASS"
+                elif counts.get("UNAVAILABLE", 0):
+                    label = "UNAVAILABLE"
+                elif counts.get("INDETERMINATE", 0):
+                    label = "INDETERMINATE"
+            x = left + column * cell_width
+            fill = "#dcfce7" if property_name in target else "#f1f5f9"
+            body += f'<rect x="{x:g}" y="{y:g}" width="140" height="28" fill="{fill}" stroke="#cbd5e1"/>'
+            body += _svg_text(x + 70, y + 19, label, anchor="middle", size=11)
+    body += _svg_text(500, 390, "Cell shading marks the documented guarantee target; labels come from checked histories.", anchor="middle", size=13, color="#475569")
+    return body, 420
 
 
 def generate_figures(
@@ -286,26 +622,38 @@ def generate_figures(
     summaries: list[dict[str, Any]],
     factorial: dict[str, Any],
     rows: list[dict[str, Any]],
+    predictions: dict[str, dict[str, Any]] | None = None,
 ) -> list[Path]:
-    """Generate stable SVG figures, including explicit no-data labels."""
+    """Generate stable figures from summaries and raw traces."""
 
-    has_data = bool(rows)
-    marker = "Recorded histories available" if has_data else "NO_DATA: run make pilot or make experiment"
+    overall = _group_summary(rows)
     paths_and_content = {
-        "architecture.svg": ("Architecture", ["runner -> client_net -> MongoDB members", "replica_net carries member replication and election traffic", "fault sidecars control only replica-network traffic"]),
-        "fault-topology.svg": ("Fault topology", ["normal: all three members connected", "RYW and MR: one secondary replication path isolated", "MW and WFR: old primary isolated, remaining members elect"]),
-        "property-timelines.svg": ("Property timelines", ["RYW: W(x) then R(x)", "MR: R1(x) then R2(x)", "MW: W1(x) then W2(x) then one observer snapshot", "WFR: R1(x) then dependent W2(x) then one observer snapshot"]),
-        "outcome-heatmap.svg": ("Outcome heatmap", [marker, f"summary groups: {len(summaries)}"]),
-        "factorial-interactions.svg": ("Factorial interactions", [f"status: {factorial.get('status', 'NO_DATA')}", "factors: read concern, write concern, causal session"]),
-        "latency.svg": ("Latency", [marker, "p50, p95, and p99 are computed from operation timings"]),
-        "representative-trace.svg": ("Representative trace", [marker, "requested member and actual server address are retained per operation"]),
-        "prediction-observation.svg": ("Prediction versus observation", [marker, "predictions are read from configs/predictions.json"]),
+        "architecture.svg": ("Architecture", *_architecture_body()),
+        "fault-topology.svg": ("Fault topology", *_fault_topology_body()),
+        "property-timelines.svg": ("Property timelines", *_timeline_body()),
+        "outcome-heatmap.svg": ("Outcome heatmap", *_heatmap_body(summaries)),
+        "factorial-interactions.svg": ("Factorial interactions", *_factorial_body(factorial)),
+        "latency.svg": ("Operation latency", *_latency_body(overall)),
+        "representative-trace.svg": ("Representative trace", *_trace_body(rows)),
+        "prediction-observation.svg": ("Prediction versus observation", *_prediction_body(predictions or {}, summaries)),
     }
     paths: list[Path] = []
-    for filename, (title, lines) in paths_and_content.items():
+    converter = shutil.which("rsvg-convert")
+    for filename, (title, body, height) in paths_and_content.items():
         path = figures_root / filename
-        _svg(path, title, lines)
+        _svg(path, title, body, height=height)
         paths.append(path)
+        if converter:
+            for suffix, format_name in ((".pdf", "pdf"), (".png", "png")):
+                converted = path.with_suffix(suffix)
+                completed = subprocess.run(
+                    [converter, "-f", format_name, "-o", str(converted), str(path)],
+                    capture_output=True,
+                    check=False,
+                    timeout=30,
+                )
+                if completed.returncode == 0 and converted.is_file():
+                    paths.append(converted)
     return paths
 
 
@@ -334,6 +682,12 @@ def _write_summary_csv(path: Path, summaries: list[dict[str, Any]]) -> None:
         "latency_p50_ms",
         "latency_p95_ms",
         "latency_p99_ms",
+        "election_p50_ms",
+        "election_p95_ms",
+        "election_p99_ms",
+        "recovery_p50_ms",
+        "recovery_p95_ms",
+        "recovery_p99_ms",
     ]
     with path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=fields)
@@ -352,6 +706,12 @@ def _write_summary_csv(path: Path, summaries: list[dict[str, Any]]) -> None:
                 "latency_p50_ms": summary["latency_ms"]["p50"],
                 "latency_p95_ms": summary["latency_ms"]["p95"],
                 "latency_p99_ms": summary["latency_ms"]["p99"],
+                "election_p50_ms": summary["election_ms"]["p50"],
+                "election_p95_ms": summary["election_ms"]["p95"],
+                "election_p99_ms": summary["election_ms"]["p99"],
+                "recovery_p50_ms": summary["recovery_ms"]["p50"],
+                "recovery_p95_ms": summary["recovery_ms"]["p95"],
+                "recovery_p99_ms": summary["recovery_ms"]["p99"],
             }
             writer.writerow(row)
 
@@ -371,10 +731,11 @@ def analyse(
     predictions = load_predictions(CONFIG_ROOT / "predictions.json")
     factorial = factorial_analysis(summaries, configurations)
     summary = {
-        "schema_version": "analysis.v1",
+        "schema_version": "summary.v1",
         "status": "DATA" if rows else "NO_DATA",
         "history_count": len(rows),
         "outcome_counts": _counts(rows),
+        "overall": _group_summary(rows),
         "groups": summaries,
         "factorial": factorial,
         "predictions": predictions,
@@ -383,7 +744,13 @@ def analyse(
     _write_json(summary_root / "history-results.json", rows)
     _write_json(summary_root / "factorial-contrasts.json", factorial)
     _write_summary_csv(summary_root / "summary.csv", summaries)
-    figure_paths = generate_figures(figures_root, summaries, factorial, rows)
+    figure_paths = generate_figures(
+        figures_root,
+        summaries,
+        factorial,
+        rows,
+        predictions=predictions,
+    )
     if submission_figures_root is not None:
         submission_figures_root.mkdir(parents=True, exist_ok=True)
         for figure in figure_paths:

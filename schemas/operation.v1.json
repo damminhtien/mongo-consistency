@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/mongo-consistency/operation.v1.json",
+  "title": "MongoDB consistency operation record",
+  "type": "object",
+  "required": ["operation_id", "kind", "key", "operation_status"],
+  "properties": {
+    "operation_id": {"type": "string", "minLength": 1},
+    "trial_id": {"type": ["string", "null"]},
+    "property": {"type": ["string", "null"]},
+    "kind": {"enum": ["setup", "read", "write", "observer"]},
+    "key": {"type": "string", "minLength": 1},
+    "operation_status": {
+      "enum": [
+        "SUCCESS",
+        "UNAVAILABLE",
+        "INDETERMINATE",
+        "HARNESS_ERROR",
+        "UNSUPPORTED",
+        "ERROR",
+        "TIMEOUT"
+      ]
+    },
+    "requested_member": {"type": ["string", "null"]},
+    "actual_server_address": {"type": ["string", "null"]},
+    "actual_role": {"type": ["string", "null"]},
+    "command_name": {"type": ["string", "null"]},
+    "session_id": {"type": ["string", "null"]},
+    "causal_session": {"type": ["boolean", "null"]},
+    "read_concern": {"type": ["string", "null"]},
+    "write_concern": {"type": ["string", "null"]},
+    "start_ns": {"type": ["integer", "null"], "minimum": 0},
+    "end_ns": {"type": ["integer", "null"], "minimum": 0},
+    "error_code": {"type": ["string", "null"]},
+    "error_message": {"type": ["string", "null"]},
+    "timeout_category": {"type": ["string", "null"]},
+    "fault_event_id": {"type": ["string", "null"]},
+    "version": {"type": ["integer", "null"], "minimum": 0},
+    "write_id": {"type": ["string", "null"]},
+    "observed_version": {"type": ["integer", "null"], "minimum": 0},
+    "observed_versions": {
+      "type": "array",
+      "items": {"type": "integer", "minimum": 0}
+    },
+    "observed_updates": {"type": "array", "items": {"type": "object"}},
+    "parent_write_id": {"type": ["string", "null"]},
+    "depends_on_read_id": {"type": ["string", "null"]},
+    "depends_on_version": {"type": ["integer", "null"], "minimum": 0},
+    "dependency_metadata": {"type": "object"},
+    "document_version_before": {"type": ["integer", "null"], "minimum": 0},
+    "document_version_after": {"type": ["integer", "null"], "minimum": 0},
+    "response_received": {"type": "boolean"}
+  },
+  "additionalProperties": true
+}
