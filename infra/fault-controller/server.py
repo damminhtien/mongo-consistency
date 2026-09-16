@@ -45,13 +45,13 @@ def remove_jump(direction: str, port_flag: str) -> None:
 
 def isolate() -> None:
     ensure_chain()
-    add_jump("INPUT", "--sport")
-    add_jump("OUTPUT", "--dport")
+    add_jump("INPUT", "--dport")
+    add_jump("OUTPUT", "--sport")
 
 
 def heal() -> None:
-    remove_jump("INPUT", "--sport")
-    remove_jump("OUTPUT", "--dport")
+    remove_jump("INPUT", "--dport")
+    remove_jump("OUTPUT", "--sport")
     iptables("-F", CHAIN, check=False)
 
 

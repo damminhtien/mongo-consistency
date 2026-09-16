@@ -49,6 +49,8 @@ class HarnessLayoutTests(unittest.TestCase):
         self.assertIn('"cleanup_status"', workloads)
         self.assertIn("eth1", controller)
         self.assertIn('iptables("-A", CHAIN, "-j", "DROP")', controller)
+        self.assertIn('add_jump("INPUT", "--dport")', controller)
+        self.assertIn('add_jump("OUTPUT", "--sport")', controller)
         self.assertNotIn('"REJECT"', controller)
         self.assertNotIn("docker.sock", compose)
 
