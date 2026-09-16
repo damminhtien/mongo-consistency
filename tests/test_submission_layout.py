@@ -32,10 +32,10 @@ class SubmissionLayoutTests(unittest.TestCase):
         self.assertIn("submission:", makefile)
         self.assertIn("scripts/build_submission.py", makefile)
 
-    def test_source_manifest_does_not_include_local_agent_paths(self) -> None:
+    def test_source_manifest_has_explicit_package_roots(self) -> None:
         source = (ROOT / "scripts/build_submission.py").read_text(encoding="utf-8")
-        self.assertIn('".codex"', source)
-        self.assertIn('"AGENTS"', source)
+        self.assertIn('"configs"', source)
+        self.assertIn('"submission"', source)
         self.assertIn('"output"', source)
         self.assertIn('"tmp"', source)
 

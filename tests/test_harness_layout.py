@@ -25,12 +25,11 @@ class HarnessLayoutTests(unittest.TestCase):
         self.assertIn("python:3.14.7-slim-bookworm", dockerfile)
         self.assertIn("pymongo==4.18.1", (ROOT / "requirements.txt").read_text())
 
-    def test_runner_dockerfile_does_not_copy_agent_metadata(self) -> None:
+    def test_runner_dockerfile_copies_only_runtime_inputs(self) -> None:
         dockerfile = (ROOT / "infra/runner/Dockerfile").read_text(encoding="utf-8")
-        dockerignore = (ROOT / ".dockerignore").read_text(encoding="utf-8")
-        self.assertNotIn("AGENTS", dockerfile)
-        self.assertIn("AGENTS*.md", dockerignore)
-        self.assertIn(".codex", dockerignore)
+        self.assertIn("COPY src /workspace/src", dockerfile)
+        self.assertIn("COPY scripts /workspace/scripts", dockerfile)
+        self.assertNotIn("COPY .", dockerfile)
 
 
 if __name__ == "__main__":

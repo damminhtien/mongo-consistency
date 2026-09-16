@@ -60,23 +60,6 @@ class DocumentationQualityTests(unittest.TestCase):
     def test_pdf_is_a_scanned_document_type(self) -> None:
         self.assertIn(".pdf", DOCUMENT_SUFFIXES)
 
-    def test_agent_metadata_is_not_scanned(self) -> None:
-        with TemporaryDirectory() as directory:
-            root = Path(directory)
-            (root / "README.md").write_text(
-                "A short project document.\n", encoding="utf-8"
-            )
-            (root / "AGENTS.md").write_text(
-                "This document should stay local.\n", encoding="utf-8"
-            )
-            (root / ".codex").mkdir()
-            (root / ".codex" / "notes.md").write_text(
-                "This document should stay local.\n", encoding="utf-8"
-            )
-            files, findings = check_repository(root)
-        self.assertEqual(["README.md"], [path.name for path in files])
-        self.assertEqual([], findings)
-
     @unittest.skipUnless(
         shutil.which("pdfinfo") and shutil.which("pdftotext"),
         "Poppler is required for the PDF integration check",

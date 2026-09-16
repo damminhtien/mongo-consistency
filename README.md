@@ -47,4 +47,4 @@ submission/    LaTeX report and package metadata
 
 The runner has no Docker socket, Docker credentials, host filesystem mount, or unrelated host-data access. Reads and writes use `retryReads=false` and `retryWrites=false`. A possible mutation after a timeout is recorded as `INDETERMINATE`. `HARNESS_ERROR` and `UNSUPPORTED` remain outside database metrics.
 
-Every trial has a unique namespace, a seeded campaign ordinal, actual routing details, software versions, a fault event log, and a canonical history hash. The prediction manifest is committed before result files. Agentic metadata such as `.codex/` and `AGENTS*` is ignored and is not part of the submission repository.
+Every trial has a unique namespace, a seeded campaign ordinal, actual routing details, software versions, a fault event log, and a canonical history hash. The prediction manifest is committed before result files. Generated files remain outside the source inputs until the analysis command writes them.

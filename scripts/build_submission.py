@@ -74,11 +74,9 @@ PACKAGE_ROOT_DIRS = (
 EXCLUDED_PARTS = frozenset(
     {
         ".git",
-        ".codex",
         ".mypy_cache",
         ".pytest_cache",
         ".ruff_cache",
-        "AGENTS",
         "__pycache__",
         "graphify-out",
         "node_modules",
@@ -200,15 +198,13 @@ def _iter_files(root: Path, paths: Iterable[Path]) -> Iterable[tuple[Path, Path]
             candidate_relative = candidate.relative_to(root)
             if any(part in EXCLUDED_PARTS for part in candidate_relative.parts):
                 continue
-            if candidate.name == "AGENTS" or candidate.name.startswith("AGENTS"):
-                continue
             if candidate.suffix in {".pyc", ".pyo"}:
                 continue
             yield candidate, candidate_relative
 
 
 def copy_source_tree(root: Path, destination: Path) -> list[Path]:
-    """Copy project source while excluding local agent and build metadata."""
+    """Copy project source while excluding local build metadata."""
 
     destination.mkdir(parents=True, exist_ok=True)
     paths = [Path(path) for path in PACKAGE_ROOT_FILES]

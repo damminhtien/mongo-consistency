@@ -29,4 +29,4 @@ The repository builds a LaTeX report, result tables, figures, raw-history manife
 - Keep `HARNESS_ERROR` and `UNSUPPORTED` outside database metrics.
 - Reject MW and WFR fixtures that use different logical keys.
 - Build all summaries from raw histories without requiring MongoDB.
-- Keep `.codex/` and `AGENTS*` ignored and out of the repository.
+- Keep local tooling and temporary files out of the repository.

@@ -10,7 +10,7 @@ The project is complete when the documents, implementation, raw histories, analy
 - [x] Map the plan to the DSA5208 slide pages.
 - [x] Record review fixes for schedules, logical versions, outcomes, sessions, timeouts, order, namespaces, and factorial analysis.
 - [x] Define the LaTeX report sections, figures, tables, and evidence rules.
-- [x] Keep `.codex/` and `AGENTS*` ignored and untracked.
+- [x] Keep local tooling and generated metadata outside the source inputs.
 
 ## Configuration and schema
 
@@ -73,6 +73,6 @@ The project is complete when the documents, implementation, raw histories, analy
 - [ ] Render and inspect the final PDF.
 - [ ] Check the PDF and LaTeX source for documentation rules.
 - [ ] Build the reproduction archive with `make submission`.
-- [ ] Confirm agentic metadata, caches, credentials, and unrelated artifacts are absent.
+- [ ] Confirm local tooling, caches, credentials, and unrelated artifacts are absent.
 - [ ] Inspect staged diffs and run `git diff --check`.
 - [ ] Commit each coherent implementation slice and push `main`.

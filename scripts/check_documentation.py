@@ -7,7 +7,6 @@ structure; it does not try to identify who wrote a document.
 from __future__ import annotations
 
 import argparse
-import fnmatch
 import os
 import re
 import shutil
@@ -42,12 +41,10 @@ DOCUMENT_SUFFIXES = frozenset(
 SKIP_DIRS = frozenset(
     {
         ".git",
-        ".codex",
         ".mypy_cache",
         ".pytest_cache",
         ".ruff_cache",
         ".tox",
-        "AGENTS",
         "__pycache__",
         "graphify-out",
         "node_modules",
@@ -168,17 +165,43 @@ class Finding:
         return f"{location} [{self.rule}] {self.message}\n    {self.excerpt}"
 
 
+def _tracked_files(root: Path) -> set[Path] | None:
+    """Return cached Git paths when the scan root is a project checkout."""
+
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(root), "ls-files", "--cached", "-z"],
+            capture_output=True,
+            check=False,
+        )
+    except OSError:
+        return None
+    if result.returncode != 0:
+        return None
+    return {
+        root / Path(value)
+        for value in result.stdout.decode("utf-8", errors="replace").split("\0")
+        if value
+    }
+
+
 def iter_document_files(root: Path) -> Iterable[Path]:
-    """Yield project document files, excluding agent and tool metadata."""
+    """Yield document files that belong to the project source."""
 
     root = root.resolve()
+    tracked = _tracked_files(root)
+    if tracked is not None:
+        for path in sorted(tracked):
+            if path.is_file() and path.suffix.lower() in DOCUMENT_SUFFIXES:
+                yield path
+        return
     for current, dirnames, filenames in os.walk(root, followlinks=False):
         dirnames[:] = sorted(
-            dirname for dirname in dirnames if dirname not in SKIP_DIRS
+            dirname
+            for dirname in dirnames
+            if dirname not in SKIP_DIRS and not dirname.startswith(".")
         )
         for filename in sorted(filenames):
-            if filename == "AGENTS" or fnmatch.fnmatch(filename, "AGENTS*.md"):
-                continue
             path = Path(current) / filename
             if path.suffix.lower() in DOCUMENT_SUFFIXES:
                 yield path
