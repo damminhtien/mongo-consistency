@@ -43,6 +43,14 @@ def _members_for_stale_read(trial: MongoTrial) -> tuple[str, str]:
     return secondaries[0], secondaries[1]
 
 
+def _stale_secondary_member(trial: MongoTrial) -> str:
+    primary = _primary_member(trial)
+    secondaries = tuple(member for member in _secondary_members(trial) if member != primary)
+    if not secondaries:
+        raise ScheduleError("a secondary member is required for the read schedule")
+    return secondaries[0]
+
+
 def _fault_event(
     trial: MongoTrial,
     controller: FaultControllerClient,
@@ -148,7 +156,7 @@ def run_property(
         trial.wait_for_stable_topology(ELECTION_BARRIER_SECONDS)
         if property_name == "RYW":
             trial.set_steps({"write": "write", "read": "read"})
-            stale, _fresh = _members_for_stale_read(trial)
+            stale = _stale_secondary_member(trial)
             if adversarial:
                 if controller is None:
                     raise FaultControllerError("adversarial RYW requires a fault controller")
