@@ -1,0 +1,282 @@
+{
+  "fault_events": [
+    {
+      "action": "isolate",
+      "applied_ns": 4060049707089,
+      "election_end_ns": 4080604387339,
+      "election_start_ns": 4060049717354,
+      "end_ns": 4060049707361,
+      "event_id": "pilot-00017-C7-mw-mw-fault",
+      "members": [
+        "mongo3"
+      ],
+      "new_primary": "mongo1",
+      "responses": [
+        {
+          "action": "isolate",
+          "event_id": "pilot-00017-C7-mw-mw-fault",
+          "member": "mongo3",
+          "ok": true
+        }
+      ],
+      "start_ns": 4060029036216,
+      "status": "APPLIED"
+    },
+    {
+      "action": "heal",
+      "applied_ns": 4080651511822,
+      "end_ns": 4080651512218,
+      "event_id": "pilot-00017-C7-mw-mw-fault-heal",
+      "members": [
+        "mongo3"
+      ],
+      "recovery_end_ns": 4082681024598,
+      "recovery_start_ns": 4080651520590,
+      "responses": [
+        {
+          "action": "heal",
+          "event_id": "pilot-00017-C7-mw-mw-fault-heal",
+          "member": "mongo3",
+          "ok": true
+        }
+      ],
+      "start_ns": 4080610818781,
+      "status": "APPLIED"
+    }
+  ],
+  "history_hash": "f16fd8c0be6e395efa6cdd29e93138ed2be79568280f79e41b4af26a6dfe6ea6",
+  "manifest": {
+    "adversarial": true,
+    "campaign_id": "pilot",
+    "causal_session": false,
+    "checker_version": "history.v1",
+    "cleanup_status": "STABLE",
+    "configuration_id": "C7",
+    "driver_version": "4.18.1",
+    "image_digest": [
+      "mongo@sha256:c1a84ab5d0c17deed1e0dba1d24bd7c76e5c7b281145fe536911939b1551754c"
+    ],
+    "members": [
+      {
+        "actual_role": "RSPrimary",
+        "address": "mongo1:27017"
+      },
+      {
+        "actual_role": "RSSecondary",
+        "address": "mongo2:27017"
+      },
+      {
+        "actual_role": "RSSecondary",
+        "address": "mongo3:27017"
+      }
+    ],
+    "namespace": {
+      "collection": "logical",
+      "database": "mc_pilot_00017_C7_mw",
+      "document_id": "pilot-00017-C7-mw/x"
+    },
+    "prediction_commit": "246f7ff0aeb185dcf224a074fc92810fd4a1fe03",
+    "prediction_manifest_hash": "663b06ed344c53ea75736e0322b3588ee94c5b8a2e344fc4710f0de925731857",
+    "property": "MW",
+    "property_steps": {
+      "first_write": "first_write",
+      "observer": "observer",
+      "second_write": "second_write"
+    },
+    "read_concern": "majority",
+    "retry_reads": false,
+    "retry_writes": false,
+    "runner_version": "246f7ff0aeb185dcf224a074fc92810fd4a1fe03",
+    "schedule_id": "mw-election",
+    "schema_version": "manifest.v1",
+    "seed": 20260932,
+    "session_id": "Binary(b'\\xbe\\x01y\\xa1\\xc7\\xc9GU\\x95(\\x0b\\xf1zm\\xe2\\xb7', 4)",
+    "software_versions": {
+      "docker_compose": "5.5.1",
+      "docker_engine": "29.8.0",
+      "mongodb": "7.0.34",
+      "pymongo": "4.18.1",
+      "python": "3.14.7"
+    },
+    "subtrial_finished_ns": 4082681028354,
+    "subtrial_started_ns": 4060003334017,
+    "timeout_policy": {
+      "connect_ms": 2000,
+      "election_barrier_ms": 30000,
+      "operation_ms": 5000,
+      "server_selection_ms": 5000,
+      "subtrial_ms": 60000,
+      "write_concern_ms": 5000
+    },
+    "trial_id": "pilot-00017-C7-mw",
+    "write_concern": "w:1"
+  },
+  "metadata": {},
+  "operations": [
+    {
+      "actual_role": "RSPrimary",
+      "actual_server_address": "mongo3:27017",
+      "causal_session": false,
+      "command_name": "update",
+      "dependency_metadata": {},
+      "depends_on_read_id": null,
+      "depends_on_version": null,
+      "document_version_after": 0,
+      "document_version_before": null,
+      "end_ns": 4060026717419,
+      "error_code": null,
+      "error_message": null,
+      "fault_event_id": null,
+      "key": "x",
+      "kind": "setup",
+      "observed_updates": [],
+      "observed_version": null,
+      "observed_versions": [],
+      "operation_id": "init",
+      "operation_status": "SUCCESS",
+      "parent_write_id": null,
+      "property": "MW",
+      "read_concern": null,
+      "requested_member": "primary",
+      "response_received": true,
+      "session_id": "Binary(b'\\xbe\\x01y\\xa1\\xc7\\xc9GU\\x95(\\x0b\\xf1zm\\xe2\\xb7', 4)",
+      "start_ns": 4060025554167,
+      "timeout_category": null,
+      "trial_id": "pilot-00017-C7-mw",
+      "version": null,
+      "write_concern": "w:1",
+      "write_id": null
+    },
+    {
+      "actual_role": "RSPrimary",
+      "actual_server_address": "mongo3:27017",
+      "causal_session": false,
+      "command_name": "update",
+      "dependency_metadata": {
+        "depends_on_read_id": null,
+        "depends_on_version": null,
+        "parent_write_id": null
+      },
+      "depends_on_read_id": null,
+      "depends_on_version": null,
+      "document_version_after": 1,
+      "document_version_before": 0,
+      "end_ns": 4060028880674,
+      "error_code": null,
+      "error_message": null,
+      "fault_event_id": null,
+      "key": "x",
+      "kind": "write",
+      "observed_updates": [],
+      "observed_version": null,
+      "observed_versions": [],
+      "operation_id": "first_write",
+      "operation_status": "SUCCESS",
+      "parent_write_id": null,
+      "property": "MW",
+      "read_concern": null,
+      "requested_member": "primary",
+      "response_received": true,
+      "session_id": "Binary(b'\\xbe\\x01y\\xa1\\xc7\\xc9GU\\x95(\\x0b\\xf1zm\\xe2\\xb7', 4)",
+      "start_ns": 4060028013354,
+      "timeout_category": null,
+      "trial_id": "pilot-00017-C7-mw",
+      "version": 1,
+      "write_concern": "w:1",
+      "write_id": "w1"
+    },
+    {
+      "actual_role": "RSPrimary",
+      "actual_server_address": "mongo1:27017",
+      "causal_session": false,
+      "command_name": "update",
+      "dependency_metadata": {
+        "depends_on_read_id": null,
+        "depends_on_version": null,
+        "parent_write_id": "w1"
+      },
+      "depends_on_read_id": null,
+      "depends_on_version": null,
+      "document_version_after": 2,
+      "document_version_before": 1,
+      "end_ns": 4080609539580,
+      "error_code": null,
+      "error_message": null,
+      "fault_event_id": "pilot-00017-C7-mw-mw-fault",
+      "key": "x",
+      "kind": "write",
+      "observed_updates": [],
+      "observed_version": null,
+      "observed_versions": [],
+      "operation_id": "second_write",
+      "operation_status": "SUCCESS",
+      "parent_write_id": "w1",
+      "property": "MW",
+      "read_concern": null,
+      "requested_member": "primary",
+      "response_received": true,
+      "session_id": "Binary(b'\\xbe\\x01y\\xa1\\xc7\\xc9GU\\x95(\\x0b\\xf1zm\\xe2\\xb7', 4)",
+      "start_ns": 4080607950160,
+      "timeout_category": null,
+      "trial_id": "pilot-00017-C7-mw",
+      "version": 2,
+      "write_concern": "w:1",
+      "write_id": "w2"
+    },
+    {
+      "actual_role": "RSPrimary",
+      "actual_server_address": "mongo1:27017",
+      "causal_session": false,
+      "command_name": "find",
+      "dependency_metadata": {},
+      "depends_on_read_id": null,
+      "depends_on_version": null,
+      "document_version_after": 1,
+      "document_version_before": null,
+      "end_ns": 4080610654785,
+      "error_code": null,
+      "error_message": null,
+      "fault_event_id": "pilot-00017-C7-mw-mw-fault",
+      "key": "x",
+      "kind": "observer",
+      "observed_updates": [
+        {
+          "depends_on_read_id": null,
+          "depends_on_version": null,
+          "effect": "initial",
+          "parent_write_id": null,
+          "version": 0,
+          "write_id": "init"
+        },
+        {
+          "depends_on_read_id": null,
+          "depends_on_version": null,
+          "effect": "set-v1",
+          "parent_write_id": null,
+          "version": 1,
+          "write_id": "w1"
+        }
+      ],
+      "observed_version": 1,
+      "observed_versions": [
+        0,
+        1
+      ],
+      "operation_id": "observer",
+      "operation_status": "SUCCESS",
+      "parent_write_id": null,
+      "property": "MW",
+      "read_concern": "majority",
+      "requested_member": "primary",
+      "response_received": true,
+      "session_id": "Binary(b'\\xbe\\x01y\\xa1\\xc7\\xc9GU\\x95(\\x0b\\xf1zm\\xe2\\xb7', 4)",
+      "start_ns": 4080609942225,
+      "timeout_category": null,
+      "trial_id": "pilot-00017-C7-mw",
+      "version": null,
+      "write_concern": "w:1",
+      "write_id": null
+    }
+  ],
+  "schema_version": "history.v1"
+}

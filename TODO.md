@@ -35,9 +35,9 @@ The project is complete when the documents, implementation, raw histories, analy
 - [x] Add health checks, replica-set initialization, and stable-topology verification.
 - [x] Add a fault controller without Docker socket, credentials, or unrelated host mounts.
 - [x] Capture actual command routing with PyMongo monitoring.
-- [ ] Verify stale-member client access through replication-path isolation.
-- [ ] Verify election barrier independence from operation timeout.
-- [ ] Verify fault cleanup before the next trial.
+- [x] Verify stale-member client access through replication-path isolation.
+- [x] Verify election barrier independence from operation timeout.
+- [x] Verify fault cleanup before the next trial.
 
 ## Workloads and runner
 
@@ -66,13 +66,13 @@ digest.
 
 ## Campaign and analysis
 
-- [ ] Run the pilot and review preconditions.
+- [x] Run the pilot and review preconditions.
 - [x] Freeze the prediction commit before main result files.
 - [ ] Run 320 normal histories.
 - [ ] Run 960 adversarial histories.
 - [x] Run offline checker and summary generation with an explicit `NO_DATA` state before the live campaign.
 - [x] Implement outcome counts, rates, completion, latency, election, recovery, main effects, and interactions.
-- [x] Generate all required tables, figures, and four property timelines; data figures remain `NO_DATA` until raw histories exist.
+- [x] Generate all required tables, figures, and four property timelines from the pilot histories; the final report still waits for the main campaign.
 
 ## Submission
 
