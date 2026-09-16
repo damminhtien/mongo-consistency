@@ -68,7 +68,7 @@ def campaign_runtime_metadata(output_root: Path) -> dict[str, Any]:
             "pymongo": "4.18.1",
             "docker_engine": actual.get("docker_engine"),
             "docker_compose": actual.get("docker_compose"),
-            "mongodb": "8.0.32",
+            "mongodb": "7.0.34",
         },
         "image_digest": actual.get("mongodb_image_digests"),
         "prediction_commit": setup.get("source_revision") or _source_revision(ROOT),

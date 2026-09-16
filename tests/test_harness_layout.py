@@ -27,7 +27,7 @@ class HarnessLayoutTests(unittest.TestCase):
     def test_compose_and_runner_use_locked_versions(self) -> None:
         compose = (ROOT / "compose.yaml").read_text(encoding="utf-8")
         dockerfile = (ROOT / "infra/runner/Dockerfile").read_text(encoding="utf-8")
-        self.assertIn("mongo:8.0.32", compose)
+        self.assertIn("mongo:7.0.34", compose)
         self.assertIn("python:3.14.7-slim-bookworm", dockerfile)
         self.assertIn("pymongo==4.18.1", (ROOT / "requirements.txt").read_text())
 
@@ -47,10 +47,8 @@ class HarnessLayoutTests(unittest.TestCase):
         self.assertIn("eth1", controller)
         self.assertNotIn("docker.sock", compose)
 
-    def test_setup_fails_before_cluster_start_on_known_kernel_range(self) -> None:
+    def test_setup_records_runtime_kernel_for_reproducibility(self) -> None:
         setup = (ROOT / "scripts/setup_experiment.py").read_text(encoding="utf-8")
-        self.assertIn("kernel_tuple", setup)
-        self.assertIn("7.0.14", setup)
         self.assertIn("KernelVersion", setup)
 
     def test_command_monitor_preserves_actual_route(self) -> None:

@@ -2,7 +2,7 @@ name: mongo-consistency
 
 services:
   mongo1:
-    image: mongo:8.0.32
+    image: mongo:7.0.34
     hostname: mongo1
     command: ["mongod", "--replSet", "rs0", "--bind_ip_all", "--port", "27017"]
     networks: [client_net, replica_net]
@@ -15,7 +15,7 @@ services:
       retries: 30
 
   mongo2:
-    image: mongo:8.0.32
+    image: mongo:7.0.34
     hostname: mongo2
     command: ["mongod", "--replSet", "rs0", "--bind_ip_all", "--port", "27017"]
     networks: [client_net, replica_net]
@@ -28,7 +28,7 @@ services:
       retries: 30
 
   mongo3:
-    image: mongo:8.0.32
+    image: mongo:7.0.34
     hostname: mongo3
     command: ["mongod", "--replSet", "rs0", "--bind_ip_all", "--port", "27017"]
     networks: [client_net, replica_net]

@@ -12,7 +12,8 @@ These decisions are closed unless a reproducibility or safety check shows that a
 
 - Final database: MongoDB replica set.
 - Baseline deployment: three data-bearing MongoDB members in Docker Compose.
-- Target versions: MongoDB 8.0.32, PyMongo 4.18.1, Python 3.14.7, Docker Engine 29.7.2, and Docker Compose 5.5.0.
+- Target versions: MongoDB 7.0.34, PyMongo 4.18.1, Python 3.14.7, Docker Engine 29.8.0, and Docker Compose 5.5.1.
+- The MongoDB and Docker pins were revised on 16 September 2026 after MongoDB 8.0.32 stopped on the Docker Desktop kernel available on this machine. A direct `mongo:7.0.34` startup probe passed; setup still records the actual image digest and runtime versions.
 - Setup records the actual executable versions and resolved MongoDB image digest.
 
 ## Experiment

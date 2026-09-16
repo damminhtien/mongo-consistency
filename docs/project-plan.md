@@ -13,7 +13,8 @@ Slide sources kept outside the repository:
 
 - Database: MongoDB replica set.
 - Deployment: three data-bearing members in Docker Compose.
-- Toolchain target: MongoDB 8.0.32, PyMongo 4.18.1, Python 3.14.7, Docker Engine 29.7.2, and Docker Compose 5.5.0.
+- Toolchain target: MongoDB 7.0.34, PyMongo 4.18.1, Python 3.14.7, Docker Engine 29.8.0, and Docker Compose 5.5.1.
+- The MongoDB and Docker pins were revised on 16 September 2026. MongoDB 8.0.32 failed its startup guard on the Docker Desktop kernel available on this machine; `mongo:7.0.34` passed a direct startup probe, and the setup record retains the actual image digest and runtime versions.
 - The actual versions and MongoDB image digest must be verified by `make setup` and copied into every trial manifest.
 - Configuration matrix: all eight C1-C8 cells.
 - RQ1 uses faults as instruments for creating adversarial replica states. RQ2 is the separate comparison of failure conditions.

@@ -30,7 +30,7 @@ The project is complete when the documents, implementation, raw histories, analy
 
 ## Compose harness
 
-- [x] Build the three-member MongoDB 8.0.32 replica-set Compose stack.
+- [x] Build the three-member MongoDB 7.0.34 replica-set Compose stack.
 - [x] Keep client and replica network paths separate.
 - [x] Add health checks, replica-set initialization, and stable-topology verification.
 - [x] Add a fault controller without Docker socket, credentials, or unrelated host mounts.
@@ -57,11 +57,12 @@ The project is complete when the documents, implementation, raw histories, analy
 - [x] Run `make test`.
 - [x] Run `make check-docs`.
 - [x] Run `make check-schemas`.
-- [ ] Run `make setup` after the Docker VM provides a compatible kernel.
+- [x] Run `make setup` with the revised compatible MongoDB and Docker pins.
 
-The current Docker VM reports kernel `7.0.12-linuxkit`. MongoDB 8.0.32 stops
-before startup on that kernel, so the live setup and campaign checks remain
-pending rather than producing partial or fabricated histories.
+The original MongoDB 8.0.32 image stopped before startup on the current Docker
+VM kernel. The revised `mongo:7.0.34` image passed a direct startup probe; live
+setup now records a healthy three-member replica set and the resolved image
+digest.
 
 ## Campaign and analysis
 

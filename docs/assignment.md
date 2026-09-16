@@ -10,7 +10,7 @@ The DSA5208 project installs a distributed database and tests client-visible con
 
 ## Selected system
 
-MongoDB is the final database choice. The deployment is a three-member replica set in Docker Compose. The experiment pins MongoDB 8.0.32, PyMongo 4.18.1, Python 3.14.7, Docker Engine 29.7.2, and Docker Compose 5.5.0, subject to setup verification and image-digest recording.
+MongoDB is the final database choice. The deployment is a three-member replica set in Docker Compose. The experiment pins MongoDB 7.0.34, PyMongo 4.18.1, Python 3.14.7, Docker Engine 29.8.0, and Docker Compose 5.5.1, subject to setup verification and image-digest recording. The MongoDB pin was revised after a direct startup probe showed that the original 8.0.32 image could not run on the Docker Desktop kernel available on this machine.
 
 ## Properties
 

@@ -4,6 +4,8 @@
 
 A trial is one configuration, property, schedule, seed, and unique namespace. The three-member replica set stays alive for the trial. The runner does not reset the database after each property. A trial records the initial document state `x=v0`; that initialization is outside the property predicate.
 
+The pinned runtime is MongoDB 7.0.34, PyMongo 4.18.1, Python 3.14.7, Docker Engine 29.8.0, and Docker Compose 5.5.1. MongoDB 7.0.34 was selected because its image starts on the Docker Desktop kernel available on the experiment machine; the setup record still captures the actual versions and image digest.
+
 Each trial has a manifest with these fields:
 
 | Field | Requirement |

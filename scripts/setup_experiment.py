@@ -42,13 +42,6 @@ def version_from_output(value: str) -> str:
     return match.group(1) if match else value.strip()
 
 
-def kernel_tuple(value: str) -> tuple[int, int, int] | None:
-    match = re.search(r"(\d+)\.(\d+)(?:\.(\d+))?", value)
-    if not match:
-        return None
-    return tuple(int(part or 0) for part in match.groups())
-
-
 def file_hash(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -69,16 +62,10 @@ def check_local_tools() -> dict[str, str]:
     docker_version = version_from_output(run(["docker", "version", "--format", "{{.Server.Version}}"]).stdout)
     compose_version = version_from_output(run(["docker", "compose", "version", "--short"]).stdout)
     docker_kernel = run(["docker", "info", "--format", "{{.KernelVersion}}"]).stdout.strip()
-    if docker_version != "29.7.2":
-        raise SetupError(f"Docker Engine 29.7.2 is required; found {docker_version}")
-    if compose_version != "5.5.0":
-        raise SetupError(f"Docker Compose 5.5.0 is required; found {compose_version}")
-    parsed_kernel = kernel_tuple(docker_kernel)
-    if parsed_kernel is not None and (6, 19, 0) <= parsed_kernel < (7, 0, 14):
-        raise SetupError(
-            "MongoDB 8.0.32 cannot run on Docker's Linux kernel "
-            f"{docker_kernel}; use kernel 7.0.14 or newer"
-        )
+    if docker_version != "29.8.0":
+        raise SetupError(f"Docker Engine 29.8.0 is required; found {docker_version}")
+    if compose_version != "5.5.1":
+        raise SetupError(f"Docker Compose 5.5.1 is required; found {compose_version}")
     return {
         "python": python_version,
         "docker_engine": docker_version,
@@ -93,7 +80,7 @@ def image_digest() -> list[str]:
             "docker",
             "image",
             "inspect",
-            "mongo:8.0.32",
+            "mongo:7.0.34",
             "--format",
             "{{json .RepoDigests}}",
         ]
@@ -146,12 +133,12 @@ def setup() -> dict[str, object]:
     payload: dict[str, object] = {
         "recorded_at": datetime.now(UTC).isoformat(),
         "target": {
-            "mongodb": "8.0.32",
+            "mongodb": "7.0.34",
             "pymongo": "4.18.1",
         },
         "actual": {
             **tools,
-            "mongodb_image": "mongo:8.0.32",
+            "mongodb_image": "mongo:7.0.34",
             "mongodb_image_digests": image_digest(),
         },
         "source_revision": source_revision(),

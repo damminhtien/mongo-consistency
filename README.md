@@ -2,7 +2,7 @@
 
 The project records a reproducible DSA5208 experiment for MongoDB client-visible consistency. The implementation records raw operation histories, checks RYW, MR, MW, and WFR offline, and builds the submission package from those records.
 
-The cluster runner is being built against a three-member MongoDB replica set in Docker Compose. Until a campaign produces raw histories, the repository makes no result claim.
+The cluster runner uses a three-member MongoDB 7.0.34 replica set in Docker Compose with Python 3.14.7, PyMongo 4.18.1, Docker Engine 29.8.0, and Compose 5.5.1. Until a campaign produces raw histories, the repository makes no result claim.
 
 ## Canonical documents
 
