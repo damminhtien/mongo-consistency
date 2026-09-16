@@ -302,9 +302,9 @@ def run_case(
             runtime_metadata=trial_metadata,
             subtrial_deadline_seconds=TIMEOUT_POLICY["subtrial_ms"] / 1000,
         )
+        trial.set_campaign(campaign)
+        trial.set_adversarial(adversarial)
         with trial:
-            trial.set_campaign(campaign)
-            trial.set_adversarial(adversarial)
             trial.initialize()
             run_property(
                 trial,

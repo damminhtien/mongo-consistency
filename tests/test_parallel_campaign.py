@@ -115,6 +115,11 @@ class ParallelCampaignTests(unittest.TestCase):
         self.assertEqual(str(spec.results_mount), environment["MC_RESULTS_MOUNT"])
         self.assertNotEqual(environment["MC_RESULTS_MOUNT"], str(ROOT / "results"))
 
+    def test_parallel_runner_initializes_each_fresh_replica_set(self) -> None:
+        source = (ROOT / "scripts/run_parallel_campaign.py").read_text(encoding="utf-8")
+        self.assertIn("scripts/initialize_replica_set.py", source)
+        self.assertIn('"/workspace/results/replica-status.json"', source)
+
     def test_prepare_copies_only_assigned_canonical_histories(self) -> None:
         plan = self._small_plan()
         with tempfile.TemporaryDirectory() as directory:

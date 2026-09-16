@@ -585,6 +585,23 @@ def _stop_base_stack() -> None:
     )
 
 
+def _initialize_worker(spec: WorkerSpec) -> None:
+    """Initialize and verify the fresh replica set owned by one worker."""
+
+    _run_command(
+        _compose_command(
+            spec.project_name,
+            "run",
+            "--rm",
+            "runner",
+            "scripts/initialize_replica_set.py",
+            "--output",
+            "/workspace/results/replica-status.json",
+        ),
+        environment={**os.environ, **worker_environment(spec)},
+    )
+
+
 def _write_global_manifest(
     *,
     campaign: str,
@@ -688,6 +705,8 @@ def run_parallel_campaign(
         raise ParallelCampaignError(
             "cannot clean stale worker projects: " + "; ".join(stale_cleanup_errors)
         )
+    for spec in worker_specs:
+        _initialize_worker(spec)
     worker_records: dict[int, dict[int, dict[str, Any]]] = {
         spec.index: _prepare_worker(
             spec,
