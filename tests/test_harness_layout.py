@@ -68,6 +68,24 @@ class HarnessLayoutTests(unittest.TestCase):
         self.assertEqual("RSSecondary", operation.actual_role)
         self.assertEqual("find", operation.command_name)
 
+    def test_command_monitor_adapter_implements_listener_base(self) -> None:
+        class ListenerBase:
+            pass
+
+        class Event:
+            request_id = 23
+            command_name = "ping"
+            connection_id = ("mongo1", 27017)
+            failure = None
+
+        monitor = RoutingMonitor()
+        listener = monitor.command_listener(ListenerBase)
+        self.assertIsInstance(listener, ListenerBase)
+        monitor.attach("ping")
+        listener.started(Event())
+        listener.succeeded(Event())
+        self.assertEqual("ping", monitor.events_for("ping")[0]["command_name"])
+
 
 if __name__ == "__main__":
     unittest.main()

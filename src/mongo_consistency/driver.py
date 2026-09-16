@@ -110,6 +110,23 @@ class RoutingMonitor:
         with self._lock:
             return [dict(event) for event in self._events.pop(operation_id, [])]
 
+    def command_listener(self, listener_type: Any) -> Any:
+        """Build a PyMongo listener adapter without importing PyMongo offline."""
+
+        monitor = self
+
+        class Listener(listener_type):
+            def started(self, event: Any) -> None:
+                monitor.started(event)
+
+            def succeeded(self, event: Any) -> None:
+                monitor.succeeded(event)
+
+            def failed(self, event: Any) -> None:
+                monitor.failed(event)
+
+        return Listener()
+
 
 @dataclass(frozen=True)
 class ClientSettings:
@@ -137,7 +154,9 @@ def create_client(settings: ClientSettings, monitor: RoutingMonitor | None = Non
         "retryWrites": settings.retry_writes,
     }
     if monitor is not None:
-        options["event_listeners"] = [monitor]
+        options["event_listeners"] = [
+            monitor.command_listener(pymongo.monitoring.CommandListener)
+        ]
     return pymongo.MongoClient(list(settings.seed_uris), **options)
 
 
