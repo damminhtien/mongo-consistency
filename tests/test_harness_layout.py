@@ -45,6 +45,8 @@ class HarnessLayoutTests(unittest.TestCase):
         self.assertIn("wait_for_stable_topology", workloads)
         self.assertIn('"cleanup_status"', workloads)
         self.assertIn("eth1", controller)
+        self.assertIn('iptables("-A", CHAIN, "-j", "DROP")', controller)
+        self.assertNotIn('"REJECT"', controller)
         self.assertNotIn("docker.sock", compose)
 
     def test_driver_uses_pymongo_write_concern_timeout_name(self) -> None:
@@ -90,6 +92,18 @@ class HarnessLayoutTests(unittest.TestCase):
         listener.started(Event())
         listener.succeeded(Event())
         self.assertEqual("ping", monitor.events_for("ping")[0]["command_name"])
+
+    def test_secondary_routing_uses_tagged_constructor(self) -> None:
+        driver = (ROOT / "src/mongo_consistency/driver.py").read_text(encoding="utf-8")
+        self.assertIn("pymongo.read_preferences.Secondary(", driver)
+        self.assertIn('tag_sets=[{"member": member_tag}]', driver)
+        self.assertNotIn("ReadPreference.SECONDARY.with_options", driver)
+
+    def test_missing_document_is_recorded_as_a_successful_empty_read(self) -> None:
+        trial = (ROOT / "src/mongo_consistency/trial.py").read_text(encoding="utf-8")
+        self.assertIn("if document is None:", trial)
+        self.assertIn("operation.observed_updates = ()", trial)
+        self.assertNotIn('if not document or not isinstance(document.get("updates"), list):', trial)
 
 
 if __name__ == "__main__":

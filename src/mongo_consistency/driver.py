@@ -190,7 +190,7 @@ def tagged_secondary(member_tag: str) -> Any:
     """Return a secondary read preference for a Compose member tag."""
 
     pymongo = require_pymongo()
-    return pymongo.read_preferences.ReadPreference.SECONDARY.with_options(
+    return pymongo.read_preferences.Secondary(
         tag_sets=[{"member": member_tag}]
     )
 

@@ -28,7 +28,7 @@ def ensure_chain() -> None:
     if created.returncode not in {0, 1}:
         raise RuntimeError(created.stderr.strip() or "cannot create iptables chain")
     iptables("-F", CHAIN)
-    iptables("-A", CHAIN, "-j", "REJECT", "--reject-with", "tcp-reset")
+    iptables("-A", CHAIN, "-j", "DROP")
 
 
 def add_jump(direction: str, port_flag: str) -> None:

@@ -40,6 +40,12 @@ class FaultControllerClient:
         try:
             with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
                 result = json.loads(response.read().decode("utf-8"))
+        except urllib.error.HTTPError as error:
+            body = error.read().decode("utf-8", "replace")
+            raise FaultControllerError(
+                f"fault controller request failed for {member}: "
+                f"HTTP {error.code}: {body or error.reason}"
+            ) from error
         except (OSError, urllib.error.URLError, json.JSONDecodeError) as error:
             raise FaultControllerError(f"fault controller request failed for {member}: {error}") from error
         if not isinstance(result, dict) or result.get("ok") is not True:

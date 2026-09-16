@@ -427,7 +427,13 @@ class MongoTrial:
                 {"_id": self.document_id},
                 session=self.session,
             )
-            if not document or not isinstance(document.get("updates"), list):
+            if document is None:
+                operation.observed_updates = ()
+                operation.observed_versions = ()
+                operation.observed_version = None
+                operation.document_version_after = None
+                return None
+            if not isinstance(document.get("updates"), list):
                 raise RuntimeError("logical document or update list is missing")
             operation.observed_updates = tuple(
                 dict(update) for update in document["updates"]
