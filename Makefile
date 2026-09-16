@@ -1,6 +1,7 @@
 PYTHON ?= python3
+PARALLEL_WORKERS ?= 2
 
-.PHONY: check-docs check-schemas submission test setup pilot experiment experiment-fresh analyse
+.PHONY: check-docs check-schemas submission test setup pilot experiment experiment-fresh experiment-parallel analyse
 
 check-docs:
 	$(PYTHON) scripts/check_documentation.py
@@ -25,6 +26,9 @@ experiment: setup
 
 experiment-fresh: setup
 	docker compose -f compose.yaml run --rm runner scripts/run_campaign.py --campaign experiment
+
+experiment-parallel: setup
+	PYTHONPATH=src:. $(PYTHON) scripts/run_parallel_campaign.py --campaign experiment --workers $(PARALLEL_WORKERS) --resume
 
 analyse:
 	PYTHONPATH=src $(PYTHON) scripts/analyse_results.py

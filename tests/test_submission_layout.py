@@ -60,6 +60,10 @@ class SubmissionLayoutTests(unittest.TestCase):
         self.assertIn('"schemas"', source)
         self.assertTrue((ROOT / "schemas/history.v1.json").is_file())
 
+    def test_parallel_worker_scratch_is_not_packaged(self) -> None:
+        source = (ROOT / "scripts/build_submission.py").read_text(encoding="utf-8")
+        self.assertIn('Path("results/parallel")', source)
+
 
 if __name__ == "__main__":
     unittest.main()

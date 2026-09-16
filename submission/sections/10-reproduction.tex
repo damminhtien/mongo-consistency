@@ -20,9 +20,10 @@ The target interface is:
 make setup
 make pilot
 make experiment
+make experiment-parallel
 make analyse
 make submission
 make check-schemas
 \end{verbatim}
 
-\texttt{make setup} verifies the pinned versions, starts the three-member replica set, builds the restricted runner, and checks stable topology. The pilot runs five adversarial repetitions and one normal smoke trial per configuration/property cell. The main experiment runs 320 normal histories and 960 adversarial histories. \texttt{make analyse} reads raw histories without MongoDB and rebuilds summaries and figures. \texttt{make submission} compiles the PDF, checks source and package documents, and writes the reproduction archive.
+\texttt{make setup} verifies the pinned versions, starts the three-member replica set, builds the restricted runner, and checks stable topology. The pilot runs five adversarial repetitions and one normal smoke trial per configuration/property cell. The main experiment runs 320 normal histories and 960 adversarial histories. \texttt{make experiment-parallel} assigns the same global plan to isolated Compose replica sets and validates the merge before publishing canonical histories; its worker count is recorded in the campaign manifest. \texttt{make analyse} reads canonical raw histories without MongoDB and rebuilds summaries and figures. \texttt{make submission} compiles the PDF, checks source and package documents, and writes the reproduction archive.

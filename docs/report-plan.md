@@ -17,7 +17,7 @@ question -> theory -> prediction -> adversarial experiment -> recorded history -
 7. Results: report raw outcome counts, consistency rates, operation success, history completion, latency, election and recovery time, and factorial contrasts.
 8. Discussion: explain representative traces through the recorded routing, fault event, dependencies, and checker reason. Keep observed behaviour separate from MongoDB internal mechanisms that were not inspected.
 9. Limits: cover laptop-hosted replicas, synthetic network faults, finite schedules, timing sensitivity, version scope, and the boundary between RQ1 and RQ2.
-10. Reproduction: give the setup, pilot, main campaign, analysis, and submission commands. State which commands require Docker and which are offline.
+10. Reproduction: give the setup, pilot, serial or isolated-parallel main campaign, analysis, and submission commands. State which commands require Docker and which are offline.
 11. Conclusion: answer only the questions supported by the recorded histories.
 12. Tool use: disclose code-generation assistance and identify which claims were checked by tests or raw artifacts.
 
@@ -50,6 +50,7 @@ question -> theory -> prediction -> adversarial experiment -> recorded history -
 - A timeout after a possibly completed write is `INDETERMINATE`.
 - Absence of a violation in the tested histories is not a universal guarantee.
 - A checker result does not establish an internal MongoDB mechanism unless an observable trace supports that explanation.
+- Parallel workers are an execution detail. Report their count and resource isolation, and treat latency as measured under that declared level of concurrency.
 
 ## Source links
 

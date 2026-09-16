@@ -88,6 +88,7 @@ EXCLUDED_PARTS = frozenset(
         ".venv",
     }
 )
+EXCLUDED_RELATIVE_PATHS = (Path("results/parallel"),)
 
 
 class BuildError(RuntimeError):
@@ -262,6 +263,11 @@ def _iter_files(root: Path, paths: Iterable[Path]) -> Iterable[tuple[Path, Path]
                 continue
             candidate_relative = candidate.relative_to(root)
             if any(part in EXCLUDED_PARTS for part in candidate_relative.parts):
+                continue
+            if any(
+                excluded == candidate_relative or excluded in candidate_relative.parents
+                for excluded in EXCLUDED_RELATIVE_PATHS
+            ):
                 continue
             if candidate.suffix in {".pyc", ".pyo"}:
                 continue

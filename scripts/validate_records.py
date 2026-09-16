@@ -70,15 +70,84 @@ def _check_campaign_manifest(path: Path, errors: list[str]) -> None:
     if not isinstance(payload, dict):
         return
     _require(payload.get("schema_version") == "campaign-run.v1", f"{path}: invalid schema_version", errors)
+    if "status" in payload:
+        _require(
+            payload.get("status") in {"RUNNING", "COMPLETE", "INTERRUPTED", "FAILED"},
+            f"{path}: invalid status",
+            errors,
+        )
+    expected_count = payload.get("expected_case_count")
+    if "expected_case_count" in payload:
+        _require(
+            isinstance(expected_count, int)
+            and not isinstance(expected_count, bool)
+            and expected_count >= 0,
+            f"{path}: expected_case_count must be a non-negative integer",
+            errors,
+        )
     records = payload.get("records")
     _require(isinstance(records, list), f"{path}: records must be a list", errors)
     if isinstance(records, list):
         _require(payload.get("case_count") == len(records), f"{path}: case_count does not match records", errors)
+        if "completed_case_count" in payload:
+            _require(
+                payload.get("completed_case_count") == len(records),
+                f"{path}: completed_case_count does not match records",
+                errors,
+            )
+        ordinals: list[int] = []
         for index, record in enumerate(records):
             _require(isinstance(record, dict), f"{path}: records[{index}] must be an object", errors)
             if isinstance(record, dict):
                 for field in ("trial_id", "campaign", "configuration_id", "property", "seed", "history_hash"):
                     _require(field in record, f"{path}: records[{index}] missing {field}", errors)
+                if "ordinal" in record:
+                    ordinal = record.get("ordinal")
+                    if isinstance(ordinal, int) and not isinstance(ordinal, bool):
+                        ordinals.append(ordinal)
+                    else:
+                        _require(False, f"{path}: records[{index}] ordinal must be an integer", errors)
+        planned = payload.get("planned_ordinals")
+        if planned is not None:
+            _require(
+                isinstance(planned, list) and all(
+                    isinstance(ordinal, int) and not isinstance(ordinal, bool)
+                    for ordinal in planned
+                ),
+                f"{path}: planned_ordinals must be an integer list",
+                errors,
+            )
+            if isinstance(planned, list):
+                if isinstance(expected_count, int) and not isinstance(expected_count, bool):
+                    _require(
+                        expected_count == len(planned),
+                        f"{path}: expected_case_count does not match planned_ordinals",
+                        errors,
+                    )
+                _require(
+                    len(ordinals) == len(set(ordinals)) and set(ordinals).issubset(set(planned)),
+                    f"{path}: records contain duplicate or unplanned ordinals",
+                    errors,
+                )
+        global_count = payload.get("global_expected_case_count")
+        if global_count is not None:
+            if isinstance(expected_count, int) and not isinstance(expected_count, bool):
+                _require(
+                    isinstance(global_count, int)
+                    and not isinstance(global_count, bool)
+                    and global_count >= expected_count,
+                    f"{path}: invalid global_expected_case_count",
+                    errors,
+                )
+            else:
+                _require(False, f"{path}: cannot check global_expected_case_count", errors)
+        shard_count = payload.get("shard_count")
+        if shard_count is not None:
+            _require(
+                isinstance(shard_count, int) and not isinstance(shard_count, bool) and shard_count >= 1,
+                f"{path}: invalid shard_count",
+                errors,
+            )
 
 
 def _check_summary(path: Path, errors: list[str]) -> None:

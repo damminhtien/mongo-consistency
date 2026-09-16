@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from mongo_consistency.config import load_configurations, load_json
-from scripts.run_campaign import adversarial_cases, campaign_cases
+from scripts.run_campaign import adversarial_cases, campaign_cases, campaign_plan
 
 
 class CampaignPlanTests(unittest.TestCase):
@@ -28,6 +28,19 @@ class CampaignPlanTests(unittest.TestCase):
         for number in (1, 2, 3):
             self.assertIn(f"fault-controller-{number}:", compose)
         self.assertEqual(3, compose.count("cap_add: [NET_ADMIN]"))
+
+    def test_shards_partition_the_global_plan_without_reordering_it(self) -> None:
+        plan = campaign_plan("experiment", self.configurations, self.campaign)
+        shards = [
+            [case for case in plan if (case[0] - 1) % 4 == shard_index]
+            for shard_index in range(4)
+        ]
+        self.assertEqual(list(range(1, 1281)), [case[0] for case in plan])
+        self.assertEqual([320, 320, 320, 320], [len(shard) for shard in shards])
+        self.assertEqual(
+            list(range(1, 1281)),
+            sorted(case[0] for shard in shards for case in shard),
+        )
 
 
 if __name__ == "__main__":

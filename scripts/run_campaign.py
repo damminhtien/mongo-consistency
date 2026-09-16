@@ -89,15 +89,28 @@ def _source_revision(root: Path) -> str:
 def campaign_runtime_metadata(output_root: Path) -> dict[str, Any]:
     """Load setup provenance and frozen-input hashes available to the runner."""
 
-    setup_path = output_root.parent / "setup/toolchain.json"
     setup: dict[str, Any] = {}
-    if setup_path.is_file():
+    setup_candidates = [
+        Path(value)
+        for value in (
+            os.environ.get("MC_SETUP_PROVENANCE"),
+            str(output_root.parent / "setup/toolchain.json"),
+            str(ROOT / "results/setup/toolchain.json"),
+        )
+        if value
+    ]
+    seen_paths: set[Path] = set()
+    for setup_path in setup_candidates:
+        if setup_path in seen_paths or not setup_path.is_file():
+            continue
+        seen_paths.add(setup_path)
         try:
             value = json.loads(setup_path.read_text(encoding="utf-8"))
-            if isinstance(value, dict):
-                setup = value
         except (OSError, UnicodeError, json.JSONDecodeError):
-            setup = {}
+            continue
+        if isinstance(value, dict):
+            setup = value
+            break
     actual = setup.get("actual", {}) if isinstance(setup.get("actual"), dict) else {}
     prediction_path = ROOT / "configs/predictions.json"
     return {
@@ -160,6 +173,34 @@ def adversarial_cases(
         for _repetition in range(repetitions)
         for configuration_id in configurations
         for property_name in PROPERTIES
+    ]
+
+
+def campaign_plan(
+    campaign: str,
+    configurations: dict[str, dict[str, Any]],
+    campaign_config: dict[str, Any],
+) -> list[tuple[int, str, str, bool]]:
+    """Return the one deterministic, globally numbered plan for a campaign."""
+
+    cases = [
+        (configuration_id, property_name, False)
+        for configuration_id, property_name in campaign_cases(
+            campaign, configurations, campaign_config
+        )
+    ]
+    cases.extend(
+        (configuration_id, property_name, True)
+        for configuration_id, property_name in adversarial_cases(
+            campaign, configurations, campaign_config
+        )
+    )
+    random.Random(int(campaign_config["seed_base"])).shuffle(cases)
+    return [
+        (ordinal, configuration_id, property_name, adversarial)
+        for ordinal, (configuration_id, property_name, adversarial) in enumerate(
+            cases, start=1
+        )
     ]
 
 
@@ -350,6 +391,10 @@ def _record_from_history(
         for field, value in expected.items()
         if manifest.get(field) != value
     ]
+    if "campaign_ordinal" in manifest and manifest["campaign_ordinal"] != ordinal:
+        mismatches.append(
+            f"campaign_ordinal={manifest['campaign_ordinal']!r}, expected {ordinal!r}"
+        )
     if mismatches:
         raise ValueError(f"cannot resume {path}: " + "; ".join(mismatches))
     return {
@@ -390,11 +435,18 @@ def _campaign_manifest(
     records_by_ordinal: dict[int, dict[str, Any]],
     expected_case_count: int,
     started_ns: int,
+    planned_ordinals: list[int] | None = None,
+    global_expected_case_count: int | None = None,
+    shard_index: int | None = None,
+    shard_count: int | None = None,
+    parallel_workers: int | None = None,
+    worker_resources: list[dict[str, Any]] | None = None,
     status: str,
     resumed: bool,
     finished_ns: int | None = None,
     error: str | None = None,
 ) -> dict[str, Any]:
+    planned = list(planned_ordinals or range(1, expected_case_count + 1))
     records = [records_by_ordinal[ordinal] for ordinal in sorted(records_by_ordinal)]
     runner_versions = sorted(
         {
@@ -407,10 +459,10 @@ def _campaign_manifest(
     next_ordinal = next(
         (
             ordinal
-            for ordinal in range(1, expected_case_count + 1)
+            for ordinal in planned
             if ordinal not in completed_ordinals
         ),
-        expected_case_count + 1,
+        None,
     )
     payload: dict[str, Any] = {
         "schema_version": "campaign-run.v1",
@@ -418,6 +470,8 @@ def _campaign_manifest(
         "status": status,
         "seed_base": seed_base,
         "expected_case_count": expected_case_count,
+        "global_expected_case_count": global_expected_case_count or expected_case_count,
+        "planned_ordinals": planned,
         "case_count": len(records),
         "completed_case_count": len(records),
         "next_ordinal": next_ordinal,
@@ -431,6 +485,13 @@ def _campaign_manifest(
         "resumed": resumed,
         "records": records,
     }
+    if shard_index is not None or shard_count is not None:
+        payload["shard_index"] = shard_index
+        payload["shard_count"] = shard_count
+    if parallel_workers is not None:
+        payload["parallel_workers"] = parallel_workers
+    if worker_resources is not None:
+        payload["worker_resources"] = worker_resources
     if finished_ns is not None:
         payload["finished_ns"] = finished_ns
     if error is not None:
@@ -444,6 +505,9 @@ def _check_previous_manifest(
     campaign: str,
     seed_base: int,
     expected_case_count: int,
+    planned_ordinals: list[int] | None = None,
+    shard_index: int | None = None,
+    shard_count: int | None = None,
 ) -> None:
     if not path.is_file():
         return
@@ -452,7 +516,7 @@ def _check_previous_manifest(
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
         raise ValueError(f"cannot read existing campaign manifest {path}: {error}") from error
     if not isinstance(payload, dict):
-        raise ValueError(f"existing campaign manifest {path} is not an object")
+        raise TypeError(f"existing campaign manifest {path} is not an object")
     if payload.get("campaign") != campaign:
         raise ValueError(f"existing campaign manifest belongs to {payload.get('campaign')!r}")
     if payload.get("seed_base") != seed_base:
@@ -460,6 +524,23 @@ def _check_previous_manifest(
     recorded_count = payload.get("expected_case_count")
     if recorded_count is not None and recorded_count != expected_case_count:
         raise ValueError("existing campaign manifest uses a different case count")
+    if planned_ordinals is not None:
+        recorded_plan = payload.get("planned_ordinals")
+        if recorded_plan is not None and recorded_plan != planned_ordinals:
+            raise ValueError("existing campaign manifest uses a different shard plan")
+    if shard_index is not None:
+        recorded_index = payload.get("shard_index")
+        if recorded_index is not None and recorded_index != shard_index:
+            raise ValueError("existing campaign manifest belongs to a different shard")
+    if shard_count is not None:
+        recorded_shards = payload.get("shard_count")
+        recorded_index = payload.get("shard_index")
+        if (
+            recorded_shards is not None
+            and recorded_shards != shard_count
+            and recorded_index is not None
+        ):
+            raise ValueError("existing campaign manifest uses a different shard count")
     if payload.get("status") == "COMPLETE" and payload.get("case_count") != expected_case_count:
         raise ValueError("completed campaign manifest is missing cases")
 
@@ -469,17 +550,23 @@ def run_campaign(
     output_root: Path,
     *,
     resume: bool = False,
+    shard_index: int = 0,
+    shard_count: int = 1,
 ) -> dict[str, Any]:
+    if shard_count < 1:
+        raise ValueError("shard_count must be positive")
+    if shard_index < 0 or shard_index >= shard_count:
+        raise ValueError("shard_index must be within shard_count")
     configurations = load_configurations(ROOT / "configs/configurations.json")
     campaign_config = load_json(ROOT / "configs/campaign.json")
     runtime_metadata = campaign_runtime_metadata(output_root)
-    cases = [(configuration_id, property_name, False) for configuration_id, property_name in campaign_cases(campaign, configurations, campaign_config)]
-    cases.extend(
-        (configuration_id, property_name, True)
-        for configuration_id, property_name in adversarial_cases(campaign, configurations, campaign_config)
-    )
-    rng = random.Random(int(campaign_config["seed_base"]))
-    rng.shuffle(cases)
+    full_plan = campaign_plan(campaign, configurations, campaign_config)
+    plan = [
+        case
+        for case in full_plan
+        if (case[0] - 1) % shard_count == shard_index
+    ]
+    planned_ordinals = [case[0] for case in plan]
     seed_uris = tuple(
         value
         for value in os.environ.get(
@@ -488,9 +575,10 @@ def run_campaign(
         ).split(";")
         if value
     )
-    controller = controller_from_environment() if any(case[2] for case in cases) else None
+    controller = controller_from_environment() if any(case[3] for case in plan) else None
     seed_base = int(campaign_config["seed_base"])
-    expected_case_count = len(cases)
+    expected_case_count = len(plan)
+    global_expected_case_count = len(full_plan)
     campaign_dir = output_root / campaign
     manifest_path = campaign_dir / "campaign-manifest.json"
     if not resume:
@@ -499,10 +587,13 @@ def run_campaign(
             campaign=campaign,
             seed_base=seed_base,
             expected_case_count=expected_case_count,
+            planned_ordinals=planned_ordinals,
+            shard_index=shard_index,
+            shard_count=shard_count,
         )
         existing_paths = [
             campaign_dir / f"{trial_id_for(campaign, ordinal, configuration_id, property_name)}.json"
-            for ordinal, (configuration_id, property_name, _adversarial) in enumerate(cases, start=1)
+            for ordinal, configuration_id, property_name, _adversarial in plan
         ]
         if any(path.is_file() for path in existing_paths):
             raise ValueError(
@@ -515,11 +606,14 @@ def run_campaign(
             campaign=campaign,
             seed_base=seed_base,
             expected_case_count=expected_case_count,
+            planned_ordinals=planned_ordinals,
+            shard_index=shard_index,
+            shard_count=shard_count,
         )
 
     records_by_ordinal: dict[int, dict[str, Any]] = {}
     if resume:
-        for ordinal, (configuration_id, property_name, adversarial) in enumerate(cases, start=1):
+        for ordinal, configuration_id, property_name, adversarial in plan:
             path = campaign_dir / f"{trial_id_for(campaign, ordinal, configuration_id, property_name)}.json"
             if path.is_file():
                 records_by_ordinal[ordinal] = _record_from_history(
@@ -543,6 +637,10 @@ def run_campaign(
             records_by_ordinal=records_by_ordinal,
             expected_case_count=expected_case_count,
             started_ns=started,
+            planned_ordinals=planned_ordinals,
+            global_expected_case_count=global_expected_case_count,
+            shard_index=shard_index,
+            shard_count=shard_count,
             status="RUNNING",
             resumed=resume,
         ),
@@ -551,7 +649,7 @@ def run_campaign(
     fatal_error: str | None = None
     shutdown.install()
     try:
-        for ordinal, (configuration_id, property_name, adversarial) in enumerate(cases, start=1):
+        for ordinal, configuration_id, property_name, adversarial in plan:
             if shutdown.requested:
                 interrupted = True
                 break
@@ -579,6 +677,10 @@ def run_campaign(
                     records_by_ordinal=records_by_ordinal,
                     expected_case_count=expected_case_count,
                     started_ns=started,
+                    planned_ordinals=planned_ordinals,
+                    global_expected_case_count=global_expected_case_count,
+                    shard_index=shard_index,
+                    shard_count=shard_count,
                     status="RUNNING",
                     resumed=resume,
                 ),
@@ -588,7 +690,7 @@ def run_campaign(
                 break
     except KeyboardInterrupt:
         interrupted = True
-    except Exception as error:  # noqa: BLE001
+    except Exception as error:
         fatal_error = str(error)
         raise
     finally:
@@ -601,6 +703,10 @@ def run_campaign(
             records_by_ordinal=records_by_ordinal,
             expected_case_count=expected_case_count,
             started_ns=started,
+            planned_ordinals=planned_ordinals,
+            global_expected_case_count=global_expected_case_count,
+            shard_index=shard_index,
+            shard_count=shard_count,
             status=status,
             resumed=resume,
             finished_ns=time.monotonic_ns(),
@@ -619,8 +725,26 @@ def main() -> int:
         help="reuse and validate completed histories in the campaign directory",
     )
     parser.add_argument("--output-root", type=Path, default=ROOT / "results/raw")
+    parser.add_argument(
+        "--shard-index",
+        type=int,
+        default=0,
+        help="zero-based shard index in the deterministic campaign plan",
+    )
+    parser.add_argument(
+        "--shard-count",
+        type=int,
+        default=1,
+        help="number of independent shards sharing the campaign plan",
+    )
     args = parser.parse_args()
-    manifest = run_campaign(args.campaign, args.output_root, resume=args.resume)
+    manifest = run_campaign(
+        args.campaign,
+        args.output_root,
+        resume=args.resume,
+        shard_index=args.shard_index,
+        shard_count=args.shard_count,
+    )
     print(
         json.dumps(
             {

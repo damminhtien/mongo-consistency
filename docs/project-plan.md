@@ -87,6 +87,15 @@ The Compose topology provides separate client and replica paths. The fault contr
 - Case order is a seeded, stratified shuffle using `20260915 + campaign_ordinal`.
 - A trial is never overwritten. A rerun receives a new trial ID and retains the old trace.
 
+The campaign can run in parallel with `make experiment-parallel`. The coordinator
+keeps the one global plan and assigns ordinal `o` to worker `(o - 1) mod N`.
+Workers use separate Compose projects, three-member replica sets, client and
+replica subnets, fixed addresses, host ports, volumes, and scratch result
+directories. Worker scratch files are not analysis input. The coordinator
+validates identities, seeds, schemas, hashes, and byte equality before copying
+anything into `results/raw/<campaign>/`. This is an execution-time optimisation;
+it does not combine workers into one replica set or change the RQ1 schedule.
+
 The main campaign uses 30 repetitions for repeatability of registered histories, not as a universal probability estimate. If the pilot shows that a valid schedule remains timing-dependent, run a separate 100-repetition extension only for the affected key cells and report Wilson intervals.
 
 ## Timeouts and outcomes
@@ -122,6 +131,7 @@ The implementation provides:
 make setup
 make pilot
 make experiment
+make experiment-parallel
 make analyse
 make submission
 ```

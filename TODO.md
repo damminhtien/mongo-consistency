@@ -49,6 +49,8 @@ The project is complete when the documents, implementation, raw histories, analy
 - [x] Implement pilot, normal baseline, and adversarial campaign modes.
 - [x] Preserve raw histories, manifests, fault events, errors, and hashes.
 - [x] Add atomic history/manifest writes, graceful shutdown, and deterministic campaign resume.
+- [x] Add deterministic sharding across independent Compose replica sets with byte-checked merge.
+- [x] Keep worker scratch results outside the canonical analysis tree.
 
 ## Tests and gates
 
@@ -71,6 +73,7 @@ digest.
 - [x] Freeze the prediction commit before main result files.
 - [ ] Run 320 normal histories.
 - [ ] Run 960 adversarial histories.
+- [ ] Run the main campaign with isolated parallel workers and confirm a complete canonical manifest.
 - [x] Run offline checker and summary generation with an explicit `NO_DATA` state before the live campaign.
 - [x] Implement outcome counts, rates, completion, latency, election, recovery, main effects, and interactions.
 - [x] Generate all required tables, figures, and four property timelines from the pilot histories; the final report still waits for the main campaign.

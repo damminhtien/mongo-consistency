@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-import sys
 import signal
+import sys
 import tempfile
 import unittest
-from unittest import mock
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -17,8 +16,8 @@ from scripts.run_campaign import (
     _campaign_manifest,
     _record_from_history,
     _write_json_atomic,
-    campaign_cases,
     adversarial_cases,
+    campaign_cases,
     load_configurations,
     load_json,
     run_campaign,
@@ -76,6 +75,32 @@ class CampaignResumeTests(unittest.TestCase):
         self.assertEqual(1, payload["next_ordinal"])
         self.assertEqual("INTERRUPTED", payload["status"])
         self.assertEqual([], payload["runner_versions"])
+
+    def test_sharded_manifest_uses_global_ordinal_holes(self) -> None:
+        payload = _campaign_manifest(
+            campaign="experiment",
+            seed_base=20260915,
+            runtime_metadata={
+                "software_versions": {},
+                "image_digest": [],
+                "prediction_commit": "commit",
+                "prediction_manifest_hash": "hash",
+            },
+            records_by_ordinal={8: {"trial_id": "eight", "ordinal": 8}},
+            expected_case_count=2,
+            planned_ordinals=[4, 8],
+            global_expected_case_count=8,
+            shard_index=1,
+            shard_count=2,
+            started_ns=1,
+            status="RUNNING",
+            resumed=True,
+        )
+        self.assertEqual([4, 8], payload["planned_ordinals"])
+        self.assertEqual(4, payload["next_ordinal"])
+        self.assertEqual(8, payload["global_expected_case_count"])
+        self.assertEqual(1, payload["shard_index"])
+        self.assertEqual(2, payload["shard_count"])
 
     def test_manifest_write_replaces_file_atomically(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

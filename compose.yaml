@@ -7,14 +7,16 @@ services:
     command: ["mongod", "--replSet", "rs0", "--bind_ip_all", "--port", "27017"]
     networks:
       client_net:
-        ipv4_address: 172.19.0.2
+        ipv4_address: ${MC_MONGO1_CLIENT_IP:-172.19.0.2}
       replica_net:
-        ipv4_address: 172.20.0.2
+        ipv4_address: ${MC_MONGO1_REPLICA_IP:-172.20.0.2}
     extra_hosts:
-      - "mongo1=172.20.0.2"
-      - "mongo2=172.20.0.3"
-      - "mongo3=172.20.0.4"
-    ports: ["27017:27017", "29091:29091"]
+      - "mongo1=${MC_MONGO1_REPLICA_IP:-172.20.0.2}"
+      - "mongo2=${MC_MONGO2_REPLICA_IP:-172.20.0.3}"
+      - "mongo3=${MC_MONGO3_REPLICA_IP:-172.20.0.4}"
+    ports:
+      - "${MC_MONGO1_HOST_PORT:-27017}:27017"
+      - "${MC_MONGO1_CONTROL_HOST_PORT:-29091}:29091"
     volumes: [mongo1-data:/data/db]
     healthcheck:
       test: ["CMD-SHELL", "mongosh --quiet --host 127.0.0.1 --eval 'db.adminCommand({ping:1}).ok' | grep 1"]
@@ -28,14 +30,16 @@ services:
     command: ["mongod", "--replSet", "rs0", "--bind_ip_all", "--port", "27017"]
     networks:
       client_net:
-        ipv4_address: 172.19.0.3
+        ipv4_address: ${MC_MONGO2_CLIENT_IP:-172.19.0.3}
       replica_net:
-        ipv4_address: 172.20.0.3
+        ipv4_address: ${MC_MONGO2_REPLICA_IP:-172.20.0.3}
     extra_hosts:
-      - "mongo1=172.20.0.2"
-      - "mongo2=172.20.0.3"
-      - "mongo3=172.20.0.4"
-    ports: ["27018:27017", "29092:29092"]
+      - "mongo1=${MC_MONGO1_REPLICA_IP:-172.20.0.2}"
+      - "mongo2=${MC_MONGO2_REPLICA_IP:-172.20.0.3}"
+      - "mongo3=${MC_MONGO3_REPLICA_IP:-172.20.0.4}"
+    ports:
+      - "${MC_MONGO2_HOST_PORT:-27018}:27017"
+      - "${MC_MONGO2_CONTROL_HOST_PORT:-29092}:29092"
     volumes: [mongo2-data:/data/db]
     healthcheck:
       test: ["CMD-SHELL", "mongosh --quiet --host 127.0.0.1 --eval 'db.adminCommand({ping:1}).ok' | grep 1"]
@@ -49,14 +53,16 @@ services:
     command: ["mongod", "--replSet", "rs0", "--bind_ip_all", "--port", "27017"]
     networks:
       client_net:
-        ipv4_address: 172.19.0.4
+        ipv4_address: ${MC_MONGO3_CLIENT_IP:-172.19.0.4}
       replica_net:
-        ipv4_address: 172.20.0.4
+        ipv4_address: ${MC_MONGO3_REPLICA_IP:-172.20.0.4}
     extra_hosts:
-      - "mongo1=172.20.0.2"
-      - "mongo2=172.20.0.3"
-      - "mongo3=172.20.0.4"
-    ports: ["27019:27017", "29093:29093"]
+      - "mongo1=${MC_MONGO1_REPLICA_IP:-172.20.0.2}"
+      - "mongo2=${MC_MONGO2_REPLICA_IP:-172.20.0.3}"
+      - "mongo3=${MC_MONGO3_REPLICA_IP:-172.20.0.4}"
+    ports:
+      - "${MC_MONGO3_HOST_PORT:-27019}:27017"
+      - "${MC_MONGO3_CONTROL_HOST_PORT:-29093}:29093"
     volumes: [mongo3-data:/data/db]
     healthcheck:
       test: ["CMD-SHELL", "mongosh --quiet --host 127.0.0.1 --eval 'db.adminCommand({ping:1}).ok' | grep 1"]
@@ -65,6 +71,7 @@ services:
       retries: 30
 
   runner:
+    image: mongo-consistency-runner:local
     build:
       context: .
       dockerfile: infra/runner/Dockerfile
@@ -75,9 +82,11 @@ services:
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
     volumes:
-      - ./results:/workspace/results:rw
-      - ./figures:/workspace/figures:rw
+      - ${MC_RESULTS_MOUNT:-./results}:/workspace/results:rw
+      - ${MC_FIGURES_MOUNT:-./figures}:/workspace/figures:rw
+      - ${MC_SETUP_MOUNT:-./results/setup/toolchain.json}:/workspace/setup/toolchain.json:ro
     environment:
+      MC_SETUP_PROVENANCE: ${MC_SETUP_PROVENANCE:-/workspace/setup/toolchain.json}
       FAULT_CONTROLLER_MONGO1: http://mongo1:29091
       FAULT_CONTROLLER_MONGO2: http://mongo2:29092
       FAULT_CONTROLLER_MONGO3: http://mongo3:29093
@@ -137,12 +146,12 @@ networks:
     driver: bridge
     ipam:
       config:
-        - subnet: 172.19.0.0/16
+        - subnet: ${MC_CLIENT_SUBNET:-172.19.0.0/16}
   replica_net:
     driver: bridge
     ipam:
       config:
-        - subnet: 172.20.0.0/16
+        - subnet: ${MC_REPLICA_SUBNET:-172.20.0.0/16}
 
 volumes:
   mongo1-data:
