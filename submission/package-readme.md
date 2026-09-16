@@ -14,7 +14,7 @@ The command writes `output/pdf/mongo-consistency-report.pdf`, `output/submission
 
 ## Evidence status
 
-The current checkout has no MongoDB run, raw operation history, summary, or figure. The report labels those fields `NOT COLLECTED`; it does not fill them with invented measurements. Add the recorded artifacts under `results/` and `figures/`, then run the same command again.
+The current checkout has no MongoDB run, raw operation history, summary, or figure. The report labels those fields `NO_DATA`; it does not fill them with invented measurements. Add the recorded artifacts under `results/` and `figures/`, then run `make check-schemas` and the same command again.
 
 ## Metadata
 

@@ -1,6 +1,6 @@
 \section{Background and formal model}
 
-Let $v$ denote a logical version ordered by the version rule used by the experiment. A write is written as $W_c(x,v)$ and a read as $R_c(x,v)$. The checker compares versions and recorded dependencies; response timestamps are used for latency and diagnosis only.
+Let $v$ denote an integer application version allocated by the single logical writer. A write is written as $W_c(x,v)$ and a read as $R_c(x,v)$. The checker compares versions and explicit dependencies; response timestamps are used for latency and diagnosis only. Lamport scalar time can order events but does not by itself establish the causal relation required by the properties.
 
 \begin{description}
 \item[RYW] After client $c$ writes $W_c(x,v_w)$, a later read of $x$ must not return a version $v_r < v_w$.
@@ -9,6 +9,8 @@ Let $v$ denote a logical version ordered by the version rule used by the experim
 \item[WFR] A write that records a dependency on a read version must not become visible in a state older than that dependency.
 \end{description}
 
-MongoDB causal sessions track operation and cluster time, but the documented causal guarantees depend on the read and write concerns used by the operations in the session \cite{mongodb-read-isolation,pymongo-sessions}. The campaign treats those settings as independent inputs and records the exact combination for each trial.
+MongoDB causal sessions track operation and cluster time, but the documented causal guarantees depend on the read and write concerns used by the operations in the session \cite{mongodb-read-isolation,pymongo-sessions}. The campaign treats those settings as independent inputs. Causal ON and causal OFF both use an explicit session; only the session option changes.
 
-The result labels have distinct meanings. \texttt{PASS} means that a successful history satisfies its target predicate. \texttt{VIOLATION} means that a successful history contains a counterexample for the predicate. \texttt{UNAVAILABLE} means that the required operation did not produce a successful history because it blocked, timed out, or failed.
+The result labels have distinct meanings. \texttt{PASS} means that a complete history satisfies its target predicate. \texttt{VIOLATION} means that a complete history contains a counterexample. \texttt{UNAVAILABLE} means that a required read could not be served. \texttt{INDETERMINATE} covers a possible mutation whose response was lost or timed out. \texttt{HARNESS\_ERROR} and \texttt{UNSUPPORTED} describe infrastructure conditions.
+
+\maybefigure{submission/figures/property-timelines.pdf}{Slide-aligned operation shapes for the four properties.}

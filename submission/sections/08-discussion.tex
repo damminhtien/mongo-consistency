@@ -1,5 +1,5 @@
 \section{Discussion}
 
-There is no observation set from which to explain a setting or fault case yet. The final discussion should compare each prediction with the recorded label and history, then identify the mechanism visible in the trace: member selection, replication lag, election, session ordering, waiting, rejection, or timeout.
+The discussion compares each prediction with its checked histories, then identifies the mechanism visible in the trace: member selection, replication lag, election, session ordering, waiting, rejection, or timeout. The requested member is kept separate from the actual server address, so a routing explanation can be checked against the command-monitor record. The factorial contrasts separate read concern, write concern, causal-session, and interaction effects.
 
-A zero count means that no counterexample appeared under the tested workload and fault schedule. It does not support a claim about all MongoDB deployments. A high availability rate also does not imply that returned histories satisfy every client-centric property.
+A zero violation count means that no counterexample appeared under the tested workload and fault schedule. It does not support a claim about all MongoDB deployments. A high operation success rate also does not imply that returned histories satisfy every client-centric property. \texttt{UNAVAILABLE} and \texttt{INDETERMINATE} are availability or observation limits, not violations.

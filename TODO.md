@@ -17,7 +17,7 @@ The project is complete when the documents, implementation, raw histories, analy
 - [x] Add machine-readable C1-C8 configurations.
 - [x] Add the frozen prediction manifest before any result files.
 - [x] Add schedule definitions for RYW, MR, MW, WFR, and normal control.
-- [ ] Add schemas for manifests, operations, fault events, histories, outcomes, and summaries.
+- [x] Add schemas for manifests, operations, fault events, histories, outcomes, and summaries.
 - [x] Add version and image-digest capture.
 
 ## Checkers and fixtures
@@ -51,11 +51,12 @@ The project is complete when the documents, implementation, raw histories, analy
 
 ## Tests and gates
 
-- [ ] Run all checker fixtures.
-- [ ] Run malformed and ambiguous history tests.
-- [ ] Run routing, topology, fault cleanup, and runner-isolation tests.
-- [ ] Run `make test`.
-- [ ] Run `make check-docs`.
+- [x] Run all checker fixtures.
+- [x] Run malformed and ambiguous history tests.
+- [x] Run routing, topology, fault cleanup, and runner-isolation contract tests.
+- [x] Run `make test`.
+- [x] Run `make check-docs`.
+- [x] Run `make check-schemas`.
 - [ ] Run `make setup`.
 
 ## Campaign and analysis
@@ -64,15 +65,15 @@ The project is complete when the documents, implementation, raw histories, analy
 - [ ] Freeze the prediction commit before main result files.
 - [ ] Run 320 normal histories.
 - [ ] Run 960 adversarial histories.
-- [ ] Run offline checker and summary generation.
-- [ ] Compute outcome counts, rates, completion, latency, recovery, main effects, and interactions.
-- [ ] Generate all required tables, figures, and four property timelines.
+- [x] Run offline checker and summary generation with an explicit `NO_DATA` state before the live campaign.
+- [x] Implement outcome counts, rates, completion, latency, election, recovery, main effects, and interactions.
+- [x] Generate all required tables, figures, and four property timelines; data figures remain `NO_DATA` until raw histories exist.
 
 ## Submission
 
-- [ ] Render and inspect the final PDF.
-- [ ] Check the PDF and LaTeX source for documentation rules.
-- [ ] Build the reproduction archive with `make submission`.
-- [ ] Confirm local tooling, caches, credentials, and unrelated artifacts are absent.
+- [x] Render and inspect the final PDF in the current `NO_DATA` state.
+- [x] Check the PDF and LaTeX source for documentation rules.
+- [x] Build the reproduction archive with `make submission`.
+- [x] Confirm local tooling, caches, credentials, and unrelated artifacts are absent from the package.
 - [ ] Inspect staged diffs and run `git diff --check`.
 - [ ] Commit each coherent implementation slice and push `main`.

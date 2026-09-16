@@ -1,8 +1,8 @@
 \section{Deployment and settings}
 
-The baseline deployment is a three-member MongoDB replica set in Docker Compose. The runner uses Python and PyMongo. The design keeps the cluster on one host and records the server version, driver version, Python version, Docker Engine version, Compose version, member identities, and observed roles with each trial \cite{mongodb-replication}.
+The baseline deployment is a three-member MongoDB replica set in Docker Compose. The runner uses Python and PyMongo and reaches the members through a client-only network. A separate sidecar controls replica-network traffic through a narrow HTTP interface. The design keeps the cluster on one host and records the server version, driver version, Python version, Docker Engine version, Compose version, member identities, and observed roles with each trial \cite{mongodb-replication}.
 
-The candidate settings are listed in Table~\ref{tab:settings}. The final campaign must retain only settings with distinct predictions or a written reason for retaining a control. The exact values used in a run belong in its settings manifest rather than in a report-only table.
+The locked settings are listed in Table~\ref{tab:settings}. C1-C8 form a full three-factor design. The exact values used in a run belong in its trial manifest as well as in this table.
 
 \begin{table}[ht]
 \centering
@@ -18,8 +18,13 @@ C3 & \texttt{majority} & \texttt{w: 1} & on \\
 C4 & \texttt{local} & \texttt{majority} & on \\
 C5 & \texttt{majority} & \texttt{majority} & off \\
 C6 & \texttt{majority} & \texttt{majority} & on \\
+C7 & \texttt{majority} & \texttt{w: 1} & off \\
+C8 & \texttt{local} & \texttt{majority} & off \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-The fault cases are normal operation, one secondary stopped, primary failure followed by election, and a network partition. A partition is counted only when the isolated member stays alive and the blocked client or replication paths are recorded. A node stop is not labelled a partition.
+The target versions are MongoDB 8.0.32, PyMongo 4.18.1, Python 3.14.7, Docker Engine 29.7.2, and Docker Compose 5.5.0. The setup record also stores the resolved image digest. Operation timeout is 5 seconds; election and topology convergence have a separate 30-second barrier.
+
+\maybefigure{submission/figures/architecture.pdf}{Compose architecture and the client and replica network paths.}
+\maybefigure{submission/figures/fault-topology.pdf}{Fault topologies used by the property schedules.}

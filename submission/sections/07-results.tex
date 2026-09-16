@@ -1,7 +1,46 @@
 \section{Results}
 
-No MongoDB trial, raw history, summary table, or plot is recorded in the current checkout. The build marks the result cells \texttt{NOT COLLECTED} rather than copying values from a prediction.
+The analysis state is \texttt{\AnalysisStatus}; \texttt{\HistoryCount} raw histories are available to the report build. The generated table below is populated from \texttt{results/summary/summary.json}. A no-data build uses zero counts and keeps the state label visible rather than copying values from a prediction.
 
-After the campaign, this section must contain one table for each selected setting and fault case. Each table needs PASS, VIOLATION, and UNAVAILABLE counts, its denominator, latency quantiles, and a path to the raw histories. A representative counterexample must show the operations, logical versions, member identities, setting, fault event, and checker version. An unavailable operation must remain outside the violation count.
+\begin{table}[ht]
+\centering
+\caption{Outcome counts in the analysed raw histories.}
+\label{tab:outcomes}
+\begin{tabular}{@{}lr@{}}
+\toprule
+Outcome & Count \\
+\midrule
+PASS & \PassCount \\
+VIOLATION & \ViolationCount \\
+UNAVAILABLE & \UnavailableCount \\
+INDETERMINATE & \IndeterminateCount \\
+HARNESS\_ERROR & \HarnessErrorCount \\
+UNSUPPORTED & \UnsupportedCount \\
+\bottomrule
+\end{tabular}
+\end{table}
 
-The analysis command will read \texttt{results/raw/} without a live MongoDB connection and write summaries and figures under \texttt{results/summary/} and \texttt{figures/}. Re-running it with the same canonical histories must produce the same values.
+The consistency denominator is PASS plus VIOLATION. Operation success, history completion, and the other outcome classes are reported separately. Each decidable group retains a path to its raw histories, configuration ID, property, schedule, and input hashes. Latency uses operation timing; election and recovery intervals use fault-event timing when those events are recorded.
+
+\begin{table}[ht]
+\centering
+\caption{Aggregate metrics generated from the raw histories.}
+\label{tab:metrics}
+\begin{tabular}{@{}lr@{}}
+\toprule
+Metric & Value \\
+\midrule
+Consistency violation rate & \texttt{\ConsistencyViolationRate} \\
+Operation success rate & \texttt{\OperationSuccessRate} \\
+History completion rate & \texttt{\HistoryCompletionRate} \\
+Latency p50 / p95 / p99 (ms) & \texttt{\LatencyMedian} / \texttt{\LatencyHigh} / \texttt{\LatencyTail} \\
+Election p50 (ms) & \texttt{\ElectionMedian} \\
+Recovery p50 (ms) & \texttt{\RecoveryMedian} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\maybefigure{submission/figures/outcome-heatmap.pdf}{Outcome heatmap by configuration and property.}
+\maybefigure{submission/figures/factorial-interactions.pdf}{Read-concern, write-concern, and causal-session interaction contrasts.}
+\maybefigure{submission/figures/latency.pdf}{Operation latency quantiles.}
+\maybefigure{submission/figures/prediction-observation.pdf}{Prediction targets compared with checked observations.}

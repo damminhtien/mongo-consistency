@@ -7,6 +7,7 @@ configs/            settings, workloads, repetitions, fault schedules
 results/raw/        operation histories and trial manifests
 results/summary/    derived tables and metrics
 figures/            plots generated from raw histories
+schemas/            versioned record contracts
 scripts/            setup, teardown, fault, build, and check commands
 src/                runner, recorder, checker, and analysis code
 tests/              offline and harness tests
@@ -17,9 +18,11 @@ The target interface is:
 
 \begin{verbatim}
 make setup
+make pilot
 make experiment
 make analyse
 make submission
+make check-schemas
 \end{verbatim}
 
-The current checkout implements the documentation check and report packaging target. The cluster runner, workloads, checker predicates, and analysis command remain registered work items in \texttt{TODO.md}. The report build can therefore be tested before MongoDB is installed, while the final archive remains explicit about missing evidence.
+\texttt{make setup} verifies the pinned versions, starts the three-member replica set, builds the restricted runner, and checks stable topology. The pilot runs five adversarial repetitions and one normal smoke trial per configuration/property cell. The main experiment runs 320 normal histories and 960 adversarial histories. \texttt{make analyse} reads raw histories without MongoDB and rebuilds summaries and figures. \texttt{make submission} compiles the PDF, checks source and package documents, and writes the reproduction archive.

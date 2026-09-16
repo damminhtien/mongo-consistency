@@ -8,6 +8,7 @@ from scripts.build_submission import (
     REQUIRED_SECTIONS,
     REQUIRED_SUBMISSION_FILES,
     parse_metadata,
+    write_generated_analysis,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -43,6 +44,21 @@ class SubmissionLayoutTests(unittest.TestCase):
         source = (ROOT / "scripts/build_submission.py").read_text(encoding="utf-8")
         for path in ("compose.yaml", "requirements.txt", "pyproject.toml", "infra"):
             self.assertIn(path, source)
+
+    def test_generated_analysis_macros_show_no_data_without_summary(self) -> None:
+        from tempfile import TemporaryDirectory
+
+        with TemporaryDirectory() as directory:
+            target = Path(directory) / "generated-analysis.tex"
+            write_generated_analysis(target, Path(directory))
+            content = target.read_text(encoding="utf-8")
+        self.assertIn(r"\newcommand{\AnalysisStatus}{NO\_DATA}", content)
+        self.assertIn(r"\newcommand{\LatencyMedian}{NO\_DATA}", content)
+
+    def test_schema_contracts_are_packaged(self) -> None:
+        source = (ROOT / "scripts/build_submission.py").read_text(encoding="utf-8")
+        self.assertIn('"schemas"', source)
+        self.assertTrue((ROOT / "schemas/history.v1.json").is_file())
 
 
 if __name__ == "__main__":

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import os
 import re
 import shutil
@@ -66,6 +67,7 @@ PACKAGE_ROOT_DIRS = (
     "figures",
     "infra",
     "results",
+    "schemas",
     "scripts",
     "src",
     "submission",
@@ -162,6 +164,69 @@ def write_generated_metadata(path: Path, values: dict[str, str]) -> None:
         "TeamMembers": values["TEAM_MEMBERS"],
         "SubmissionDate": values["SUBMISSION_DATE"],
         "AiUseDisclosure": values["AI_USE_DISCLOSURE"],
+    }
+    content = "\n".join(
+        f"\\newcommand{{\\{name}}}{{{escape_latex(value)}}}"
+        for name, value in macros.items()
+    )
+    path.write_text(content + "\n", encoding="utf-8")
+
+
+def write_generated_analysis(path: Path, root: Path) -> None:
+    """Write report macros from the latest offline summary, or explicit no-data."""
+
+    summary_path = root / "results/summary/summary.json"
+    status = "NO_DATA"
+    history_count = 0
+    outcome_counts = {
+        "PASS": 0,
+        "VIOLATION": 0,
+        "UNAVAILABLE": 0,
+        "INDETERMINATE": 0,
+        "HARNESS_ERROR": 0,
+        "UNSUPPORTED": 0,
+    }
+    overall: dict[str, object] = {}
+    if summary_path.is_file():
+        try:
+            summary = json.loads(summary_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            summary = {}
+        if isinstance(summary, dict):
+            status = str(summary.get("status", status))
+            history_count = int(summary.get("history_count", 0) or 0)
+            counts = summary.get("outcome_counts", {})
+            if isinstance(counts, dict):
+                for outcome in outcome_counts:
+                    outcome_counts[outcome] = int(counts.get(outcome, 0) or 0)
+            candidate = summary.get("overall", {})
+            if isinstance(candidate, dict):
+                overall = candidate
+
+    def metric(path: tuple[str, ...]) -> str:
+        value: object = overall
+        for key in path:
+            if not isinstance(value, dict):
+                return "NO_DATA"
+            value = value.get(key)
+        if value is None:
+            return "NO_DATA"
+        if isinstance(value, (int, float)):
+            return f"{value:.4f}"
+        return str(value)
+
+    macros = {
+        "AnalysisStatus": status,
+        "HistoryCount": str(history_count),
+        **{f"{outcome.title().replace('_', '')}Count": str(count) for outcome, count in outcome_counts.items()},
+        "ConsistencyViolationRate": metric(("consistency_violation_rate",)),
+        "OperationSuccessRate": metric(("operation_success_rate",)),
+        "HistoryCompletionRate": metric(("history_completion_rate",)),
+        "LatencyMedian": metric(("latency_ms", "p50")),
+        "LatencyHigh": metric(("latency_ms", "p95")),
+        "LatencyTail": metric(("latency_ms", "p99")),
+        "ElectionMedian": metric(("election_ms", "p50")),
+        "RecoveryMedian": metric(("recovery_ms", "p50")),
     }
     content = "\n".join(
         f"\\newcommand{{\\{name}}}{{{escape_latex(value)}}}"
@@ -297,6 +362,7 @@ def compile_report(root: Path, build_root: Path, values: dict[str, str]) -> Path
     source_target = latex_root / "submission"
     shutil.copytree(root / "submission", source_target)
     write_generated_metadata(source_target / "generated-metadata.tex", values)
+    write_generated_analysis(source_target / "generated-analysis.tex", root)
     log_path = build_root / "latex-build.log"
 
     latexmk = find_tool("latexmk")
@@ -461,6 +527,14 @@ def build(root: Path) -> tuple[Path, Path, Path]:
     shutil.copy2(package_readme, package_root / "README.md")
     source_root = package_root / "source"
     copy_source_tree(root, source_root)
+    shutil.copy2(
+        build_root / "latex/submission/generated-metadata.tex",
+        source_root / "submission/generated-metadata.tex",
+    )
+    shutil.copy2(
+        build_root / "latex/submission/generated-analysis.tex",
+        source_root / "submission/generated-analysis.tex",
+    )
     manifest = write_manifest(package_root, root)
     check_documents(package_root, root)
 

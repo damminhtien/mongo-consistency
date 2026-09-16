@@ -13,9 +13,22 @@
 \usepackage[hidelinks]{hyperref}
 
 \input{submission/generated-metadata.tex}
+\input{submission/generated-analysis.tex}
 \graphicspath{{submission/figures/}}
 \setlength{\parindent}{0pt}
 \setlength{\parskip}{5pt}
+
+\newcommand{\maybefigure}[2]{%
+\begin{figure}[ht]
+\centering
+\IfFileExists{#1}{%
+\includegraphics[width=0.94\linewidth]{#1}%
+}{%
+\fbox{\parbox{0.88\linewidth}{\centering\texttt{NO DATA}: #2}}%
+}%
+\caption{#2}
+\end{figure}%
+}
 
 \title{\ProjectTitle}
 \author{\TeamName\\\parbox{0.92\textwidth}{\centering\TeamMembers}}
@@ -34,8 +47,9 @@
 \begin{tabular}{@{}p{0.34\linewidth}p{0.58\linewidth}@{}}
 \toprule
 Report source & \texttt{submission/report.tex} \\
-Evidence state & \texttt{NOT COLLECTED} in this checkout \\
-Result labels & \texttt{PASS}, \texttt{VIOLATION}, and \texttt{UNAVAILABLE} \\
+Evidence state & \texttt{\AnalysisStatus} \\
+Histories analysed & \texttt{\HistoryCount} \\
+Result labels & \texttt{PASS}, \texttt{VIOLATION}, \texttt{UNAVAILABLE}, \texttt{INDETERMINATE}, \texttt{HARNESS\_ERROR}, \texttt{UNSUPPORTED} \\
 Reproduction entry point & \texttt{make submission} \\
 \bottomrule
 \end{tabular}

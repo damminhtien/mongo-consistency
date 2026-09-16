@@ -23,6 +23,9 @@ Slide sources kept outside the repository:
 - Write routing: one seed list and driver-selected primary.
 - Retries: disabled for reads and writes.
 - Raw histories and derived summaries are retained with manifests and hashes.
+- Versioned JSON contracts cover manifests, operations, fault events, histories,
+  outcomes, and analysis summaries. `make check-schemas` validates them without
+  requiring a live database.
 
 ## Research questions
 
@@ -122,7 +125,7 @@ make analyse
 make submission
 ```
 
-`make analyse` reads canonical raw histories and manifests without a live MongoDB connection. The report follows the sequence question, theory, prediction, adversarial experiment, recorded history, checker, and explanation. It includes the four slide-style property histories, architecture and fault diagrams, prediction matrix, factorial contrasts, outcome counts, representative traces, latency, recovery, limitations, and AI-use disclosure.
+`make analyse` reads canonical raw histories and manifests without a live MongoDB connection. It computes outcome counts, rates, operation latency, election and recovery intervals, and factorial contrasts for the registered metrics. The report follows the sequence question, theory, prediction, adversarial experiment, recorded history, checker, and explanation. It includes the four slide-style property histories, architecture and fault diagrams, prediction matrix, factorial contrasts, outcome counts, representative traces, latency, recovery, limitations, and AI-use disclosure.
 
 ## Limits
 

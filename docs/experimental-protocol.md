@@ -52,7 +52,7 @@ One logical writer allocates integer versions. The checker never treats a Lampor
 
 MW and WFR use this same document. A history using `x` for one operation and `y` for the other is rejected as an invalid fixture for either predicate.
 
-The observer reads the complete `x` document once. It records the returned update list, the observed version set, and the read timestamp. It does not combine fields from multiple reads.
+The observer reads the complete `x` document once. It records the returned update list, the observed version set, and the read timestamp. It does not combine fields from multiple reads. The versioned record contracts in `schemas/` define the serialized form.
 
 ## Recorded operation
 
@@ -82,7 +82,7 @@ document_version_before
 document_version_after
 ```
 
-The requested member is the routing intent. The command monitor supplies the actual server address. The runner records the role observed during setup and the command timing. A successful primary write uses the driver-selected primary; tagged secondary reads use a named secondary tag.
+The requested member is the routing intent. The command monitor supplies the actual server address and command name. The runner records the role observed during setup and the command timing. A successful primary write uses the driver-selected primary; tagged secondary reads use a named secondary tag. Application versions before and after an operation are recorded when the schedule makes them observable.
 
 ## Property checkers
 
@@ -117,7 +117,7 @@ Compose creates two paths:
 
 The fault controller is a separate process with a narrow control interface. It applies named events to replica traffic while the runner keeps client access to the selected member. The runner has no Docker socket, Docker credentials, host filesystem mount, or access to unrelated host data. If a stale-member client path cannot be preserved, the trial is `UNSUPPORTED`.
 
-Every schedule has an event ID, start condition, target members, expected topology state, cleanup action, and cleanup verification. Cleanup must restore a stable three-member replica set before the next trial.
+Every schedule has an event ID, start condition, target members, expected topology state, cleanup action, and cleanup verification. Election and recovery intervals are recorded from the fault events. Cleanup must restore a stable three-member replica set before the next trial; otherwise the history is a harness error.
 
 ## Schedules
 
