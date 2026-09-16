@@ -5,7 +5,15 @@ services:
     image: mongo:7.0.34
     hostname: mongo1
     command: ["mongod", "--replSet", "rs0", "--bind_ip_all", "--port", "27017"]
-    networks: [client_net, replica_net]
+    networks:
+      client_net:
+        ipv4_address: 172.19.0.2
+      replica_net:
+        ipv4_address: 172.20.0.2
+    extra_hosts:
+      - "mongo1=172.20.0.2"
+      - "mongo2=172.20.0.3"
+      - "mongo3=172.20.0.4"
     ports: ["27017:27017", "29091:29091"]
     volumes: [mongo1-data:/data/db]
     healthcheck:
@@ -18,7 +26,15 @@ services:
     image: mongo:7.0.34
     hostname: mongo2
     command: ["mongod", "--replSet", "rs0", "--bind_ip_all", "--port", "27017"]
-    networks: [client_net, replica_net]
+    networks:
+      client_net:
+        ipv4_address: 172.19.0.3
+      replica_net:
+        ipv4_address: 172.20.0.3
+    extra_hosts:
+      - "mongo1=172.20.0.2"
+      - "mongo2=172.20.0.3"
+      - "mongo3=172.20.0.4"
     ports: ["27018:27017", "29092:29092"]
     volumes: [mongo2-data:/data/db]
     healthcheck:
@@ -31,7 +47,15 @@ services:
     image: mongo:7.0.34
     hostname: mongo3
     command: ["mongod", "--replSet", "rs0", "--bind_ip_all", "--port", "27017"]
-    networks: [client_net, replica_net]
+    networks:
+      client_net:
+        ipv4_address: 172.19.0.4
+      replica_net:
+        ipv4_address: 172.20.0.4
+    extra_hosts:
+      - "mongo1=172.20.0.2"
+      - "mongo2=172.20.0.3"
+      - "mongo3=172.20.0.4"
     ports: ["27019:27017", "29093:29093"]
     volumes: [mongo3-data:/data/db]
     healthcheck:
@@ -110,8 +134,14 @@ services:
 networks:
   client_net:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.19.0.0/16
   replica_net:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
 
 volumes:
   mongo1-data:

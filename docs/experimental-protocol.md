@@ -117,6 +117,12 @@ Compose creates two paths:
 - `replica_net` carries member-to-member replication and election traffic.
 - `client_net` carries runner-to-member traffic.
 
+The three members use fixed addresses on both paths. Their `/etc/hosts` entries
+map `mongo1`, `mongo2`, and `mongo3` to the fixed `replica_net` addresses, so
+replication does not silently fall back to `client_net`. The runner has no such
+override and resolves the same names through `client_net`; this preserves client
+access while a sidecar filters only `eth1`.
+
 The fault controller is a separate process with a narrow control interface. It applies named events to replica traffic while the runner keeps client access to the selected member. The runner has no Docker socket, Docker credentials, host filesystem mount, or access to unrelated host data. If a stale-member client path cannot be preserved, the trial is `UNSUPPORTED`.
 
 Every schedule has an event ID, start condition, target members, expected topology state, cleanup action, and cleanup verification. Election and recovery intervals are recorded from the fault events. Cleanup must restore a stable three-member replica set before the next trial; otherwise the history is a harness error.

@@ -19,6 +19,9 @@ class HarnessLayoutTests(unittest.TestCase):
             self.assertIn(f"  {member}:", compose)
         self.assertIn("client_net", compose)
         self.assertIn("replica_net", compose)
+        self.assertIn("ipv4_address: 172.20.0.2", compose)
+        self.assertIn('"mongo1=172.20.0.2"', compose)
+        self.assertIn('subnet: 172.20.0.0/16', compose)
         self.assertIn("  runner:", compose)
         runner_section = compose.split("  runner:", 1)[1]
         self.assertIn("    networks: [client_net]", runner_section)
