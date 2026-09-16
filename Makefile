@@ -17,10 +17,10 @@ test:
 setup:
 	PYTHONPATH=src $(PYTHON) scripts/setup_experiment.py
 
-pilot:
+pilot: setup
 	docker compose -f compose.yaml run --rm runner scripts/run_campaign.py --campaign pilot
 
-experiment:
+experiment: setup
 	docker compose -f compose.yaml run --rm runner scripts/run_campaign.py --campaign experiment
 
 analyse:
