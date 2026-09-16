@@ -47,6 +47,11 @@ class HarnessLayoutTests(unittest.TestCase):
         self.assertIn("eth1", controller)
         self.assertNotIn("docker.sock", compose)
 
+    def test_driver_uses_pymongo_write_concern_timeout_name(self) -> None:
+        driver = (ROOT / "src/mongo_consistency/driver.py").read_text(encoding="utf-8")
+        self.assertIn("wtimeout=5000", driver)
+        self.assertNotIn("wtimeoutMS", driver)
+
     def test_setup_records_runtime_kernel_for_reproducibility(self) -> None:
         setup = (ROOT / "scripts/setup_experiment.py").read_text(encoding="utf-8")
         self.assertIn("KernelVersion", setup)

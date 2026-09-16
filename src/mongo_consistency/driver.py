@@ -177,7 +177,7 @@ def collection_for(
         read_concern=pymongo.read_concern.ReadConcern(level=read_concern),
         write_concern=pymongo.write_concern.WriteConcern(
             w=1 if write_concern == "w:1" else "majority",
-            wtimeoutMS=5000,
+            wtimeout=5000,
         ),
     )
     collection = database.get_collection(collection_name)
