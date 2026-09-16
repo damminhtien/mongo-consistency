@@ -47,6 +47,12 @@ class HarnessLayoutTests(unittest.TestCase):
         self.assertIn("eth1", controller)
         self.assertNotIn("docker.sock", compose)
 
+    def test_setup_fails_before_cluster_start_on_known_kernel_range(self) -> None:
+        setup = (ROOT / "scripts/setup_experiment.py").read_text(encoding="utf-8")
+        self.assertIn("kernel_tuple", setup)
+        self.assertIn("7.0.14", setup)
+        self.assertIn("KernelVersion", setup)
+
     def test_command_monitor_preserves_actual_route(self) -> None:
         class Event:
             request_id = 17
