@@ -57,12 +57,16 @@ The project is complete when the documents, implementation, raw histories, analy
 - [x] Run `make test`.
 - [x] Run `make check-docs`.
 - [x] Run `make check-schemas`.
-- [ ] Run `make setup`.
+- [ ] Run `make setup` after the Docker VM provides a compatible kernel.
+
+The current Docker VM reports kernel `7.0.12-linuxkit`. MongoDB 8.0.32 stops
+before startup on that kernel, so the live setup and campaign checks remain
+pending rather than producing partial or fabricated histories.
 
 ## Campaign and analysis
 
 - [ ] Run the pilot and review preconditions.
-- [ ] Freeze the prediction commit before main result files.
+- [x] Freeze the prediction commit before main result files.
 - [ ] Run 320 normal histories.
 - [ ] Run 960 adversarial histories.
 - [x] Run offline checker and summary generation with an explicit `NO_DATA` state before the live campaign.
@@ -75,5 +79,5 @@ The project is complete when the documents, implementation, raw histories, analy
 - [x] Check the PDF and LaTeX source for documentation rules.
 - [x] Build the reproduction archive with `make submission`.
 - [x] Confirm local tooling, caches, credentials, and unrelated artifacts are absent from the package.
-- [ ] Inspect staged diffs and run `git diff --check`.
-- [ ] Commit each coherent implementation slice and push `main`.
+- [x] Inspect staged diffs and run `git diff --check`.
+- [x] Commit each coherent implementation slice and push `main`.
