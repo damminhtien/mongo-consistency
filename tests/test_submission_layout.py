@@ -148,6 +148,16 @@ class SubmissionLayoutTests(unittest.TestCase):
         source = (ROOT / "scripts/build_submission.py").read_text(encoding="utf-8")
         self.assertIn('Path("results/parallel")', source)
 
+    def test_report_discloses_normal_control_mr_counterexamples(self) -> None:
+        abstract = (ROOT / "submission/sections/01-abstract.tex").read_text(encoding="utf-8")
+        results = (ROOT / "submission/sections/07-results.tex").read_text(encoding="utf-8")
+        discussion = (ROOT / "submission/sections/08-discussion.tex").read_text(encoding="utf-8")
+        self.assertIn("two MR violations, one each in C5 (1/7) and C8 (1/8)", abstract)
+        self.assertIn("The normal controls had two MR violations", results)
+        self.assertIn("experiment-00664-C5-mr", discussion)
+        self.assertIn("experiment-00299-C8-mr", discussion)
+        self.assertIn("recorded no fault events", discussion)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -6,6 +6,8 @@ The discussion compares each prediction with its checked main-campaign histories
 
 All 15 adversarial RYW violations occurred in C1 (2/23 decidable histories), C7 (12/14), or C8 (1/30). C7 also had 16 RYW histories classified as \texttt{INDETERMINATE}. No violation was observed in the designated guarantee-target cells: C6 for RYW; C3 and C6 for MR and WFR; and C4 and C6 for MW. These finite outcomes do not prove those guarantees.
 
+The two normal-control MR violations were \texttt{experiment-00664-C5-mr} and \texttt{experiment-00299-C8-mr}. In C5, the first read returned version 1 from \texttt{mongo3} and the second returned version 0 from \texttt{mongo1}; in C8, the reads returned versions 1 and 0 from \texttt{mongo2} and \texttt{mongo1}. Both histories used different secondary members and recorded no fault events. They are control observations, separate from the adversarial MR result.
+
 The heatmap marks a cell \texttt{NA} when it has no \texttt{PASS} or \texttt{VIOLATION} history. MW and WFR in C7 have no such observation. Factorial contrasts omit those cells and are descriptive; they do not estimate a complete, balanced 2-by-2-by-2 matrix.
 
 The factorial contrasts give equal weight to each available cell-level rate, despite different decidable-history counts across cells. They are descriptive contrasts, not inferential tests.

@@ -48,6 +48,7 @@ question -> theory -> prediction -> adversarial experiment -> recorded history -
 - A result claim must cite a raw history, manifest, derived summary, or a checked source page.
 - `PASS` and `VIOLATION` determine the consistency denominator. Other outcomes stay visible and are not silently discarded.
 - Keep the 192-history pilot separate from the 1,280-history main campaign. Report the 320 normal controls and 960 adversarial histories in separate columns; RQ1 rates and factorial contrasts use the adversarial histories only.
+- Report any consistency violations found in normal controls by property and configuration. Keep them separate from adversarial RQ1 estimates, and do not let adversarial-only zero counts read as whole-campaign zero counts.
 - A timeout after a possibly completed write is `INDETERMINATE`.
 - Absence of a violation in the tested histories is not a universal guarantee.
 - A checker result does not establish an internal MongoDB mechanism unless an observable trace supports that explanation.
