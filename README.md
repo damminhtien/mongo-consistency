@@ -2,7 +2,7 @@
 
 The project records a reproducible DSA5208 experiment for MongoDB client-visible consistency. The implementation records raw operation histories, checks RYW, MR, MW, and WFR offline, and builds the submission package from those records.
 
-The cluster runner uses a three-member MongoDB 7.0.34 replica set in Docker Compose with Python 3.14.7, PyMongo 4.18.1, Docker Engine 29.8.0, and Compose 5.5.1. Until a campaign produces raw histories, the repository makes no result claim.
+The cluster runner uses a three-member MongoDB 7.0.34 replica set in Docker Compose with Python 3.14.7, PyMongo 4.18.1, Docker Engine 29.8.0, and Compose 5.5.1. The checkout contains the 192-history pilot and the complete 1,280-history main campaign. Analysis and conclusions remain limited to the recorded versions, settings, workloads, and fault schedules.
 
 ## Canonical documents
 
@@ -35,7 +35,7 @@ make submission
 
 `make experiment-parallel` uses two workers by default. Each worker gets its own Compose project, three-member replica set, client and replica networks, named volumes, host ports, and result directory. The coordinator stops the baseline stack before starting workers, forwards shutdown signals, and merges only histories whose trial identity and bytes pass validation. Set `PARALLEL_WORKERS=3` or another value up to 32 when the machine has enough resources. Worker scratch data stays under `results/parallel/` and is ignored; `make analyse` reads the merged files under `results/raw/`. A campaign is complete only when the canonical manifest says `COMPLETE` and lists all planned histories.
 
-The main campaign has 320 normal-control histories and 960 adversarial histories, for 1,280 histories total. The pilot is smaller and is used to validate timing and topology preconditions before the main campaign.
+The main campaign has 320 normal-control histories and 960 adversarial histories, for 1,280 histories total. The 192-history pilot remains separate; RQ1 rates and factorial contrasts use only main-campaign adversarial histories. The pilot checks timing and topology preconditions and is not pooled into the main estimates.
 
 ## Layout
 

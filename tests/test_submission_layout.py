@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import unittest
 from pathlib import Path
 
@@ -54,6 +55,89 @@ class SubmissionLayoutTests(unittest.TestCase):
             content = target.read_text(encoding="utf-8")
         self.assertIn(r"\newcommand{\AnalysisStatus}{NO\_DATA}", content)
         self.assertIn(r"\newcommand{\LatencyMedian}{NO\_DATA}", content)
+
+    def test_generated_report_uses_main_campaign_and_separates_conditions(self) -> None:
+        from tempfile import TemporaryDirectory
+
+        summary = {
+            "status": "DATA",
+            "history_count": 1472,
+            "overall": {"consistency_violation_rate": 0.99},
+            "campaign_summaries": {
+                "pilot": {"history_count": 192},
+                "experiment": {
+                    "history_count": 1280,
+                    "normal": {
+                        "history_count": 320,
+                        "outcomes": {"PASS": 264, "VIOLATION": 2},
+                        "consistency_violation_rate": 2 / 266,
+                        "operation_success_rate": 0.9,
+                        "history_completion_rate": 0.99,
+                        "latency_ms": {"p50": 1.0, "p95": 5.0, "p99": 10.0},
+                        "election_ms": {"p50": None},
+                        "recovery_ms": {"p50": None},
+                    },
+                    "adversarial": {
+                        "history_count": 960,
+                        "outcomes": {
+                            "PASS": 434,
+                            "VIOLATION": 6,
+                            "UNSUPPORTED": 449,
+                        },
+                        "consistency_violation_rate": 6 / 440,
+                        "operation_success_rate": 0.8,
+                        "history_completion_rate": 0.5,
+                        "latency_ms": {"p50": 2.0, "p95": 20.0, "p99": 100.0},
+                        "election_ms": {"p50": 12000.0},
+                        "recovery_ms": {"p50": 200.0},
+                    },
+                    "properties": {
+                        "RYW": {
+                            "history_count": 240,
+                            "outcomes": {"PASS": 109, "VIOLATION": 6, "UNSUPPORTED": 111},
+                        },
+                        "MR": {
+                            "history_count": 240,
+                            "outcomes": {"PASS": 97},
+                        },
+                        "MW": {
+                            "history_count": 240,
+                            "outcomes": {"PASS": 104},
+                        },
+                        "WFR": {
+                            "history_count": 240,
+                            "outcomes": {"PASS": 124},
+                        },
+                    },
+                },
+            },
+        }
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            summary_path = root / "results/summary/summary.json"
+            summary_path.parent.mkdir(parents=True)
+            summary_path.write_text(json.dumps(summary), encoding="utf-8")
+            manifest_path = root / "results/raw/experiment/campaign-manifest.json"
+            manifest_path.parent.mkdir(parents=True)
+            manifest_path.write_text(
+                json.dumps({"status": "COMPLETE", "parallel_workers": 2}),
+                encoding="utf-8",
+            )
+            target = root / "generated-analysis.tex"
+            write_generated_analysis(target, root)
+            content = target.read_text(encoding="utf-8")
+        self.assertIn(r"\newcommand{\HistoryCount}{1280}", content)
+        self.assertIn(r"\newcommand{\PilotHistoryCount}{192}", content)
+        self.assertIn(r"\newcommand{\NormalViolationCount}{2}", content)
+        self.assertIn(r"\newcommand{\AdversarialUnsupportedCount}{449}", content)
+        self.assertIn(r"\newcommand{\ConsistencyViolationRate}{0.0136}", content)
+        self.assertIn(r"\newcommand{\MainCampaignStatus}{COMPLETE}", content)
+        self.assertIn(r"\newcommand{\ParallelWorkerCount}{2}", content)
+        self.assertIn(r"\newcommand{\RYWViolationCount}{6}", content)
+        self.assertIn(r"\newcommand{\RYWDecidableCount}{115}", content)
+        self.assertIn(r"\newcommand{\MRViolationCount}{0}", content)
+        self.assertIn(r"\newcommand{\MRDecidableCount}{97}", content)
+        self.assertNotIn(r"\newcommand{\ConsistencyViolationRate}{0.9900}", content)
 
     def test_schema_contracts_are_packaged(self) -> None:
         source = (ROOT / "scripts/build_submission.py").read_text(encoding="utf-8")

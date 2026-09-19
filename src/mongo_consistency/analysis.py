@@ -250,6 +250,44 @@ def group_summaries(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return result
 
 
+def campaign_summaries(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Keep pilot, control, and adversarial outcomes in separate aggregates."""
+
+    campaign_ids = sorted(
+        {str(row["campaign_id"]) for row in rows if row.get("campaign_id") is not None}
+    )
+    campaigns: dict[str, dict[str, Any]] = {}
+    for campaign_id in campaign_ids:
+        campaign_rows = [row for row in rows if row.get("campaign_id") == campaign_id]
+        normal_rows = [row for row in campaign_rows if not row.get("adversarial", False)]
+        adversarial_rows = [row for row in campaign_rows if row.get("adversarial", False)]
+        properties = sorted(
+            {
+                str(row["property"])
+                for row in adversarial_rows
+                if row.get("property") is not None
+            }
+        )
+        campaigns[campaign_id] = {
+            "history_count": len(campaign_rows),
+            "outcomes": _counts(campaign_rows),
+            "overall": _group_summary(campaign_rows),
+            "normal": _group_summary(normal_rows),
+            "adversarial": _group_summary(adversarial_rows),
+            "properties": {
+                property_name: _group_summary(
+                    [
+                        row
+                        for row in adversarial_rows
+                        if row.get("property") == property_name
+                    ]
+                )
+                for property_name in properties
+            },
+        }
+    return campaigns
+
+
 def _mean(values: Iterable[float]) -> float | None:
     values_list = list(values)
     return sum(values_list) / len(values_list) if values_list else None
@@ -547,20 +585,41 @@ def _factorial_body(factorial: dict[str, Any]) -> tuple[str, int]:
     return body, 420
 
 
-def _latency_body(summary: dict[str, Any]) -> tuple[str, int]:
-    latency = summary.get("latency_ms", {})
-    values = [("p50", latency.get("p50")), ("p95", latency.get("p95")), ("p99", latency.get("p99"))]
-    if not any(value is not None for _, value in values):
+def _latency_body(
+    normal_summary: dict[str, Any], adversarial_summary: dict[str, Any]
+) -> tuple[str, int]:
+    normal_latency = normal_summary.get("latency_ms", {})
+    adversarial_latency = adversarial_summary.get("latency_ms", {})
+    values = [
+        (label, normal_latency.get(label), adversarial_latency.get(label))
+        for label in ("p50", "p95", "p99")
+    ]
+    if not any(normal is not None or adversarial is not None for _, normal, adversarial in values):
         return _empty_figure("Operation latency", "No operation timings are available.")
-    maximum = max(float(value) for _, value in values if value is not None) or 1.0
+    maximum = max(
+        math.log10(float(value) + 1.0)
+        for _, normal, adversarial in values
+        for value in (normal, adversarial)
+        if value is not None
+    ) or 1.0
     body = ""
-    for index, (label, value) in enumerate(values):
-        x = 180 + index * 220
-        height = 220 * float(value or 0) / maximum
-        body += f'<rect x="{x:g}" y="{300 - height:g}" width="110" height="{height:g}" fill="#2563eb"/>'
-        body += _svg_text(x + 55, 330, label, anchor="middle", weight="bold")
-        body += _svg_text(x + 55, 285 - height, f"{float(value):.2f} ms" if value is not None else "NA", anchor="middle", size=13)
-    body += _svg_text(500, 385, "Quantiles use operation-level durations from raw histories.", anchor="middle", size=13, color="#475569")
+    for index, (label, normal, adversarial) in enumerate(values):
+        group_x = 160 + index * 280
+        for offset, value, color in (
+            (0, normal, "#2563eb"),
+            (84, adversarial, "#ea580c"),
+        ):
+            height = 190 * math.log10(float(value or 0) + 1.0) / maximum
+            x = group_x + offset
+            body += f'<rect x="{x:g}" y="{290 - height:g}" width="64" height="{height:g}" fill="{color}"/>'
+            if value is not None:
+                body += _svg_text(x + 32, max(88, 282 - height), f"{float(value):.2f}", anchor="middle", size=10)
+        body += _svg_text(group_x + 74, 316, label, anchor="middle", weight="bold")
+    body += '<rect x="350" y="350" width="14" height="14" fill="#2563eb"/>'
+    body += _svg_text(370, 362, "Normal control", size=12)
+    body += '<rect x="535" y="350" width="14" height="14" fill="#ea580c"/>'
+    body += _svg_text(555, 362, "Adversarial", size=12)
+    body += _svg_text(500, 397, "Main campaign only; bar heights use log10(ms + 1); pilot excluded.", anchor="middle", size=13, color="#475569")
     return body, 420
 
 
@@ -626,15 +685,21 @@ def generate_figures(
 ) -> list[Path]:
     """Generate stable figures from summaries and raw traces."""
 
-    overall = _group_summary(rows)
+    main_rows = [row for row in rows if row.get("campaign_id") == "experiment"]
+    normal_rows = [row for row in main_rows if not row.get("adversarial", False)]
+    adversarial_rows = [row for row in main_rows if row.get("adversarial", False)]
+    trace_rows = adversarial_rows or normal_rows or rows
     paths_and_content = {
         "architecture.svg": ("Architecture", *_architecture_body()),
         "fault-topology.svg": ("Fault topology", *_fault_topology_body()),
         "property-timelines.svg": ("Property timelines", *_timeline_body()),
         "outcome-heatmap.svg": ("Outcome heatmap", *_heatmap_body(summaries)),
         "factorial-interactions.svg": ("Factorial interactions", *_factorial_body(factorial)),
-        "latency.svg": ("Operation latency", *_latency_body(overall)),
-        "representative-trace.svg": ("Representative trace", *_trace_body(rows)),
+        "latency.svg": (
+            "Operation latency by main-campaign condition",
+            *_latency_body(_group_summary(normal_rows), _group_summary(adversarial_rows)),
+        ),
+        "representative-trace.svg": ("Representative trace", *_trace_body(trace_rows)),
         "prediction-observation.svg": ("Prediction versus observation", *_prediction_body(predictions or {}, summaries)),
     }
     paths: list[Path] = []
@@ -736,6 +801,7 @@ def analyse(
         "history_count": len(rows),
         "outcome_counts": _counts(rows),
         "overall": _group_summary(rows),
+        "campaign_summaries": campaign_summaries(rows),
         "groups": summaries,
         "factorial": factorial,
         "predictions": predictions,

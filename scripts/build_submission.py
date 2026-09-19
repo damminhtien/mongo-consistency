@@ -13,6 +13,7 @@ import sys
 import zipfile
 from collections.abc import Iterable
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 METADATA_PATH = Path("submission/metadata.mk")
@@ -174,20 +175,14 @@ def write_generated_metadata(path: Path, values: dict[str, str]) -> None:
 
 
 def write_generated_analysis(path: Path, root: Path) -> None:
-    """Write report macros from the latest offline summary, or explicit no-data."""
+    """Write main-campaign report macros, keeping pilot and test modes separate."""
 
     summary_path = root / "results/summary/summary.json"
     status = "NO_DATA"
-    history_count = 0
-    outcome_counts = {
-        "PASS": 0,
-        "VIOLATION": 0,
-        "UNAVAILABLE": 0,
-        "INDETERMINATE": 0,
-        "HARNESS_ERROR": 0,
-        "UNSUPPORTED": 0,
-    }
-    overall: dict[str, object] = {}
+    pilot_history_count = 0
+    main_campaign: dict[str, Any] = {}
+    normal: dict[str, Any] = {}
+    adversarial: dict[str, Any] = {}
     if summary_path.is_file():
         try:
             summary = json.loads(summary_path.read_text(encoding="utf-8"))
@@ -195,40 +190,107 @@ def write_generated_analysis(path: Path, root: Path) -> None:
             summary = {}
         if isinstance(summary, dict):
             status = str(summary.get("status", status))
-            history_count = int(summary.get("history_count", 0) or 0)
-            counts = summary.get("outcome_counts", {})
-            if isinstance(counts, dict):
-                for outcome in outcome_counts:
-                    outcome_counts[outcome] = int(counts.get(outcome, 0) or 0)
-            candidate = summary.get("overall", {})
-            if isinstance(candidate, dict):
-                overall = candidate
+            campaigns = summary.get("campaign_summaries", {})
+            if isinstance(campaigns, dict):
+                candidate = campaigns.get("experiment", {})
+                if isinstance(candidate, dict):
+                    main_campaign = candidate
+                    normal_candidate = candidate.get("normal", {})
+                    adversarial_candidate = candidate.get("adversarial", {})
+                    if isinstance(normal_candidate, dict):
+                        normal = normal_candidate
+                    if isinstance(adversarial_candidate, dict):
+                        adversarial = adversarial_candidate
+                pilot = campaigns.get("pilot", {})
+                if isinstance(pilot, dict):
+                    pilot_history_count = int(pilot.get("history_count", 0) or 0)
 
-    def metric(path: tuple[str, ...]) -> str:
-        value: object = overall
-        for key in path:
+    def metric(summary: dict[str, Any], keys: tuple[str, ...]) -> str:
+        value: object = summary
+        for key in keys:
             if not isinstance(value, dict):
                 return "NO_DATA"
             value = value.get(key)
         if value is None:
-            return "NO_DATA"
+            return "NA" if summary.get("history_count", 0) else "NO_DATA"
         if isinstance(value, (int, float)):
             return f"{value:.4f}"
         return str(value)
 
+    main_manifest: dict[str, Any] = {}
+    manifest_path = root / "results/raw/experiment/campaign-manifest.json"
+    if manifest_path.is_file():
+        try:
+            loaded_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            if isinstance(loaded_manifest, dict):
+                main_manifest = loaded_manifest
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            main_manifest = {}
+    parallel_workers = main_manifest.get("parallel_workers", main_manifest.get("shard_count"))
+    if parallel_workers is None:
+        parallel_workers = "NO_DATA"
+    main_campaign_status = str(main_manifest.get("status", "NO_DATA"))
+
+    normal_counts = normal.get("outcomes", {})
+    adversarial_counts = adversarial.get("outcomes", {})
+    property_summaries = main_campaign.get("properties", {})
+    outcome_names = {
+        "PASS": "Pass",
+        "VIOLATION": "Violation",
+        "UNAVAILABLE": "Unavailable",
+        "INDETERMINATE": "Indeterminate",
+        "HARNESS_ERROR": "HarnessError",
+        "UNSUPPORTED": "Unsupported",
+    }
+    adversarial_pass = int(adversarial_counts.get("PASS", 0) or 0)
+    adversarial_violation = int(adversarial_counts.get("VIOLATION", 0) or 0)
+    experiment_history_count = int(main_campaign.get("history_count", 0) or 0)
     macros = {
         "AnalysisStatus": status,
-        "HistoryCount": str(history_count),
-        **{f"{outcome.title().replace('_', '')}Count": str(count) for outcome, count in outcome_counts.items()},
-        "ConsistencyViolationRate": metric(("consistency_violation_rate",)),
-        "OperationSuccessRate": metric(("operation_success_rate",)),
-        "HistoryCompletionRate": metric(("history_completion_rate",)),
-        "LatencyMedian": metric(("latency_ms", "p50")),
-        "LatencyHigh": metric(("latency_ms", "p95")),
-        "LatencyTail": metric(("latency_ms", "p99")),
-        "ElectionMedian": metric(("election_ms", "p50")),
-        "RecoveryMedian": metric(("recovery_ms", "p50")),
+        "HistoryCount": str(experiment_history_count),
+        "PilotHistoryCount": str(pilot_history_count),
+        "NormalHistoryCount": str(int(normal.get("history_count", 0) or 0)),
+        "AdversarialHistoryCount": str(int(adversarial.get("history_count", 0) or 0)),
+        "AdversarialDecidableCount": str(adversarial_pass + adversarial_violation),
+        "MainCampaignStatus": main_campaign_status,
+        "ParallelWorkerCount": str(parallel_workers),
+        **{
+            f"{cohort}{outcome_name}Count": str(int(counts.get(outcome, 0) or 0))
+            for cohort, counts in (("Normal", normal_counts), ("Adversarial", adversarial_counts))
+            for outcome, outcome_name in outcome_names.items()
+        },
+        "ConsistencyViolationRate": metric(adversarial, ("consistency_violation_rate",)),
+        "ControlConsistencyViolationRate": metric(normal, ("consistency_violation_rate",)),
+        "OperationSuccessRate": metric(adversarial, ("operation_success_rate",)),
+        "ControlOperationSuccessRate": metric(normal, ("operation_success_rate",)),
+        "HistoryCompletionRate": metric(adversarial, ("history_completion_rate",)),
+        "ControlHistoryCompletionRate": metric(normal, ("history_completion_rate",)),
+        "LatencyMedian": metric(adversarial, ("latency_ms", "p50")),
+        "LatencyHigh": metric(adversarial, ("latency_ms", "p95")),
+        "LatencyTail": metric(adversarial, ("latency_ms", "p99")),
+        "ControlLatencyMedian": metric(normal, ("latency_ms", "p50")),
+        "ControlLatencyHigh": metric(normal, ("latency_ms", "p95")),
+        "ControlLatencyTail": metric(normal, ("latency_ms", "p99")),
+        "ElectionMedian": metric(adversarial, ("election_ms", "p50")),
+        "ControlElectionMedian": metric(normal, ("election_ms", "p50")),
+        "RecoveryMedian": metric(adversarial, ("recovery_ms", "p50")),
+        "ControlRecoveryMedian": metric(normal, ("recovery_ms", "p50")),
     }
+    if isinstance(property_summaries, dict):
+        for property_name in ("RYW", "MR", "MW", "WFR"):
+            property_summary = property_summaries.get(property_name, {})
+            if not isinstance(property_summary, dict):
+                property_summary = {}
+            property_counts = property_summary.get("outcomes", {})
+            if not isinstance(property_counts, dict):
+                property_counts = {}
+            pass_count = int(property_counts.get("PASS", 0) or 0)
+            violation_count = int(property_counts.get("VIOLATION", 0) or 0)
+            macros[f"{property_name}HistoryCount"] = str(
+                int(property_summary.get("history_count", 0) or 0)
+            )
+            macros[f"{property_name}ViolationCount"] = str(violation_count)
+            macros[f"{property_name}DecidableCount"] = str(pass_count + violation_count)
     content = "\n".join(
         f"\\newcommand{{\\{name}}}{{{escape_latex(value)}}}"
         for name, value in macros.items()

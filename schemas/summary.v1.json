@@ -3,7 +3,7 @@
   "$id": "https://example.invalid/mongo-consistency/summary.v1.json",
   "title": "MongoDB consistency analysis summary",
   "type": "object",
-  "required": ["schema_version", "status", "history_count", "outcome_counts", "groups", "factorial", "predictions"],
+  "required": ["schema_version", "status", "history_count", "outcome_counts", "campaign_summaries", "groups", "factorial", "predictions"],
   "properties": {
     "schema_version": {"const": "summary.v1"},
     "status": {"enum": ["DATA", "NO_DATA"]},
@@ -12,6 +12,25 @@
       "type": "object",
       "required": ["PASS", "VIOLATION", "UNAVAILABLE", "INDETERMINATE", "HARNESS_ERROR", "UNSUPPORTED"],
       "additionalProperties": {"type": "integer", "minimum": 0}
+    },
+    "campaign_summaries": {
+      "type": "object",
+      "description": "Campaign-level aggregates; main control and adversarial groups remain separate from the pilot.",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["history_count", "outcomes", "overall", "normal", "adversarial", "properties"],
+        "properties": {
+          "history_count": {"type": "integer", "minimum": 0},
+          "outcomes": {"type": "object"},
+          "overall": {"type": "object"},
+          "normal": {"type": "object"},
+          "adversarial": {"type": "object"},
+          "properties": {
+            "type": "object",
+            "additionalProperties": {"type": "object"}
+          }
+        }
+      }
     },
     "groups": {"type": "array", "items": {"type": "object"}},
     "factorial": {"type": "object"},

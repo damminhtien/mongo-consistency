@@ -12,7 +12,7 @@ Each trial has a manifest with these fields:
 | --- | --- |
 | `schema_version` | Version of the raw-history schema. |
 | `trial_id` | Globally unique trial identifier. |
-| `campaign_id` | `pilot`, `normal`, or `adversarial`. |
+| `campaign_id` | `pilot`, `normal`, or `experiment`; the `adversarial` field distinguishes controls from fault schedules. |
 | `configuration_id` | One of C1-C8. |
 | `read_concern` | `local` or `majority`. |
 | `write_concern` | `w:1` or `majority`, including timeout settings. |
@@ -185,6 +185,8 @@ retryReads=false
 
 The campaign uses a seeded, stratified shuffle. The seed is `20260915 + campaign_ordinal`. Each case receives a new trial ID and namespace. The normal baseline contains 320 histories. The adversarial campaign contains 960 histories. Pilot execution uses five adversarial repetitions and one normal smoke trial per configuration/property cell.
 
+The 192 pilot histories are retained but excluded from main estimates. The 1,280 main histories are summarized as 320 normal controls and 960 adversarial trials. RQ1 rates and factorial contrasts use the adversarial group; control metrics are reported separately. `UNSUPPORTED` remains a visible outcome and is not included in the consistency denominator.
+
 The runner publishes each history and the campaign manifest with an atomic file replacement. A first `SIGINT` or `SIGTERM` requests a graceful stop: the active trial is allowed to finish its cleanup, the partial manifest is marked `INTERRUPTED`, and the process exits with status 130. A second signal force-stops the runner; histories already published remain valid. Re-running `make experiment` uses `--resume`, reconstructs the same shuffled ordinal list, validates every existing history against its trial ID, configuration, property, adversarial flag, and seed, and skips only validated files. It never reuses a file with a different case identity. The manifest records the expected and completed counts and the first missing ordinal. A fresh run is available with `make experiment-fresh` only when the campaign output directory is empty.
 
 ### Parallel execution
@@ -195,6 +197,8 @@ The baseline Compose stack is stopped before workers start so that its members c
 
 Parallel execution changes host scheduling and therefore can change measured latency. It does not change the registered history or its configuration semantics. The final campaign manifest is published only after the merge and cleanup checks. `make analyse` ignores worker scratch directories and reads the canonical set under `results/raw/`; a final result is usable only when that manifest has `status=COMPLETE`, `completed_case_count=1280`, and the expected ordinal list.
 
+The recorded main campaign combines 696 valid histories from sequential execution with 584 valid histories from two-worker execution. An initial parallel attempt produced 449 fault-controller connection errors. Those records are retained under `results/attempts/`, excluded from the analyzer's `results/raw/` input, and were rerun with identical ordinals and seeds after the runner began waiting for healthy fault controllers. Runner revisions are recorded in the histories and campaign manifest. Latency summaries therefore describe runs under mixed host scheduling and are not an isolated estimate of database-setting effects.
+
 ## Offline analysis
 
-`make analyse` reads only raw histories, manifests, and the frozen prediction manifest. It recomputes checker outcomes, outcome counts, operation success, history completion, consistency violation rate, p50/p95/p99 latency, election and recovery time, and the read-concern, write-concern, causal-session main effects and interactions. It writes summaries and figures without connecting to MongoDB.
+`make analyse` reads only raw histories, manifests, and the frozen prediction manifest. It recomputes checker outcomes, outcome counts, operation success, history completion, consistency violation rate, p50/p95/p99 latency, election and recovery time, and the read-concern, write-concern, causal-session main effects and interactions. Campaign summaries keep pilot, normal-control, and adversarial outcomes separate. Factorial effects are equal-weight contrasts of available cell-level rates with variable denominators; they are descriptive, not inferential. It writes summaries and figures without connecting to MongoDB.

@@ -1,5 +1,15 @@
 \section{Discussion}
 
-The discussion compares each prediction with its checked histories, then identifies the mechanism visible in the trace: member selection, replication lag, election, session ordering, waiting, rejection, or timeout. The requested member is kept separate from the actual server address, so a routing explanation can be checked against the command-monitor record. The factorial contrasts separate read concern, write concern, causal-session, and interaction effects.
+The discussion compares each prediction with its checked main-campaign histories, then identifies the observable trace: member selection, returned version, election event, session ordering, waiting, rejection, or timeout. The requested member is kept separate from the actual server address, so a routing explanation can be checked against the command-monitor record. The factorial contrasts summarize read concern, write concern, causal-session, and interaction differences among adversarial histories with a decidable outcome.
+
+\texttt{\AdversarialUnsupportedCount} of \texttt{\AdversarialHistoryCount} adversarial histories are \texttt{UNSUPPORTED} because the required topology precondition was not established: 54 MW and 46 WFR. The contrasts therefore describe the observed decidable histories, not the full planned matrix. No result from the pilot is pooled into these estimates.
+
+All 15 adversarial RYW violations occurred in C1 (2/23 decidable histories), C7 (12/14), or C8 (1/30). C7 also had 16 RYW histories classified as \texttt{INDETERMINATE}. No violation was observed in the designated guarantee-target cells: C6 for RYW; C3 and C6 for MR and WFR; and C4 and C6 for MW. These finite outcomes do not prove those guarantees.
+
+The heatmap marks a cell \texttt{NA} when it has no \texttt{PASS} or \texttt{VIOLATION} history. MW and WFR in C7 have no such observation. Factorial contrasts omit those cells and are descriptive; they do not estimate a complete, balanced 2-by-2-by-2 matrix.
+
+The factorial contrasts give equal weight to each available cell-level rate, despite different decidable-history counts across cells. They are descriptive contrasts, not inferential tests.
+
+Latency quantiles pool histories collected in sequential and two-worker execution modes. They summarize this run on one host and should not be read as an isolated database-setting effect or as a comparison of independent machines.
 
 A zero violation count means that no counterexample appeared under the tested workload and fault schedule. It does not support a claim about all MongoDB deployments. A high operation success rate also does not imply that returned histories satisfy every client-centric property. \texttt{UNAVAILABLE} and \texttt{INDETERMINATE} are availability or observation limits, not violations.

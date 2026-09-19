@@ -51,4 +51,4 @@ These decisions are closed unless a reproducibility or safety check shows that a
 
 ## Verification before the main campaign
 
-The main campaign is blocked until checker fixtures, malformed-history handling, same-key MW/WFR checks, actual routing capture, stale-member access, independent election barriers, fault cleanup, and runner isolation have passed.
+The main campaign required checker fixtures, malformed-history handling, same-key MW/WFR checks, actual routing capture, stale-member access, independent election barriers, fault cleanup, and runner isolation to pass. These checks are recorded in the test suite and were completed before the main campaign.

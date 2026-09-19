@@ -1,0 +1,241 @@
+{
+  "fault_events": [
+    {
+      "action": "isolate",
+      "applied_ns": 1816798570367,
+      "end_ns": 1816798570705,
+      "event_id": "experiment-00938-C5-ryw-ryw-fault",
+      "members": [
+        "mongo2"
+      ],
+      "responses": [
+        {
+          "action": "isolate",
+          "event_id": "experiment-00938-C5-ryw-ryw-fault",
+          "member": "mongo2",
+          "ok": true
+        }
+      ],
+      "start_ns": 1816769003902,
+      "status": "APPLIED"
+    },
+    {
+      "action": "heal",
+      "applied_ns": 1816911236748,
+      "end_ns": 1816911237059,
+      "event_id": "experiment-00938-C5-ryw-ryw-fault-heal",
+      "members": [
+        "mongo2"
+      ],
+      "recovery_end_ns": 1816913172418,
+      "recovery_start_ns": 1816911245448,
+      "responses": [
+        {
+          "action": "heal",
+          "event_id": "experiment-00938-C5-ryw-ryw-fault-heal",
+          "member": "mongo2",
+          "ok": true
+        }
+      ],
+      "start_ns": 1816827867076,
+      "status": "APPLIED"
+    }
+  ],
+  "history_hash": "8fc53562896fe7bd3a4f6b49c5b8b71f9102a53f4ecb95e4995b1a70531e073d",
+  "manifest": {
+    "adversarial": true,
+    "campaign_id": "experiment",
+    "campaign_ordinal": 938,
+    "causal_session": false,
+    "checker_version": "history.v1",
+    "cleanup_status": "STABLE",
+    "configuration_id": "C5",
+    "driver_version": "4.18.1",
+    "image_digest": [
+      "mongo@sha256:c1a84ab5d0c17deed1e0dba1d24bd7c76e5c7b281145fe536911939b1551754c"
+    ],
+    "members": [
+      {
+        "actual_role": "RSPrimary",
+        "address": "mongo1:27017"
+      },
+      {
+        "actual_role": "RSSecondary",
+        "address": "mongo2:27017"
+      },
+      {
+        "actual_role": "RSSecondary",
+        "address": "mongo3:27017"
+      }
+    ],
+    "namespace": {
+      "collection": "logical",
+      "database": "mc_experiment_00938_C5_ryw",
+      "document_id": "experiment-00938-C5-ryw/x"
+    },
+    "prediction_commit": "7494c848ad37fc00e2cfe3df2b21c61a8074c0ae",
+    "prediction_manifest_hash": "663b06ed344c53ea75736e0322b3588ee94c5b8a2e344fc4710f0de925731857",
+    "property": "RYW",
+    "property_steps": {
+      "read": "read",
+      "write": "write"
+    },
+    "read_concern": "majority",
+    "retry_reads": false,
+    "retry_writes": false,
+    "runner_version": "7494c848ad37fc00e2cfe3df2b21c61a8074c0ae",
+    "schedule_id": "ryw-stale-secondary",
+    "schema_version": "manifest.v1",
+    "seed": 20261853,
+    "session_id": "Binary(b'80\\xaf\\xbc\\xc8XB>\\x9f\\xae@\\x8b\\x83\\xdb\\xfd\\xaa', 4)",
+    "software_versions": {
+      "docker_compose": "5.5.1",
+      "docker_engine": "29.8.0",
+      "mongodb": "7.0.34",
+      "pymongo": "4.18.1",
+      "python": "3.14.7"
+    },
+    "subtrial_finished_ns": 1816913178191,
+    "subtrial_started_ns": 1816615361197,
+    "timeout_policy": {
+      "connect_ms": 2000,
+      "election_barrier_ms": 30000,
+      "operation_ms": 5000,
+      "server_selection_ms": 5000,
+      "subtrial_ms": 60000,
+      "write_concern_ms": 5000
+    },
+    "trial_id": "experiment-00938-C5-ryw",
+    "write_concern": "majority"
+  },
+  "metadata": {},
+  "operations": [
+    {
+      "actual_role": "RSPrimary",
+      "actual_server_address": "mongo1:27017",
+      "causal_session": false,
+      "command_name": "update",
+      "dependency_metadata": {},
+      "depends_on_read_id": null,
+      "depends_on_version": null,
+      "document_version_after": 0,
+      "document_version_before": null,
+      "end_ns": 1816764525714,
+      "error_code": null,
+      "error_message": null,
+      "fault_event_id": null,
+      "key": "x",
+      "kind": "setup",
+      "observed_updates": [],
+      "observed_version": null,
+      "observed_versions": [],
+      "operation_id": "init",
+      "operation_status": "SUCCESS",
+      "parent_write_id": null,
+      "property": "RYW",
+      "read_concern": null,
+      "requested_member": "primary",
+      "response_received": true,
+      "session_id": "Binary(b'80\\xaf\\xbc\\xc8XB>\\x9f\\xae@\\x8b\\x83\\xdb\\xfd\\xaa', 4)",
+      "start_ns": 1816644118591,
+      "timeout_category": null,
+      "trial_id": "experiment-00938-C5-ryw",
+      "version": null,
+      "write_concern": "majority",
+      "write_id": null
+    },
+    {
+      "actual_role": "RSPrimary",
+      "actual_server_address": "mongo1:27017",
+      "causal_session": false,
+      "command_name": "update",
+      "dependency_metadata": {
+        "depends_on_read_id": null,
+        "depends_on_version": null,
+        "parent_write_id": null
+      },
+      "depends_on_read_id": null,
+      "depends_on_version": null,
+      "document_version_after": 1,
+      "document_version_before": 0,
+      "end_ns": 1816813366442,
+      "error_code": null,
+      "error_message": null,
+      "fault_event_id": "experiment-00938-C5-ryw-ryw-fault",
+      "key": "x",
+      "kind": "write",
+      "observed_updates": [],
+      "observed_version": null,
+      "observed_versions": [],
+      "operation_id": "write",
+      "operation_status": "SUCCESS",
+      "parent_write_id": null,
+      "property": "RYW",
+      "read_concern": null,
+      "requested_member": "primary",
+      "response_received": true,
+      "session_id": "Binary(b'80\\xaf\\xbc\\xc8XB>\\x9f\\xae@\\x8b\\x83\\xdb\\xfd\\xaa', 4)",
+      "start_ns": 1816799060935,
+      "timeout_category": null,
+      "trial_id": "experiment-00938-C5-ryw",
+      "version": 1,
+      "write_concern": "majority",
+      "write_id": "w1"
+    },
+    {
+      "actual_role": "RSSecondary",
+      "actual_server_address": "mongo2:27017",
+      "causal_session": false,
+      "command_name": "find",
+      "dependency_metadata": {},
+      "depends_on_read_id": null,
+      "depends_on_version": null,
+      "document_version_after": 1,
+      "document_version_before": null,
+      "end_ns": 1816827629827,
+      "error_code": null,
+      "error_message": null,
+      "fault_event_id": "experiment-00938-C5-ryw-ryw-fault",
+      "key": "x",
+      "kind": "read",
+      "observed_updates": [
+        {
+          "depends_on_read_id": null,
+          "depends_on_version": null,
+          "effect": "initial",
+          "parent_write_id": null,
+          "version": 0,
+          "write_id": "init"
+        },
+        {
+          "depends_on_read_id": null,
+          "depends_on_version": null,
+          "effect": "set-v1",
+          "parent_write_id": null,
+          "version": 1,
+          "write_id": "w1"
+        }
+      ],
+      "observed_version": 1,
+      "observed_versions": [
+        0,
+        1
+      ],
+      "operation_id": "read",
+      "operation_status": "SUCCESS",
+      "parent_write_id": null,
+      "property": "RYW",
+      "read_concern": "majority",
+      "requested_member": "mongo2",
+      "response_received": true,
+      "session_id": "Binary(b'80\\xaf\\xbc\\xc8XB>\\x9f\\xae@\\x8b\\x83\\xdb\\xfd\\xaa', 4)",
+      "start_ns": 1816823901292,
+      "timeout_category": null,
+      "trial_id": "experiment-00938-C5-ryw",
+      "version": null,
+      "write_concern": "majority",
+      "write_id": null
+    }
+  ],
+  "schema_version": "history.v1"
+}

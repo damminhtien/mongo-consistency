@@ -71,16 +71,16 @@ digest.
 
 - [x] Run the pilot and review preconditions.
 - [x] Freeze the prediction commit before main result files.
-- [ ] Run 320 normal histories.
-- [ ] Run 960 adversarial histories.
-- [ ] Run the main campaign with isolated parallel workers and confirm a complete canonical manifest.
+- [x] Run 320 normal histories.
+- [x] Run 960 adversarial histories.
+- [x] Run the main campaign with isolated parallel workers and confirm a complete canonical manifest.
 - [x] Run offline checker and summary generation with an explicit `NO_DATA` state before the live campaign.
 - [x] Implement outcome counts, rates, completion, latency, election, recovery, main effects, and interactions.
-- [x] Generate all required tables, figures, and four property timelines from the pilot histories; the final report still waits for the main campaign.
+- [x] Generate all required tables, figures, and four property timelines from the complete raw-history set.
 
 ## Submission
 
-- [x] Render and inspect the final PDF in the current `NO_DATA` state.
+- [x] Render and inspect the final PDF with the recorded campaign evidence.
 - [x] Check the PDF and LaTeX source for documentation rules.
 - [x] Build the reproduction archive with `make submission`.
 - [x] Confirm local tooling, caches, credentials, and unrelated artifacts are absent from the package.

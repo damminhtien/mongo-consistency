@@ -1,0 +1,189 @@
+{
+  "fault_events": [
+    {
+      "action": "isolate",
+      "end_ns": 12011318766520,
+      "error": "fault controller request failed for mongo2: <urlopen error [Errno 111] Connection refused>",
+      "event_id": "experiment-01020-C4-ryw-ryw-fault",
+      "members": [
+        "mongo2"
+      ],
+      "start_ns": 12011317920125,
+      "status": "ERROR"
+    }
+  ],
+  "history_hash": "febf883f5b17a898abd8c6869c4325508ad054a887c4e23ddd183af38beba2e6",
+  "manifest": {
+    "adversarial": true,
+    "campaign_id": "experiment",
+    "campaign_ordinal": 1020,
+    "causal_session": true,
+    "checker_version": "history.v1",
+    "configuration_id": "C4",
+    "driver_version": "4.18.1",
+    "image_digest": [
+      "mongo@sha256:c1a84ab5d0c17deed1e0dba1d24bd7c76e5c7b281145fe536911939b1551754c"
+    ],
+    "members": [
+      {
+        "actual_role": "RSPrimary",
+        "address": "mongo1:27017"
+      },
+      {
+        "actual_role": "RSSecondary",
+        "address": "mongo2:27017"
+      },
+      {
+        "actual_role": "RSSecondary",
+        "address": "mongo3:27017"
+      }
+    ],
+    "namespace": {
+      "collection": "logical",
+      "database": "mc_experiment_01020_C4_ryw",
+      "document_id": "experiment-01020-C4-ryw/x"
+    },
+    "precondition_error": "fault controller request failed for mongo2: <urlopen error [Errno 111] Connection refused>",
+    "precondition_status": "UNSUPPORTED",
+    "prediction_commit": "e1bae03e82d1b372008ed3a64fc59c19c76c0a27",
+    "prediction_manifest_hash": "663b06ed344c53ea75736e0322b3588ee94c5b8a2e344fc4710f0de925731857",
+    "property": "RYW",
+    "property_steps": {
+      "read": "read",
+      "write": "write"
+    },
+    "read_concern": "local",
+    "retry_reads": false,
+    "retry_writes": false,
+    "runner_version": "e1bae03e82d1b372008ed3a64fc59c19c76c0a27",
+    "schedule_id": "ryw-stale-secondary",
+    "schema_version": "manifest.v1",
+    "seed": 20261935,
+    "session_id": "Binary(b'\\xfe\\xbdb\\x84\\xcb\\x0bJ\\x7f\\x99mV\\xa3 \\xdb\\x8c\\xb0', 4)",
+    "software_versions": {
+      "docker_compose": "5.5.1",
+      "docker_engine": "29.8.0",
+      "mongodb": "7.0.34",
+      "pymongo": "4.18.1",
+      "python": "3.14.7"
+    },
+    "subtrial_finished_ns": 12011318808786,
+    "subtrial_started_ns": 12011240971739,
+    "timeout_policy": {
+      "connect_ms": 2000,
+      "election_barrier_ms": 30000,
+      "operation_ms": 5000,
+      "server_selection_ms": 5000,
+      "subtrial_ms": 60000,
+      "write_concern_ms": 5000
+    },
+    "trial_id": "experiment-01020-C4-ryw",
+    "write_concern": "majority"
+  },
+  "metadata": {},
+  "operations": [
+    {
+      "actual_role": "RSPrimary",
+      "actual_server_address": "mongo1:27017",
+      "causal_session": true,
+      "command_name": "update",
+      "dependency_metadata": {},
+      "depends_on_read_id": null,
+      "depends_on_version": null,
+      "document_version_after": 0,
+      "document_version_before": null,
+      "end_ns": 12011312920239,
+      "error_code": null,
+      "error_message": null,
+      "fault_event_id": null,
+      "key": "x",
+      "kind": "setup",
+      "observed_updates": [],
+      "observed_version": null,
+      "observed_versions": [],
+      "operation_id": "init",
+      "operation_status": "SUCCESS",
+      "parent_write_id": null,
+      "property": "RYW",
+      "read_concern": null,
+      "requested_member": "primary",
+      "response_received": true,
+      "session_id": "Binary(b'\\xfe\\xbdb\\x84\\xcb\\x0bJ\\x7f\\x99mV\\xa3 \\xdb\\x8c\\xb0', 4)",
+      "start_ns": 12011266666456,
+      "timeout_category": null,
+      "trial_id": "experiment-01020-C4-ryw",
+      "version": null,
+      "write_concern": "majority",
+      "write_id": null
+    },
+    {
+      "actual_role": null,
+      "actual_server_address": null,
+      "causal_session": null,
+      "command_name": null,
+      "dependency_metadata": {},
+      "depends_on_read_id": null,
+      "depends_on_version": null,
+      "document_version_after": null,
+      "document_version_before": null,
+      "end_ns": null,
+      "error_code": null,
+      "error_message": "fault controller request failed for mongo2: <urlopen error [Errno 111] Connection refused>",
+      "fault_event_id": null,
+      "key": "x",
+      "kind": "setup",
+      "observed_updates": [],
+      "observed_version": null,
+      "observed_versions": [],
+      "operation_id": "write",
+      "operation_status": "UNSUPPORTED",
+      "parent_write_id": null,
+      "property": null,
+      "read_concern": null,
+      "requested_member": null,
+      "response_received": true,
+      "session_id": null,
+      "start_ns": null,
+      "timeout_category": null,
+      "trial_id": null,
+      "version": null,
+      "write_concern": null,
+      "write_id": null
+    },
+    {
+      "actual_role": null,
+      "actual_server_address": null,
+      "causal_session": null,
+      "command_name": null,
+      "dependency_metadata": {},
+      "depends_on_read_id": null,
+      "depends_on_version": null,
+      "document_version_after": null,
+      "document_version_before": null,
+      "end_ns": null,
+      "error_code": null,
+      "error_message": "fault controller request failed for mongo2: <urlopen error [Errno 111] Connection refused>",
+      "fault_event_id": null,
+      "key": "x",
+      "kind": "setup",
+      "observed_updates": [],
+      "observed_version": null,
+      "observed_versions": [],
+      "operation_id": "read",
+      "operation_status": "UNSUPPORTED",
+      "parent_write_id": null,
+      "property": null,
+      "read_concern": null,
+      "requested_member": null,
+      "response_received": true,
+      "session_id": null,
+      "start_ns": null,
+      "timeout_category": null,
+      "trial_id": null,
+      "version": null,
+      "write_concern": null,
+      "write_id": null
+    }
+  ],
+  "schema_version": "history.v1"
+}

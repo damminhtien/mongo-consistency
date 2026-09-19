@@ -1,46 +1,46 @@
 \section{Results}
 
-The analysis state is \texttt{\AnalysisStatus}; \texttt{\HistoryCount} raw histories are available to the report build. The generated table below is populated from \texttt{results/summary/summary.json}. A no-data build uses zero counts and keeps the state label visible rather than copying values from a prediction.
+The analysis state is \texttt{\AnalysisStatus}, and the main campaign manifest is \texttt{\MainCampaignStatus}. It contains \texttt{\HistoryCount} histories: \texttt{\NormalHistoryCount} normal controls and \texttt{\AdversarialHistoryCount} adversarial trials. The separate pilot contains \texttt{\PilotHistoryCount} histories and is not pooled into these results. Tables are generated from \texttt{results/summary/summary.json}; a no-data build shows zero counts rather than copying predicted values.
 
 \begin{table}[ht]
 \centering
-\caption{Outcome counts in the analysed raw histories.}
+\caption{Main-campaign outcomes by test condition.}
 \label{tab:outcomes}
-\begin{tabular}{@{}lr@{}}
+\begin{tabular}{@{}lrr@{}}
 \toprule
-Outcome & Count \\
+Outcome & Normal controls & Adversarial \\
 \midrule
-PASS & \PassCount \\
-VIOLATION & \ViolationCount \\
-UNAVAILABLE & \UnavailableCount \\
-INDETERMINATE & \IndeterminateCount \\
-HARNESS\_ERROR & \HarnessErrorCount \\
-UNSUPPORTED & \UnsupportedCount \\
+PASS & \NormalPassCount & \AdversarialPassCount \\
+VIOLATION & \NormalViolationCount & \AdversarialViolationCount \\
+UNAVAILABLE & \NormalUnavailableCount & \AdversarialUnavailableCount \\
+INDETERMINATE & \NormalIndeterminateCount & \AdversarialIndeterminateCount \\
+HARNESS\_ERROR & \NormalHarnessErrorCount & \AdversarialHarnessErrorCount \\
+UNSUPPORTED & \NormalUnsupportedCount & \AdversarialUnsupportedCount \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-The consistency denominator is PASS plus VIOLATION. Operation success, history completion, and the other outcome classes are reported separately. Each decidable group retains a path to its raw histories, configuration ID, property, schedule, and input hashes. Latency uses operation timing; election and recovery intervals use fault-event timing when those events are recorded.
+RQ1 uses the adversarial histories. Of \texttt{\AdversarialHistoryCount} planned adversarial trials, \texttt{\AdversarialUnsupportedCount} did not establish a required topology precondition and are reported as \texttt{UNSUPPORTED}. The violation rate uses only the \texttt{\AdversarialDecidableCount} adversarial histories labelled \texttt{PASS} or \texttt{VIOLATION}. The pilot is excluded. Each cell retains its configuration, property, schedule, and raw-history path.
 
 \begin{table}[ht]
 \centering
-\caption{Aggregate metrics generated from the raw histories.}
+\caption{Main-campaign metrics, with normal controls and adversarial trials reported separately.}
 \label{tab:metrics}
-\begin{tabular}{@{}lr@{}}
+\begin{tabular}{@{}lrr@{}}
 \toprule
-Metric & Value \\
+Metric & Normal controls & Adversarial \\
 \midrule
-Consistency violation rate & \texttt{\ConsistencyViolationRate} \\
-Operation success rate & \texttt{\OperationSuccessRate} \\
-History completion rate & \texttt{\HistoryCompletionRate} \\
-Latency p50 / p95 / p99 (ms) & \texttt{\LatencyMedian} / \texttt{\LatencyHigh} / \texttt{\LatencyTail} \\
-Election p50 (ms) & \texttt{\ElectionMedian} \\
-Recovery p50 (ms) & \texttt{\RecoveryMedian} \\
+Consistency violation rate & \texttt{\ControlConsistencyViolationRate} & \texttt{\ConsistencyViolationRate} \\
+Operation success rate & \texttt{\ControlOperationSuccessRate} & \texttt{\OperationSuccessRate} \\
+History completion rate & \texttt{\ControlHistoryCompletionRate} & \texttt{\HistoryCompletionRate} \\
+Latency p50 / p95 / p99 (ms) & \texttt{\ControlLatencyMedian} / \texttt{\ControlLatencyHigh} / \texttt{\ControlLatencyTail} & \texttt{\LatencyMedian} / \texttt{\LatencyHigh} / \texttt{\LatencyTail} \\
+Election p50 (ms) & \texttt{\ControlElectionMedian} & \texttt{\ElectionMedian} \\
+Recovery p50 (ms) & \texttt{\ControlRecoveryMedian} & \texttt{\RecoveryMedian} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \maybefigure{submission/figures/outcome-heatmap.pdf}{Outcome heatmap by configuration and property.}
-\maybefigure{submission/figures/factorial-interactions.pdf}{Read-concern, write-concern, and causal-session interaction contrasts.}
-\maybefigure{submission/figures/latency.pdf}{Operation latency quantiles.}
-\maybefigure{submission/figures/prediction-observation.pdf}{Prediction targets compared with checked observations.}
+\maybefigure{submission/figures/factorial-interactions.pdf}{Factorial contrasts for the main adversarial histories.}
+\maybefigure{submission/figures/latency.pdf}{Operation latency quantiles by main-campaign condition; pilot excluded.}
+\maybefigure{submission/figures/prediction-observation.pdf}{Prediction targets compared with checked adversarial histories.}

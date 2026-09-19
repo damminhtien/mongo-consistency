@@ -1,0 +1,346 @@
+{
+  "fault_events": [
+    {
+      "action": "isolate",
+      "applied_ns": 9443190984325,
+      "election_end_ns": 9464240318678,
+      "election_start_ns": 9443190992284,
+      "end_ns": 9443190984608,
+      "event_id": "experiment-00633-C1-wfr-wfr-fault",
+      "members": [
+        "mongo2"
+      ],
+      "new_primary": "mongo1",
+      "responses": [
+        {
+          "action": "isolate",
+          "event_id": "experiment-00633-C1-wfr-wfr-fault",
+          "member": "mongo2",
+          "ok": true
+        }
+      ],
+      "start_ns": 9443172590860,
+      "status": "APPLIED"
+    },
+    {
+      "action": "heal",
+      "applied_ns": 9464280267995,
+      "end_ns": 9464280268330,
+      "event_id": "experiment-00633-C1-wfr-wfr-fault-heal",
+      "members": [
+        "mongo2"
+      ],
+      "recovery_end_ns": 9465289654986,
+      "recovery_start_ns": 9464280275704,
+      "responses": [
+        {
+          "action": "heal",
+          "event_id": "experiment-00633-C1-wfr-wfr-fault-heal",
+          "member": "mongo2",
+          "ok": true
+        }
+      ],
+      "start_ns": 9464244857981,
+      "status": "APPLIED"
+    }
+  ],
+  "history_hash": "40161d6dfa77ad39418b1bf3ab19184176073ff87d254d23bccaf4f807812f0d",
+  "manifest": {
+    "adversarial": true,
+    "campaign_id": "experiment",
+    "campaign_ordinal": 633,
+    "causal_session": false,
+    "checker_version": "history.v1",
+    "cleanup_status": "STABLE",
+    "configuration_id": "C1",
+    "driver_version": "4.18.1",
+    "image_digest": [
+      "mongo@sha256:c1a84ab5d0c17deed1e0dba1d24bd7c76e5c7b281145fe536911939b1551754c"
+    ],
+    "members": [
+      {
+        "actual_role": "RSPrimary",
+        "address": "mongo1:27017"
+      },
+      {
+        "actual_role": "RSSecondary",
+        "address": "mongo2:27017"
+      },
+      {
+        "actual_role": "RSSecondary",
+        "address": "mongo3:27017"
+      }
+    ],
+    "namespace": {
+      "collection": "logical",
+      "database": "mc_experiment_00633_C1_wfr",
+      "document_id": "experiment-00633-C1-wfr/x"
+    },
+    "prediction_commit": "468e69a410455e6ed0fc54d05d9e36264288b5cc",
+    "prediction_manifest_hash": "663b06ed344c53ea75736e0322b3588ee94c5b8a2e344fc4710f0de925731857",
+    "property": "WFR",
+    "property_steps": {
+      "observer": "observer",
+      "read": "read",
+      "write": "write"
+    },
+    "read_concern": "local",
+    "retry_reads": false,
+    "retry_writes": false,
+    "runner_version": "468e69a410455e6ed0fc54d05d9e36264288b5cc",
+    "schedule_id": "wfr-election",
+    "schema_version": "manifest.v1",
+    "seed": 20261548,
+    "session_id": "Binary(b'\\xc1y\\xd6I\\x17\\xd5Fm\\xa4[#G3\\xa5\\xa7^', 4)",
+    "software_versions": {
+      "docker_compose": "5.5.1",
+      "docker_engine": "29.8.0",
+      "mongodb": "7.0.34",
+      "pymongo": "4.18.1",
+      "python": "3.14.7"
+    },
+    "subtrial_finished_ns": 9465289664947,
+    "subtrial_started_ns": 9443126631470,
+    "timeout_policy": {
+      "connect_ms": 2000,
+      "election_barrier_ms": 30000,
+      "operation_ms": 5000,
+      "server_selection_ms": 5000,
+      "subtrial_ms": 60000,
+      "write_concern_ms": 5000
+    },
+    "trial_id": "experiment-00633-C1-wfr",
+    "write_concern": "w:1"
+  },
+  "metadata": {},
+  "operations": [
+    {
+      "actual_role": "RSPrimary",
+      "actual_server_address": "mongo2:27017",
+      "causal_session": false,
+      "command_name": "update",
+      "dependency_metadata": {},
+      "depends_on_read_id": null,
+      "depends_on_version": null,
+      "document_version_after": 0,
+      "document_version_before": null,
+      "end_ns": 9443167683132,
+      "error_code": null,
+      "error_message": null,
+      "fault_event_id": null,
+      "key": "x",
+      "kind": "setup",
+      "observed_updates": [],
+      "observed_version": null,
+      "observed_versions": [],
+      "operation_id": "init",
+      "operation_status": "SUCCESS",
+      "parent_write_id": null,
+      "property": "WFR",
+      "read_concern": null,
+      "requested_member": "primary",
+      "response_received": true,
+      "session_id": "Binary(b'\\xc1y\\xd6I\\x17\\xd5Fm\\xa4[#G3\\xa5\\xa7^', 4)",
+      "start_ns": 9443148622404,
+      "timeout_category": null,
+      "trial_id": "experiment-00633-C1-wfr",
+      "version": null,
+      "write_concern": "w:1",
+      "write_id": null
+    },
+    {
+      "actual_role": "RSPrimary",
+      "actual_server_address": "mongo2:27017",
+      "causal_session": false,
+      "command_name": "update",
+      "dependency_metadata": {
+        "depends_on_read_id": null,
+        "depends_on_version": null,
+        "parent_write_id": null
+      },
+      "depends_on_read_id": null,
+      "depends_on_version": null,
+      "document_version_after": 1,
+      "document_version_before": 0,
+      "end_ns": 9443170781665,
+      "error_code": null,
+      "error_message": null,
+      "fault_event_id": null,
+      "key": "x",
+      "kind": "write",
+      "observed_updates": [],
+      "observed_version": null,
+      "observed_versions": [],
+      "operation_id": "precondition_write",
+      "operation_status": "SUCCESS",
+      "parent_write_id": null,
+      "property": "WFR",
+      "read_concern": null,
+      "requested_member": "primary",
+      "response_received": true,
+      "session_id": "Binary(b'\\xc1y\\xd6I\\x17\\xd5Fm\\xa4[#G3\\xa5\\xa7^', 4)",
+      "start_ns": 9443169403670,
+      "timeout_category": null,
+      "trial_id": "experiment-00633-C1-wfr",
+      "version": 1,
+      "write_concern": "w:1",
+      "write_id": "w1"
+    },
+    {
+      "actual_role": "RSPrimary",
+      "actual_server_address": "mongo2:27017",
+      "causal_session": false,
+      "command_name": "find",
+      "dependency_metadata": {},
+      "depends_on_read_id": null,
+      "depends_on_version": null,
+      "document_version_after": 1,
+      "document_version_before": null,
+      "end_ns": 9443172457750,
+      "error_code": null,
+      "error_message": null,
+      "fault_event_id": null,
+      "key": "x",
+      "kind": "read",
+      "observed_updates": [
+        {
+          "depends_on_read_id": null,
+          "depends_on_version": null,
+          "effect": "initial",
+          "parent_write_id": null,
+          "version": 0,
+          "write_id": "init"
+        },
+        {
+          "depends_on_read_id": null,
+          "depends_on_version": null,
+          "effect": "set-v1",
+          "parent_write_id": null,
+          "version": 1,
+          "write_id": "w1"
+        }
+      ],
+      "observed_version": 1,
+      "observed_versions": [
+        0,
+        1
+      ],
+      "operation_id": "read",
+      "operation_status": "SUCCESS",
+      "parent_write_id": null,
+      "property": "WFR",
+      "read_concern": "local",
+      "requested_member": "primary",
+      "response_received": true,
+      "session_id": "Binary(b'\\xc1y\\xd6I\\x17\\xd5Fm\\xa4[#G3\\xa5\\xa7^', 4)",
+      "start_ns": 9443171409211,
+      "timeout_category": null,
+      "trial_id": "experiment-00633-C1-wfr",
+      "version": null,
+      "write_concern": "w:1",
+      "write_id": null
+    },
+    {
+      "actual_role": "RSPrimary",
+      "actual_server_address": "mongo1:27017",
+      "causal_session": false,
+      "command_name": "update",
+      "dependency_metadata": {
+        "depends_on_read_id": "read",
+        "depends_on_version": 1,
+        "parent_write_id": null
+      },
+      "depends_on_read_id": "read",
+      "depends_on_version": 1,
+      "document_version_after": 2,
+      "document_version_before": 1,
+      "end_ns": 9464243720608,
+      "error_code": null,
+      "error_message": null,
+      "fault_event_id": "experiment-00633-C1-wfr-wfr-fault",
+      "key": "x",
+      "kind": "write",
+      "observed_updates": [],
+      "observed_version": null,
+      "observed_versions": [],
+      "operation_id": "write",
+      "operation_status": "SUCCESS",
+      "parent_write_id": null,
+      "property": "WFR",
+      "read_concern": null,
+      "requested_member": "primary",
+      "response_received": true,
+      "session_id": "Binary(b'\\xc1y\\xd6I\\x17\\xd5Fm\\xa4[#G3\\xa5\\xa7^', 4)",
+      "start_ns": 9464242617962,
+      "timeout_category": null,
+      "trial_id": "experiment-00633-C1-wfr",
+      "version": 2,
+      "write_concern": "w:1",
+      "write_id": "w2"
+    },
+    {
+      "actual_role": "RSPrimary",
+      "actual_server_address": "mongo1:27017",
+      "causal_session": false,
+      "command_name": "find",
+      "dependency_metadata": {},
+      "depends_on_read_id": null,
+      "depends_on_version": null,
+      "document_version_after": 2,
+      "document_version_before": null,
+      "end_ns": 9464244766883,
+      "error_code": null,
+      "error_message": null,
+      "fault_event_id": "experiment-00633-C1-wfr-wfr-fault",
+      "key": "x",
+      "kind": "observer",
+      "observed_updates": [
+        {
+          "depends_on_read_id": null,
+          "depends_on_version": null,
+          "effect": "initial",
+          "parent_write_id": null,
+          "version": 0,
+          "write_id": "init"
+        },
+        {
+          "depends_on_read_id": null,
+          "depends_on_version": null,
+          "effect": "set-v1",
+          "parent_write_id": null,
+          "version": 1,
+          "write_id": "w1"
+        },
+        {
+          "depends_on_read_id": "read",
+          "depends_on_version": 1,
+          "effect": "set-v2",
+          "parent_write_id": null,
+          "version": 2,
+          "write_id": "w2"
+        }
+      ],
+      "observed_version": 2,
+      "observed_versions": [
+        0,
+        1,
+        2
+      ],
+      "operation_id": "observer",
+      "operation_status": "SUCCESS",
+      "parent_write_id": null,
+      "property": "WFR",
+      "read_concern": "local",
+      "requested_member": "primary",
+      "response_received": true,
+      "session_id": "Binary(b'\\xc1y\\xd6I\\x17\\xd5Fm\\xa4[#G3\\xa5\\xa7^', 4)",
+      "start_ns": 9464244072293,
+      "timeout_category": null,
+      "trial_id": "experiment-00633-C1-wfr",
+      "version": null,
+      "write_concern": "w:1",
+      "write_id": null
+    }
+  ],
+  "schema_version": "history.v1"
+}

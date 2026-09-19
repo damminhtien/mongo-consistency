@@ -25,6 +25,7 @@ class AnalysisTests(unittest.TestCase):
             )
             self.assertEqual("NO_DATA", summary["status"])
             self.assertEqual(0, summary["history_count"])
+            self.assertEqual({}, summary["campaign_summaries"])
             self.assertTrue((root / "summary/summary.json").is_file())
             self.assertTrue((root / "figures/outcome-heatmap.svg").is_file())
 
@@ -70,6 +71,8 @@ class AnalysisTests(unittest.TestCase):
             self.assertEqual(1, summary["outcome_counts"]["PASS"])
             self.assertEqual(1.0, summary["groups"][0]["operation_success_rate"])
             self.assertEqual(1.5, summary["groups"][0]["latency_ms"]["p50"])
+            self.assertEqual(1, summary["campaign_summaries"]["normal"]["normal"]["history_count"])
+            self.assertEqual(0, summary["campaign_summaries"]["normal"]["adversarial"]["history_count"])
             parsed = json.loads((root / "summary/summary.json").read_text())
             self.assertEqual("DATA", parsed["status"])
 
@@ -130,9 +133,18 @@ class AnalysisTests(unittest.TestCase):
                 summary_root=root / "summary",
                 figures_root=root / "figures",
             )
+            latency_svg = (root / "figures/latency.svg").read_text(encoding="utf-8")
         self.assertEqual(2.1, summary["overall"]["election_ms"]["p50"])
         self.assertEqual(2.0001, summary["overall"]["recovery_ms"]["p50"])
+        self.assertEqual(1, summary["campaign_summaries"]["experiment"]["adversarial"]["history_count"])
+        self.assertEqual(
+            1,
+            summary["campaign_summaries"]["experiment"]["properties"]["RYW"]["history_count"],
+        )
         self.assertIn("metrics", summary["factorial"]["properties"]["RYW"])
+        self.assertIn("Normal control", latency_svg)
+        self.assertIn("Adversarial", latency_svg)
+        self.assertIn("log10(ms + 1)", latency_svg)
 
 
 if __name__ == "__main__":

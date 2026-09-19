@@ -47,10 +47,13 @@ question -> theory -> prediction -> adversarial experiment -> recorded history -
 - The prediction manifest is committed before result files.
 - A result claim must cite a raw history, manifest, derived summary, or a checked source page.
 - `PASS` and `VIOLATION` determine the consistency denominator. Other outcomes stay visible and are not silently discarded.
+- Keep the 192-history pilot separate from the 1,280-history main campaign. Report the 320 normal controls and 960 adversarial histories in separate columns; RQ1 rates and factorial contrasts use the adversarial histories only.
 - A timeout after a possibly completed write is `INDETERMINATE`.
 - Absence of a violation in the tested histories is not a universal guarantee.
 - A checker result does not establish an internal MongoDB mechanism unless an observable trace supports that explanation.
 - Parallel workers are an execution detail. Report their count and resource isolation, and treat latency as measured under that declared level of concurrency.
+- If a campaign is resumed across execution modes or runner revisions, report the accepted history count for each mode, keep failed harness attempts outside `results/raw/`, and qualify pooled latency as descriptive under mixed host load.
+- State property-specific violation denominators and the sample count behind any unusually high cell rate. Factorial contrasts use equal-weight available cell rates here and are descriptive, not inferential.
 
 ## Source links
 
