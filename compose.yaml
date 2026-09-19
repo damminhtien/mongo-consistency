@@ -94,9 +94,13 @@ services:
       mongo1: {condition: service_healthy}
       mongo2: {condition: service_healthy}
       mongo3: {condition: service_healthy}
+      fault-controller-1: {condition: service_healthy}
+      fault-controller-2: {condition: service_healthy}
+      fault-controller-3: {condition: service_healthy}
     entrypoint: ["python"]
 
   fault-controller-1:
+    image: mongo-consistency-fault-controller:local
     build:
       context: infra/fault-controller
     network_mode: service:mongo1
@@ -110,8 +114,15 @@ services:
       REPLICA_INTERFACE: eth1
     depends_on:
       mongo1: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:29091/health', timeout=1)"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+      start_period: 2s
 
   fault-controller-2:
+    image: mongo-consistency-fault-controller:local
     build:
       context: infra/fault-controller
     network_mode: service:mongo2
@@ -125,8 +136,15 @@ services:
       REPLICA_INTERFACE: eth1
     depends_on:
       mongo2: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:29092/health', timeout=1)"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+      start_period: 2s
 
   fault-controller-3:
+    image: mongo-consistency-fault-controller:local
     build:
       context: infra/fault-controller
     network_mode: service:mongo3
@@ -140,6 +158,12 @@ services:
       REPLICA_INTERFACE: eth1
     depends_on:
       mongo3: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:29093/health', timeout=1)"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+      start_period: 2s
 
 networks:
   client_net:

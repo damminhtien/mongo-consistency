@@ -200,6 +200,26 @@ class CheckerTests(unittest.TestCase):
         )
         self.assertEqual(Outcome.HARNESS_ERROR, check_history(history).outcome)
 
+    def test_fault_controller_error_is_harness_error(self) -> None:
+        history = base_history(
+            "RYW",
+            [
+                operation("write", "write", version=1, write_id="w1"),
+                operation("read", "read", operation_status="UNSUPPORTED"),
+            ],
+        )
+        history.fault_events.append(
+            {
+                "event_id": "fixture-fault",
+                "action": "isolate",
+                "status": "ERROR",
+                "error": "connection refused",
+            }
+        )
+        result = check_history(history)
+        self.assertEqual(Outcome.HARNESS_ERROR, result.outcome)
+        self.assertEqual("fixture-fault", result.details["event_id"])
+
     def test_history_hash_round_trip(self) -> None:
         history = base_history(
             "RYW",

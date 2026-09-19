@@ -56,6 +56,21 @@ class HarnessLayoutTests(unittest.TestCase):
         self.assertNotIn('"REJECT"', controller)
         self.assertNotIn("docker.sock", compose)
 
+    def test_runner_waits_for_healthy_fault_controllers(self) -> None:
+        compose = (ROOT / "compose.yaml").read_text(encoding="utf-8")
+        runner_section = compose.split("  runner:", 1)[1].split("\n  fault-controller-1:", 1)[0]
+        for member, port in ((1, 29091), (2, 29092), (3, 29093)):
+            self.assertIn(
+                f"fault-controller-{member}: {{condition: service_healthy}}",
+                runner_section,
+            )
+            section = compose.split(f"  fault-controller-{member}:\n", 1)[1]
+            if member < 3:
+                section = section.split("\n  fault-controller-", 1)[0]
+            self.assertIn("image: mongo-consistency-fault-controller:local", section)
+            self.assertIn("healthcheck:", section)
+            self.assertIn(f"http://127.0.0.1:{port}/health", section)
+
     def test_driver_uses_pymongo_write_concern_timeout_name(self) -> None:
         driver = (ROOT / "src/mongo_consistency/driver.py").read_text(encoding="utf-8")
         self.assertIn("wtimeout=5000", driver)

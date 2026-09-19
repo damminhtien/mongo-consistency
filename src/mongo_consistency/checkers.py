@@ -44,6 +44,18 @@ def _preflight(
             "runner recorded an execution error",
             error=history.manifest["runner_error"],
         )
+    failed_fault_event = next(
+        (event for event in history.fault_events if event.get("status") == "ERROR"),
+        None,
+    )
+    if failed_fault_event is not None:
+        return None, _result(
+            Outcome.HARNESS_ERROR,
+            "fault controller failed to apply the requested topology change",
+            event_id=failed_fault_event.get("event_id"),
+            action=failed_fault_event.get("action"),
+            error=failed_fault_event.get("error"),
+        )
     actual_property = history.manifest.get("property")
     if actual_property != property_name:
         return None, _result(
