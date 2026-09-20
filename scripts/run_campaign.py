@@ -487,12 +487,30 @@ def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
         temporary_path.unlink(missing_ok=True)
 
 
-def _smoke_gate(records_by_ordinal: dict[int, dict[str, Any]]) -> dict[str, Any]:
+def _smoke_gate(
+    records_by_ordinal: dict[int, dict[str, Any]],
+    *,
+    planned_cases: list[tuple[int, str, str, bool]] | None = None,
+) -> dict[str, Any]:
     """Require complete smoke coverage, verified preconditions, and no harness errors."""
 
+    properties = (
+        tuple(sorted({case[2] for case in planned_cases}))
+        if planned_cases is not None
+        else PROPERTIES
+    )
+    expected_counts = (
+        {
+            property_name: sum(case[2] == property_name for case in planned_cases)
+            for property_name in properties
+        }
+        if planned_cases is not None
+        else {property_name: 8 for property_name in properties}
+    )
+    expected_case_count = len(planned_cases) if planned_cases is not None else 32
     counts: dict[str, dict[str, int]] = {
         property_name: {"planned": 0, "precondition_miss": 0, "harness_error": 0}
-        for property_name in PROPERTIES
+        for property_name in properties
     }
     for record in records_by_ordinal.values():
         property_name = str(record.get("property"))
@@ -514,19 +532,21 @@ def _smoke_gate(records_by_ordinal: dict[int, dict[str, Any]]) -> dict[str, Any]
     }
     failures = [
         f"{property_name}: precondition-miss rate {rates[property_name]:.3f} exceeds 0.05"
-        for property_name in PROPERTIES
+        for property_name in properties
         if rates[property_name] > 0.05
     ]
     if any(values["harness_error"] for values in counts.values()):
         failures.append("one or more smoke histories were classified HARNESS_ERROR")
-    if len(records_by_ordinal) != 32:
+    if len(records_by_ordinal) != expected_case_count:
         failures.append(
-            f"smoke coverage is incomplete: completed {len(records_by_ordinal)} of 32 histories"
+            "smoke coverage is incomplete: "
+            f"completed {len(records_by_ordinal)} of {expected_case_count} histories"
         )
     for property_name, values in counts.items():
-        if values["planned"] != 8:
+        if values["planned"] != expected_counts[property_name]:
             failures.append(
-                f"{property_name}: expected 8 configuration cells, found {values['planned']}"
+                f"{property_name}: expected {expected_counts[property_name]} configuration cells, "
+                f"found {values['planned']}"
             )
     return {
         "passed": not failures,
@@ -804,7 +824,11 @@ def run_campaign(
             resumed=resume,
             finished_ns=time.monotonic_ns(),
             error=fatal_error,
-            smoke_gate=_smoke_gate(records_by_ordinal) if campaign == "smoke" else None,
+            smoke_gate=(
+                _smoke_gate(records_by_ordinal, planned_cases=plan)
+                if campaign == "smoke"
+                else None
+            ),
         )
         _write_json_atomic(manifest_path, final_manifest)
     return final_manifest

@@ -134,6 +134,35 @@ class CampaignResumeTests(unittest.TestCase):
         self.assertFalse(gate["passed"])
         self.assertTrue(any("HARNESS_ERROR" in item for item in gate["failures"]))
 
+    def test_property_filtered_smoke_gate_checks_only_its_planned_cells(self) -> None:
+        planned = [
+            (ordinal, f"C{ordinal}", "MR", True)
+            for ordinal in range(1, 9)
+        ]
+        records = {
+            ordinal: {
+                "property": "MR",
+                "precondition_status": "SATISFIED",
+                "outcome": "PASS",
+            }
+            for ordinal in range(1, 9)
+        }
+
+        gate = _smoke_gate(records, planned_cases=planned)
+
+        self.assertTrue(gate["passed"])
+        planned_counts = {
+            property_name: values["planned"]
+            for property_name, values in gate["counts_by_property"].items()
+        }
+        self.assertEqual({"MR": 8}, planned_counts)
+
+        records[1]["precondition_status"] = "PRECONDITION_MISS"
+        gate = _smoke_gate(records, planned_cases=planned)
+        self.assertFalse(gate["passed"])
+        self.assertEqual(0.125, gate["precondition_miss_rate_by_property"]["MR"])
+        self.assertTrue(all("MR:" in item for item in gate["failures"]))
+
     def test_only_smoke_may_run_without_frozen_provenance(self) -> None:
         _require_frozen_provenance("smoke", {})
         with self.assertRaisesRegex(ValueError, "committed, frozen"):
