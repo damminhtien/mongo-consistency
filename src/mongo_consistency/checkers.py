@@ -23,15 +23,13 @@ def _step_ids(history: History, defaults: Iterable[str]) -> list[str]:
 
 
 def _preflight(
-    history: History, property_name: str, step_names: Iterable[str]
+    history: History,
+    property_name: str,
+    step_names: Iterable[str],
 ) -> tuple[dict[str, OperationRecord] | None, CheckerResult | None]:
     errors = validate_history(history)
     if errors:
-        return None, _result(
-            Outcome.HARNESS_ERROR,
-            "history schema is invalid",
-            errors=errors,
-        )
+        return None, _result(Outcome.HARNESS_ERROR, "history schema is invalid", errors=errors)
     if history.manifest.get("cleanup_status") == "ERROR":
         return None, _result(
             Outcome.HARNESS_ERROR,
@@ -51,19 +49,51 @@ def _preflight(
     if failed_fault_event is not None:
         return None, _result(
             Outcome.HARNESS_ERROR,
-            "fault controller failed to apply the requested topology change",
+            "fault controller failed to apply or verify the requested topology change",
             event_id=failed_fault_event.get("event_id"),
             action=failed_fault_event.get("action"),
             error=failed_fault_event.get("error"),
         )
-    actual_property = history.manifest.get("property")
-    if actual_property != property_name:
+    if history.manifest.get("property") != property_name:
         return None, _result(
             Outcome.HARNESS_ERROR,
             "history property does not match checker",
             expected=property_name,
-            actual=actual_property,
+            actual=history.manifest.get("property"),
         )
+    precondition_status = history.precondition.get("status")
+    if precondition_status == "PRECONDITION_MISS":
+        return None, _result(
+            Outcome.PRECONDITION_MISS,
+            "the required schedule state was not established",
+            checks=history.precondition.get("checks", []),
+        )
+    if precondition_status != "SATISFIED":
+        return None, _result(
+            Outcome.HARNESS_ERROR,
+            "precondition status is missing or invalid",
+            status=precondition_status,
+        )
+
+    schedule_outcome = history.manifest.get("schedule_outcome")
+    if isinstance(schedule_outcome, dict):
+        outcome_name = schedule_outcome.get("outcome")
+        if outcome_name in {Outcome.UNAVAILABLE.value, Outcome.INDETERMINATE.value}:
+            outcome = Outcome(outcome_name)
+            return None, _result(
+                outcome,
+                "the registered schedule could not complete a required database phase",
+                phase=schedule_outcome.get("phase"),
+                error=schedule_outcome.get("error"),
+            )
+        if outcome_name == Outcome.HARNESS_ERROR.value:
+            return None, _result(
+                Outcome.HARNESS_ERROR,
+                "the registered schedule recorded a harness failure",
+                phase=schedule_outcome.get("phase"),
+                error=schedule_outcome.get("error"),
+            )
+
     operations = _operations(history)
     names = list(step_names)
     ids = _step_ids(history, names)
@@ -71,61 +101,62 @@ def _preflight(
     for name, operation_id in zip(names, ids, strict=True):
         operation = operations.get(operation_id)
         if operation is None:
+            prior_failure = next(
+                (
+                    item
+                    for item in selected.values()
+                    if item.operation_status in {"UNAVAILABLE", "INDETERMINATE", "HARNESS_ERROR"}
+                ),
+                None,
+            )
+            if prior_failure is not None:
+                outcome = Outcome(prior_failure.operation_status)
+                return None, _result(
+                    outcome,
+                    "a required later subject operation was not issued after an earlier operation failed",
+                    operation_id=prior_failure.operation_id,
+                    step=name,
+                    error=prior_failure.error_message,
+                )
             return None, _result(
                 Outcome.HARNESS_ERROR,
-                "required operation is missing",
+                "required subject operation is missing",
                 operation_id=operation_id,
                 step=name,
             )
         selected[name] = operation
     for name, operation in selected.items():
         status = operation.operation_status
-        if status == "UNSUPPORTED":
-            return None, _result(
-                Outcome.UNSUPPORTED,
-                "required topology precondition was not established",
-                operation_id=operation.operation_id,
-                step=name,
-            )
         if status == "HARNESS_ERROR":
             return None, _result(
                 Outcome.HARNESS_ERROR,
                 "runner reported a harness error",
                 operation_id=operation.operation_id,
                 step=name,
+                error=operation.error_message,
             )
         if status == "INDETERMINATE":
             return None, _result(
                 Outcome.INDETERMINATE,
-                "required operation has an ambiguous result",
+                "the operation reached MongoDB but its effect is unresolved",
                 operation_id=operation.operation_id,
                 step=name,
-            )
-        if status in {"TIMEOUT", "ERROR"}:
-            if operation.kind == "write" or not operation.response_received:
-                return None, _result(
-                    Outcome.INDETERMINATE,
-                    "a write may have completed before its response was lost",
-                    operation_id=operation.operation_id,
-                    step=name,
-                )
-            return None, _result(
-                Outcome.UNAVAILABLE,
-                "required read or observer operation did not complete",
-                operation_id=operation.operation_id,
-                step=name,
+                command_started=operation.command_started,
+                error=operation.error_message,
             )
         if status == "UNAVAILABLE":
             return None, _result(
                 Outcome.UNAVAILABLE,
-                "required operation was unavailable",
+                "the required subject operation did not complete",
                 operation_id=operation.operation_id,
                 step=name,
+                command_started=operation.command_started,
+                error=operation.error_message,
             )
         if status != "SUCCESS":
             return None, _result(
                 Outcome.HARNESS_ERROR,
-                "operation status is not a supported successful state",
+                "subject operation status is invalid",
                 operation_id=operation.operation_id,
                 status=status,
             )
@@ -137,7 +168,7 @@ def _same_key(operations: Iterable[OperationRecord]) -> CheckerResult | None:
     if len(keys) != 1:
         return _result(
             Outcome.HARNESS_ERROR,
-            "property fixture uses more than one logical key",
+            "property history does not use one logical key",
             keys=sorted(keys),
         )
     return None
@@ -146,12 +177,13 @@ def _same_key(operations: Iterable[OperationRecord]) -> CheckerResult | None:
 def _read_version(operation: OperationRecord) -> int | None:
     if operation.observed_version is not None:
         return operation.observed_version
-    if operation.observed_versions:
-        return max(operation.observed_versions)
-    return None
+    return max(operation.observed_versions) if operation.observed_versions else None
 
 
-def _require_version(operation: OperationRecord, step: str) -> tuple[int | None, CheckerResult | None]:
+def _require_version(
+    operation: OperationRecord,
+    step: str,
+) -> tuple[int | None, CheckerResult | None]:
     version = _read_version(operation)
     if version is None:
         return None, _result(
@@ -163,67 +195,135 @@ def _require_version(operation: OperationRecord, step: str) -> tuple[int | None,
     return version, None
 
 
-def _visible_write_ids(operation: OperationRecord) -> set[str]:
+def _final_updates(history: History) -> tuple[list[dict[str, Any]] | None, CheckerResult | None]:
+    observation = history.final_observation
+    if not isinstance(observation, dict):
+        return None, _result(
+            Outcome.INDETERMINATE,
+            "independent post-heal observation is missing",
+        )
+    if observation.get("converged") is not True:
+        return None, _result(
+            Outcome.INDETERMINATE,
+            "replicas did not produce a converged final observation",
+            error=observation.get("error"),
+        )
+    topology = observation.get("topology")
+    expected_members = {"mongo1", "mongo2", "mongo3"}
+    if not isinstance(topology, dict) or topology.get("stable") is not True:
+        return None, _result(
+            Outcome.INDETERMINATE,
+            "replica-set topology was not independently verified stable after healing",
+            topology=topology,
+        )
+    primary = topology.get("primary")
+    secondaries = topology.get("secondaries")
+    if (
+        primary not in expected_members
+        or not isinstance(secondaries, list)
+        or set(secondaries) != expected_members - {primary}
+    ):
+        return None, _result(
+            Outcome.INDETERMINATE,
+            "final topology snapshot does not show one primary and two secondaries",
+            topology=topology,
+        )
+    members = observation.get("members")
+    if not isinstance(members, dict) or set(members) != expected_members:
+        return None, _result(
+            Outcome.INDETERMINATE,
+            "final observation does not contain all three members",
+            members=members,
+        )
+    updates: list[list[dict[str, Any]]] = []
+    for member, state in members.items():
+        if not isinstance(state, dict) or state.get("reachable") is not True:
+            return None, _result(
+                Outcome.INDETERMINATE,
+                "a member could not be read by the independent observer",
+                member=member,
+                state=state,
+            )
+        if state.get("exists") is not True or state.get("observation_valid") is not True:
+            return None, _result(
+                Outcome.INDETERMINATE,
+                "independent observer did not obtain a valid logical document",
+                member=member,
+                state=state,
+            )
+        observed = state.get("updates")
+        if not isinstance(observed, list) or any(not isinstance(item, dict) for item in observed):
+            return None, _result(
+                Outcome.INDETERMINATE,
+                "final member snapshot has no valid update list",
+                member=member,
+            )
+        updates.append(observed)
+    if any(value != updates[0] for value in updates[1:]):
+        return None, _result(
+            Outcome.INDETERMINATE,
+            "direct member snapshots disagree despite the convergence flag",
+        )
+    return updates[0], None
+
+
+def _visible_ids(updates: list[dict[str, Any]]) -> set[str]:
     return {
         str(update["write_id"])
-        for update in operation.observed_updates
-        if update.get("write_id")
+        for update in updates
+        if isinstance(update.get("write_id"), str)
     }
 
 
-def _visible_versions(operation: OperationRecord) -> set[int]:
-    versions = set(operation.observed_versions)
-    versions.update(
+def _visible_versions(updates: list[dict[str, Any]]) -> set[int]:
+    return {
         int(update["version"])
-        for update in operation.observed_updates
+        for update in updates
         if isinstance(update.get("version"), int)
         and not isinstance(update.get("version"), bool)
-    )
-    return versions
+    }
 
 
 def check_ryw(history: History) -> CheckerResult:
-    """Check read-your-writes for write ``w1`` followed by read ``r1``."""
+    """Check whether a subject read is at least as new as its preceding write."""
 
     selected, error = _preflight(history, "RYW", ("write", "read"))
     if error:
         return error
     assert selected is not None
-    same_key_error = _same_key(selected.values())
-    if same_key_error:
-        return same_key_error
+    if same_key := _same_key(selected.values()):
+        return same_key
     write, read = selected["write"], selected["read"]
-    if write.version is None:
-        return _result(Outcome.HARNESS_ERROR, "write has no logical version")
+    if write.intended_version is None:
+        return _result(Outcome.HARNESS_ERROR, "write has no intended logical version")
     read_version, error = _require_version(read, "read")
     if error:
         return error
     assert read_version is not None
-    if read_version < write.version:
+    if read_version < write.intended_version:
         return _result(
             Outcome.VIOLATION,
-            "read returned a version older than the preceding write",
-            write_version=write.version,
+            "read returned a version older than the preceding subject write",
+            write_version=write.intended_version,
             read_version=read_version,
         )
     return _result(
         Outcome.PASS,
         "read returned the written version or a later version",
-        write_version=write.version,
+        write_version=write.intended_version,
         read_version=read_version,
     )
 
 
 def check_mr(history: History) -> CheckerResult:
-    """Check monotonic reads for successive reads ``r1`` and ``r2``."""
+    """Check that successive subject reads do not move to an older version."""
 
     selected, error = _preflight(history, "MR", ("first_read", "second_read"))
     if error:
         return error
     assert selected is not None
-    same_key_error = _same_key(selected.values())
-    if same_key_error:
-        return same_key_error
+    if same_key := _same_key(selected.values()):
+        return same_key
     first, second = selected["first_read"], selected["second_read"]
     first_version, error = _require_version(first, "first_read")
     if error:
@@ -248,20 +348,22 @@ def check_mr(history: History) -> CheckerResult:
 
 
 def check_mw(history: History) -> CheckerResult:
-    """Check monotonic writes using one observer snapshot of the same key."""
+    """Check a dependent write pair against one independent converged snapshot."""
 
-    selected, error = _preflight(history, "MW", ("first_write", "second_write", "observer"))
+    selected, error = _preflight(history, "MW", ("first_write", "second_write"))
     if error:
         return error
     assert selected is not None
-    same_key_error = _same_key(selected.values())
-    if same_key_error:
-        return same_key_error
-    first, second, observer = (
-        selected["first_write"],
-        selected["second_write"],
-        selected["observer"],
-    )
+    if same_key := _same_key(selected.values()):
+        return same_key
+    first, second = selected["first_write"], selected["second_write"]
+    if not first.write_id or not second.write_id:
+        return _result(
+            Outcome.HARNESS_ERROR,
+            "both writes need stable write identifiers",
+            first_write_id=first.write_id,
+            second_write_id=second.write_id,
+        )
     if second.parent_write_id != first.write_id:
         return _result(
             Outcome.HARNESS_ERROR,
@@ -269,11 +371,15 @@ def check_mw(history: History) -> CheckerResult:
             expected_parent=first.write_id,
             actual_parent=second.parent_write_id,
         )
-    visible = _visible_write_ids(observer)
+    updates, error = _final_updates(history)
+    if error:
+        return error
+    assert updates is not None
+    visible = _visible_ids(updates)
     if second.write_id not in visible:
         return _result(
             Outcome.INDETERMINATE,
-            "observer snapshot does not show the completed successor write",
+            "the final converged state does not show the completed successor write",
             visible_write_ids=sorted(visible),
             successor_write_id=second.write_id,
         )
@@ -287,22 +393,23 @@ def check_mw(history: History) -> CheckerResult:
         )
     return _result(
         Outcome.PASS,
-        "observer snapshot contains the predecessor before the successor",
+        "final converged state contains both predecessor and successor writes",
         visible_write_ids=sorted(visible),
     )
 
 
 def check_wfr(history: History) -> CheckerResult:
-    """Check writes-follow-reads for read ``r1`` and dependent write ``w2``."""
+    """Check that a dependent write retains the concrete version returned by a read."""
 
-    selected, error = _preflight(history, "WFR", ("read", "write", "observer"))
+    selected, error = _preflight(history, "WFR", ("read", "write"))
     if error:
         return error
     assert selected is not None
-    same_key_error = _same_key(selected.values())
-    if same_key_error:
-        return same_key_error
-    read, write, observer = selected["read"], selected["write"], selected["observer"]
+    if same_key := _same_key(selected.values()):
+        return same_key
+    read, write = selected["read"], selected["write"]
+    if not write.write_id:
+        return _result(Outcome.HARNESS_ERROR, "dependent write has no stable write identifier")
     read_version, error = _require_version(read, "read")
     if error:
         return error
@@ -310,7 +417,7 @@ def check_wfr(history: History) -> CheckerResult:
     if write.depends_on_read_id != read.operation_id:
         return _result(
             Outcome.HARNESS_ERROR,
-            "dependent write does not name the preceding read",
+            "dependent write does not name the preceding subject read",
             expected_read_id=read.operation_id,
             actual_read_id=write.depends_on_read_id,
         )
@@ -321,15 +428,19 @@ def check_wfr(history: History) -> CheckerResult:
             expected_version=read_version,
             actual_version=write.depends_on_version,
         )
-    visible = _visible_write_ids(observer)
-    if write.write_id not in visible:
+    updates, error = _final_updates(history)
+    if error:
+        return error
+    assert updates is not None
+    visible_ids = _visible_ids(updates)
+    if write.write_id not in visible_ids:
         return _result(
             Outcome.INDETERMINATE,
-            "observer snapshot does not show the dependent write",
-            visible_write_ids=sorted(visible),
+            "the final converged state does not show the dependent write",
+            visible_write_ids=sorted(visible_ids),
             dependent_write_id=write.write_id,
         )
-    visible_versions = _visible_versions(observer)
+    visible_versions = _visible_versions(updates)
     if read_version not in visible_versions:
         return _result(
             Outcome.VIOLATION,
@@ -340,17 +451,12 @@ def check_wfr(history: History) -> CheckerResult:
         )
     return _result(
         Outcome.PASS,
-        "observer snapshot contains the read dependency and dependent write",
+        "final converged state contains the read dependency and dependent write",
         visible_versions=sorted(visible_versions),
     )
 
 
-CHECKERS = {
-    "RYW": check_ryw,
-    "MR": check_mr,
-    "MW": check_mw,
-    "WFR": check_wfr,
-}
+CHECKERS = {"RYW": check_ryw, "MR": check_mr, "MW": check_mw, "WFR": check_wfr}
 
 
 def check_history(history: History, property_name: str | None = None) -> CheckerResult:

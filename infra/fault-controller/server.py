@@ -31,28 +31,51 @@ def ensure_chain() -> None:
     iptables("-A", CHAIN, "-j", "DROP")
 
 
-def add_jump(direction: str, port_flag: str) -> None:
-    rule = ["-i" if direction == "INPUT" else "-o", INTERFACE, "-p", "tcp", port_flag, "27017", "-j", CHAIN]
+def jump_rule(direction: str) -> list[str]:
+    interface_flag = "-i" if direction == "INPUT" else "-o"
+    return [interface_flag, INTERFACE, "-j", CHAIN]
+
+
+def add_jump(direction: str) -> None:
+    rule = jump_rule(direction)
     if iptables("-C", direction, *rule, check=False).returncode != 0:
         iptables("-I", direction, "1", *rule)
 
 
-def remove_jump(direction: str, port_flag: str) -> None:
-    rule = ["-i" if direction == "INPUT" else "-o", INTERFACE, "-p", "tcp", port_flag, "27017", "-j", CHAIN]
+def remove_jump(direction: str) -> None:
+    rule = jump_rule(direction)
     while iptables("-C", direction, *rule, check=False).returncode == 0:
         iptables("-D", direction, *rule)
 
 
+def rule_exists(direction: str) -> bool:
+    return iptables("-C", direction, *jump_rule(direction), check=False).returncode == 0
+
+
+def isolation_verified() -> bool:
+    chain = iptables("-S", CHAIN, check=False)
+    return (
+        chain.returncode == 0
+        and any(line.strip().endswith("-j DROP") for line in chain.stdout.splitlines())
+        and rule_exists("INPUT")
+        and rule_exists("OUTPUT")
+    )
+
+
 def isolate() -> None:
     ensure_chain()
-    add_jump("INPUT", "--dport")
-    add_jump("OUTPUT", "--sport")
+    add_jump("INPUT")
+    add_jump("OUTPUT")
+    if not isolation_verified():
+        raise RuntimeError("replication-path isolation rules could not be verified")
 
 
 def heal() -> None:
-    remove_jump("INPUT", "--dport")
-    remove_jump("OUTPUT", "--sport")
+    remove_jump("INPUT")
+    remove_jump("OUTPUT")
     iptables("-F", CHAIN, check=False)
+    if isolation_verified():
+        raise RuntimeError("replication-path isolation rules remain after heal")
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -70,7 +93,14 @@ class Handler(BaseHTTPRequestHandler):
             return
         try:
             iptables("-L", "INPUT", check=True)
-            self._send({"ok": True, "member": MEMBER, "interface": INTERFACE})
+            self._send(
+                {
+                    "ok": True,
+                    "member": MEMBER,
+                    "interface": INTERFACE,
+                    "replication_isolated": isolation_verified(),
+                }
+            )
         except subprocess.CalledProcessError as error:
             self._send({"ok": False, "error": error.stderr.strip()}, 503)
 
@@ -95,6 +125,10 @@ class Handler(BaseHTTPRequestHandler):
                     "member": MEMBER,
                     "action": action,
                     "event_id": payload.get("event_id"),
+                    "verified": (
+                        isolation_verified() if action == "isolate" else not isolation_verified()
+                    ),
+                    "replication_isolated": isolation_verified(),
                 }
             )
         except (ValueError, json.JSONDecodeError, OSError, subprocess.CalledProcessError) as error:

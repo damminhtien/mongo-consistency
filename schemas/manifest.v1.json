@@ -20,7 +20,7 @@
   "properties": {
     "schema_version": {"const": "manifest.v1"},
     "trial_id": {"type": "string", "minLength": 1},
-    "campaign_id": {"enum": ["pilot", "normal", "experiment"]},
+    "campaign_id": {"enum": ["smoke", "pilot", "normal", "experiment", "rq2"]},
     "configuration_id": {"pattern": "^C[1-8]$"},
     "read_concern": {"enum": ["local", "majority"]},
     "write_concern": {"enum": ["w:1", "majority"]},
@@ -57,7 +57,10 @@
     "fault_policy": {"type": "object"},
     "prediction_commit": {"type": ["string", "null"]},
     "prediction_manifest_hash": {"type": ["string", "null"]},
-    "runner_version": {"type": ["string", "null"]},
+    "protocol_commit": {"type": ["string", "null"]},
+    "protocol_hash": {"type": ["string", "null"]},
+    "runner_commit": {"type": ["string", "null"]},
+    "runner_dirty": {"type": ["boolean", "null"]},
     "checker_version": {"type": ["string", "null"]}
   },
   "additionalProperties": true

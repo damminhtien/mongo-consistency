@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/mongo-consistency/campaign-run.v1.json",
+  "title": "MongoDB consistency campaign run manifest",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "campaign",
+    "status",
+    "seed_base",
+    "expected_case_count",
+    "planned_ordinals",
+    "case_count",
+    "completed_case_count",
+    "next_ordinal",
+    "started_ns",
+    "last_updated_ns",
+    "software_versions",
+    "image_digest",
+    "runner_commits",
+    "resumed",
+    "records"
+  ],
+  "properties": {
+    "schema_version": {"const": "campaign-run.v1"},
+    "campaign": {"enum": ["smoke", "pilot", "experiment", "rq2"]},
+    "status": {"enum": ["RUNNING", "COMPLETE", "INTERRUPTED", "FAILED"]},
+    "seed_base": {"type": "integer", "minimum": 0},
+    "expected_case_count": {"type": "integer", "minimum": 0},
+    "planned_ordinals": {
+      "type": "array",
+      "items": {"type": "integer", "minimum": 1},
+      "uniqueItems": true
+    },
+    "case_count": {"type": "integer", "minimum": 0},
+    "completed_case_count": {"type": "integer", "minimum": 0},
+    "next_ordinal": {"type": ["integer", "null"], "minimum": 1},
+    "started_ns": {"type": "integer", "minimum": 0},
+    "last_updated_ns": {"type": "integer", "minimum": 0},
+    "finished_ns": {"type": "integer", "minimum": 0},
+    "software_versions": {"type": "object"},
+    "image_digest": {"type": ["string", "array", "null"]},
+    "prediction_commit": {"type": ["string", "null"]},
+    "prediction_manifest_hash": {"type": ["string", "null"]},
+    "protocol_commit": {"type": ["string", "null"]},
+    "protocol_hash": {"type": ["string", "null"]},
+    "runner_commit": {"type": ["string", "null"]},
+    "runner_dirty": {"type": ["boolean", "null"]},
+    "runner_commits": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "resumed": {"type": "boolean"},
+    "records": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "trial_id",
+          "ordinal",
+          "campaign",
+          "configuration_id",
+          "property",
+          "adversarial",
+          "seed",
+          "path",
+          "history_hash",
+          "outcome",
+          "precondition_status",
+          "runner_commit",
+          "runner_error"
+        ],
+        "properties": {
+          "trial_id": {"type": "string", "minLength": 1},
+          "ordinal": {"type": "integer", "minimum": 1},
+          "campaign": {"enum": ["smoke", "pilot", "experiment", "rq2"]},
+          "configuration_id": {"pattern": "^C[1-8]$"},
+          "property": {"enum": ["RYW", "MR", "MW", "WFR"]},
+          "adversarial": {"type": "boolean"},
+          "seed": {"type": "integer", "minimum": 0},
+          "path": {"type": "string", "minLength": 1},
+          "history_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "outcome": {
+            "enum": [
+              "PASS",
+              "VIOLATION",
+              "UNAVAILABLE",
+              "INDETERMINATE",
+              "PRECONDITION_MISS",
+              "HARNESS_ERROR"
+            ]
+          },
+          "precondition_status": {"enum": ["SATISFIED", "PRECONDITION_MISS"]},
+          "runner_commit": {"type": ["string", "null"]},
+          "runner_error": {"type": ["string", "null"]}
+        },
+        "additionalProperties": true
+      }
+    },
+    "smoke_gate": {"type": "object"},
+    "error": {"type": "string"}
+  },
+  "additionalProperties": true
+}

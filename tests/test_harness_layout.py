@@ -1,18 +1,48 @@
 from __future__ import annotations
 
+import subprocess
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "src"))
 
 from mongo_consistency.driver import RoutingMonitor, operation_record_from_events
 from mongo_consistency.models import OperationRecord
-
-ROOT = Path(__file__).resolve().parents[1]
+from scripts.setup_experiment import initialize_replica_set
 
 
 class HarnessLayoutTests(unittest.TestCase):
+    def test_setup_captures_replica_status_through_temporary_output_mount(self) -> None:
+        def fake_run(
+            command: list[str],
+            *,
+            env: dict[str, str] | None = None,
+            check: bool = True,
+        ) -> subprocess.CompletedProcess[str]:
+            self.assertIsNotNone(env)
+            capture_dir = Path(env["MC_RESULTS_MOUNT"])
+            (capture_dir / "replica-status.json").write_text(
+                '{"replica_set":"rs0","members":[]}',
+                encoding="utf-8",
+            )
+            return subprocess.CompletedProcess(command, 0, "", "")
+
+        with patch("scripts.setup_experiment.run", side_effect=fake_run) as run_mock:
+            payload = initialize_replica_set()
+
+        self.assertEqual("rs0", payload["replica_set"])
+        command = run_mock.call_args.args[0]
+        self.assertEqual(
+            "/workspace/results/raw/replica-status.json",
+            command[command.index("--output") + 1],
+        )
+        capture_dir = Path(run_mock.call_args.kwargs["env"]["MC_RESULTS_MOUNT"])
+        self.assertFalse(capture_dir.exists(), "temporary setup mount should be removed")
+
     def test_compose_has_three_members_and_separate_networks(self) -> None:
         compose = (ROOT / "compose.yaml").read_text(encoding="utf-8")
         for member in ("mongo1", "mongo2", "mongo3"):
@@ -26,6 +56,9 @@ class HarnessLayoutTests(unittest.TestCase):
         self.assertIn("image: mongo-consistency-runner:local", compose)
         runner_section = compose.split("  runner:", 1)[1]
         self.assertIn("    networks: [client_net]", runner_section)
+        self.assertIn("${MC_RESULTS_MOUNT:-./results/raw}:/workspace/results/raw:rw", runner_section)
+        self.assertNotIn("${MC_RESULTS_MOUNT:-./results}:/workspace/results:rw", runner_section)
+        self.assertNotIn("/var/run/docker.sock", runner_section)
         self.assertNotIn("docker.sock", compose)
 
     def test_compose_and_runner_use_locked_versions(self) -> None:
@@ -44,17 +77,32 @@ class HarnessLayoutTests(unittest.TestCase):
     def test_fault_and_cleanup_contracts_are_present(self) -> None:
         compose = (ROOT / "compose.yaml").read_text(encoding="utf-8")
         workloads = (ROOT / "src/mongo_consistency/workloads.py").read_text(encoding="utf-8")
+        topology = (ROOT / "src/mongo_consistency/topology.py").read_text(encoding="utf-8")
+        trial = (ROOT / "src/mongo_consistency/trial.py").read_text(encoding="utf-8")
         controller = (ROOT / "infra/fault-controller/server.py").read_text(encoding="utf-8")
-        self.assertIn("election_barrier_ms", (ROOT / "src/mongo_consistency/trial.py").read_text())
-        self.assertIn("wait_for_stable_topology", workloads)
+        self.assertIn("election_barrier_ms", trial)
+        self.assertIn("wait_for_stable", topology)
+        self.assertIn("wait_for_stable", workloads)
+        self.assertIn("wait_for_document_convergence", topology)
         self.assertIn('"cleanup_status"', workloads)
         self.assertIn("eth1", controller)
         self.assertIn('iptables("-A", CHAIN, "-j", "DROP")', controller)
-        self.assertIn('add_jump("INPUT", "--dport")', controller)
-        self.assertIn('add_jump("OUTPUT", "--sport")', controller)
-        self.assertIn("_stale_secondary_member", workloads)
+        self.assertIn('add_jump("INPUT")', controller)
+        self.assertIn('add_jump("OUTPUT")', controller)
+        self.assertIn('remove_jump("OUTPUT")', controller)
+        self.assertIn('return [interface_flag, INTERFACE, "-j", CHAIN]', controller)
+        self.assertNotIn('"--sport"', controller)
+        self.assertNotIn('"--dport"', controller)
+        self.assertIn("stale, fresh = initial.secondaries", workloads)
         self.assertNotIn('"REJECT"', controller)
         self.assertNotIn("docker.sock", compose)
+
+    def test_topology_oracle_has_no_assumed_secondary_fallback(self) -> None:
+        topology = (ROOT / "src/mongo_consistency/topology.py").read_text(encoding="utf-8")
+        workloads = (ROOT / "src/mongo_consistency/workloads.py").read_text(encoding="utf-8")
+        self.assertIn('"hello": 1', topology)
+        self.assertIn("len(secondaries) == 2", topology)
+        self.assertNotIn('return ("mongo2", "mongo3")', workloads)
 
     def test_runner_waits_for_healthy_fault_controllers(self) -> None:
         compose = (ROOT / "compose.yaml").read_text(encoding="utf-8")
@@ -94,7 +142,8 @@ class HarnessLayoutTests(unittest.TestCase):
         operation = OperationRecord(operation_id="read", kind="read", key="x")
         operation_record_from_events(operation, monitor.events_for("read"))
         self.assertEqual("mongo2:27017", operation.actual_server_address)
-        self.assertEqual("RSSecondary", operation.actual_role)
+        self.assertIsNone(operation.actual_role)
+        self.assertEqual("RSSecondary", operation.driver_reported_role)
         self.assertEqual("find", operation.command_name)
 
     def test_command_monitor_adapter_implements_listener_base(self) -> None:

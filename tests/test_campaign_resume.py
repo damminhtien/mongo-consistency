@@ -5,6 +5,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
@@ -15,8 +16,11 @@ from scripts.run_campaign import (
     CampaignShutdown,
     _campaign_manifest,
     _record_from_history,
+    _require_frozen_provenance,
+    _smoke_gate,
     _write_json_atomic,
     adversarial_cases,
+    campaign_plan,
     campaign_cases,
     load_configurations,
     load_json,
@@ -38,6 +42,10 @@ class CampaignResumeTests(unittest.TestCase):
                 "seed": 20260922,
             },
             operations=[],
+            precondition={
+                "status": "SATISFIED",
+                "checks": [{"name": "resume-fixture", "status": "SATISFIED"}],
+            },
         )
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / f"{trial_id}.json"
@@ -74,33 +82,62 @@ class CampaignResumeTests(unittest.TestCase):
         self.assertEqual(1, payload["case_count"])
         self.assertEqual(1, payload["next_ordinal"])
         self.assertEqual("INTERRUPTED", payload["status"])
-        self.assertEqual([], payload["runner_versions"])
+        self.assertEqual([], payload["runner_commits"])
 
-    def test_sharded_manifest_uses_global_ordinal_holes(self) -> None:
-        payload = _campaign_manifest(
-            campaign="experiment",
-            seed_base=20260915,
-            runtime_metadata={
-                "software_versions": {},
-                "image_digest": [],
-                "prediction_commit": "commit",
-                "prediction_manifest_hash": "hash",
+    def test_smoke_plan_covers_every_configuration_and_property_once(self) -> None:
+        configurations = load_configurations(ROOT / "configs/configurations.json")
+        campaign_config = load_json(ROOT / "configs/campaign.json")
+        plan = campaign_plan("smoke", configurations, campaign_config)
+        self.assertEqual(32, len(plan))
+        self.assertTrue(all(adversarial for _, _, _, adversarial in plan))
+        self.assertEqual(
+            {property_name: 8 for property_name in ("RYW", "MR", "MW", "WFR")},
+            {
+                property_name: sum(case[2] == property_name for case in plan)
+                for property_name in ("RYW", "MR", "MW", "WFR")
             },
-            records_by_ordinal={8: {"trial_id": "eight", "ordinal": 8}},
-            expected_case_count=2,
-            planned_ordinals=[4, 8],
-            global_expected_case_count=8,
-            shard_index=1,
-            shard_count=2,
-            started_ns=1,
-            status="RUNNING",
-            resumed=True,
         )
-        self.assertEqual([4, 8], payload["planned_ordinals"])
-        self.assertEqual(4, payload["next_ordinal"])
-        self.assertEqual(8, payload["global_expected_case_count"])
-        self.assertEqual(1, payload["shard_index"])
-        self.assertEqual(2, payload["shard_count"])
+        self.assertEqual(
+            {f"C{number}" for number in range(1, 9)},
+            {configuration_id for _, configuration_id, _, _ in plan},
+        )
+
+    def test_smoke_gate_requires_complete_coverage_and_low_miss_rate(self) -> None:
+        records = {
+            ordinal: {
+                "property": ("RYW", "MR", "MW", "WFR")[(ordinal - 1) // 8],
+                "precondition_status": "SATISFIED",
+                "outcome": "PASS",
+            }
+            for ordinal in range(1, 33)
+        }
+        self.assertTrue(_smoke_gate(records)["passed"])
+
+        records[1]["precondition_status"] = "PRECONDITION_MISS"
+        gate = _smoke_gate(records)
+        self.assertFalse(gate["passed"])
+        self.assertEqual(0.125, gate["precondition_miss_rate_by_property"]["RYW"])
+
+        del records[1]
+        self.assertTrue(any("coverage is incomplete" in item for item in _smoke_gate(records)["failures"]))
+
+    def test_smoke_gate_rejects_harness_errors(self) -> None:
+        records = {
+            ordinal: {
+                "property": ("RYW", "MR", "MW", "WFR")[(ordinal - 1) // 8],
+                "precondition_status": "SATISFIED",
+                "outcome": "HARNESS_ERROR" if ordinal == 1 else "PASS",
+            }
+            for ordinal in range(1, 33)
+        }
+        gate = _smoke_gate(records)
+        self.assertFalse(gate["passed"])
+        self.assertTrue(any("HARNESS_ERROR" in item for item in gate["failures"]))
+
+    def test_only_smoke_may_run_without_frozen_provenance(self) -> None:
+        _require_frozen_provenance("smoke", {})
+        with self.assertRaisesRegex(ValueError, "committed, frozen"):
+            _require_frozen_provenance("pilot", {})
 
     def test_manifest_write_replaces_file_atomically(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -151,9 +188,28 @@ class CampaignResumeTests(unittest.TestCase):
                             "seed": int(campaign_config["seed_base"]) + ordinal,
                         },
                         operations=[],
+                        precondition={
+                            "status": "SATISFIED",
+                            "checks": [{"name": "resume-fixture", "status": "SATISFIED"}],
+                        },
                     ),
                 )
-            manifest = run_campaign("experiment", raw_root, resume=True)
+            runtime_metadata = {
+                "software_versions": {},
+                "image_digest": [],
+                "prediction_commit": "prediction-commit",
+                "prediction_manifest_hash": "prediction-hash",
+                "protocol_commit": "protocol-commit",
+                "protocol_hash": "protocol-hash",
+                "runner_commit": "runner-commit",
+                "runner_dirty": False,
+                "seed_base": int(campaign_config["seed_base"]),
+            }
+            with patch(
+                "scripts.run_campaign.campaign_runtime_metadata",
+                return_value=runtime_metadata,
+            ):
+                manifest = run_campaign("experiment", raw_root, resume=True)
         self.assertEqual("COMPLETE", manifest["status"])
         self.assertEqual(1280, manifest["completed_case_count"])
 

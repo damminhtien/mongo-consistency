@@ -3,14 +3,25 @@
   "$id": "https://example.invalid/mongo-consistency/history.v1.json",
   "title": "MongoDB consistency history",
   "type": "object",
-  "required": ["schema_version", "manifest", "operations", "fault_events", "metadata", "history_hash"],
+  "required": ["schema_version", "manifest", "precondition", "operations", "diagnostics", "final_observation", "fault_events", "metadata", "history_hash"],
   "properties": {
     "schema_version": {"const": "history.v1"},
     "manifest": {"$ref": "manifest.v1.json"},
+    "precondition": {
+      "type": "object",
+      "required": ["status", "checks"],
+      "properties": {
+        "status": {"enum": ["SATISFIED", "PRECONDITION_MISS"]},
+        "checks": {"type": "array", "minItems": 1, "items": {"type": "object"}}
+      },
+      "additionalProperties": true
+    },
     "operations": {
       "type": "array",
       "items": {"$ref": "operation.v1.json"}
     },
+    "diagnostics": {"type": "array", "items": {"type": "object"}},
+    "final_observation": {"type": ["object", "null"]},
     "fault_events": {
       "type": "array",
       "items": {"$ref": "fault-event.v1.json"}

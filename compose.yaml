@@ -82,7 +82,7 @@ services:
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
     volumes:
-      - ${MC_RESULTS_MOUNT:-./results}:/workspace/results:rw
+      - ${MC_RESULTS_MOUNT:-./results/raw}:/workspace/results/raw:rw
       - ${MC_FIGURES_MOUNT:-./figures}:/workspace/figures:rw
       - ${MC_SETUP_MOUNT:-./results/setup/toolchain.json}:/workspace/setup/toolchain.json:ro
     environment:

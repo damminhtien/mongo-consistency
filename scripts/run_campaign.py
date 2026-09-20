@@ -15,9 +15,10 @@ from pathlib import Path
 from typing import Any
 
 from mongo_consistency.config import load_configurations, load_json
+from mongo_consistency.checkers import check_history
 from mongo_consistency.faults import FaultControllerClient
 from mongo_consistency.history import compute_history_hash, read_history, write_history
-from mongo_consistency.models import History, OperationRecord
+from mongo_consistency.models import History
 from mongo_consistency.trial import TIMEOUT_POLICY, MongoTrial
 from mongo_consistency.workloads import run_property
 
@@ -72,18 +73,28 @@ def _file_hash(path: Path) -> str | None:
     return digest.hexdigest()
 
 
-def _source_revision(root: Path) -> str:
+def _committed_file_revision(root: Path, relative_path: str) -> str | None:
     try:
+        status = subprocess.run(
+            ["git", "-C", str(root), "status", "--porcelain", "--", relative_path],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            check=False,
+        )
+        if status.returncode != 0 or status.stdout.strip():
+            return None
         result = subprocess.run(
-            ["git", "-C", str(root), "rev-parse", "HEAD"],
+            ["git", "-C", str(root), "log", "-1", "--format=%H", "--", relative_path],
             capture_output=True,
             text=True,
             encoding="ascii",
             check=False,
         )
     except OSError:
-        return "unknown"
-    return result.stdout.strip() if result.returncode == 0 else "unknown"
+        return None
+    revision = result.stdout.strip()
+    return revision if result.returncode == 0 and revision else None
 
 
 def campaign_runtime_metadata(output_root: Path) -> dict[str, Any]:
@@ -112,22 +123,47 @@ def campaign_runtime_metadata(output_root: Path) -> dict[str, Any]:
             setup = value
             break
     actual = setup.get("actual", {}) if isinstance(setup.get("actual"), dict) else {}
+    target = setup.get("target", {}) if isinstance(setup.get("target"), dict) else {}
     prediction_path = ROOT / "configs/predictions.json"
+    protocol_path = ROOT / "docs/experimental-protocol.md"
     return {
         "software_versions": {
             "python": actual.get("python", ".".join(str(part) for part in sys.version_info[:3])),
-            "pymongo": "4.18.1",
+            "pymongo": actual.get("pymongo", target.get("pymongo")),
             "docker_engine": actual.get("docker_engine"),
             "docker_compose": actual.get("docker_compose"),
-            "mongodb": "7.0.34",
+            "mongodb": actual.get("mongodb_server", target.get("mongodb")),
         },
         "image_digest": actual.get("mongodb_image_digests"),
-        "prediction_commit": setup.get("source_revision") or _source_revision(ROOT),
-        "prediction_manifest_hash": setup.get("prediction_manifest_hash") or _file_hash(prediction_path),
-        "runner_version": setup.get("source_revision") or _source_revision(ROOT),
+        "prediction_commit": setup.get("prediction_commit") or _committed_file_revision(ROOT, "configs/predictions.json"),
+        "prediction_manifest_hash": _file_hash(prediction_path),
+        "protocol_commit": setup.get("protocol_commit") or _committed_file_revision(ROOT, "docs/experimental-protocol.md"),
+        "protocol_hash": setup.get("protocol_hash") or _file_hash(protocol_path),
+        "runner_commit": setup.get("runner_commit"),
+        "runner_dirty": setup.get("working_tree_clean") is not True,
         "checker_version": "history.v1",
         "seed_base": int(load_json(ROOT / "configs/campaign.json")["seed_base"]),
     }
+
+
+def _require_frozen_provenance(campaign: str, metadata: dict[str, Any]) -> None:
+    if campaign == "smoke":
+        return
+    required = (
+        "prediction_commit",
+        "prediction_manifest_hash",
+        "protocol_commit",
+        "protocol_hash",
+        "runner_commit",
+    )
+    missing = [field for field in required if not metadata.get(field)]
+    if metadata.get("runner_dirty"):
+        missing.append("clean runner worktree")
+    if missing:
+        raise ValueError(
+            f"{campaign} requires committed, frozen prediction/protocol/runner provenance; "
+            f"missing or unclean: {', '.join(missing)}"
+        )
 
 
 def controller_from_environment() -> FaultControllerClient:
@@ -141,6 +177,8 @@ def controller_from_environment() -> FaultControllerClient:
 
 
 def campaign_cases(campaign: str, configurations: dict[str, dict[str, Any]], campaign_config: dict[str, Any]) -> list[tuple[str, str]]:
+    if campaign == "smoke":
+        return []
     if campaign == "normal":
         repetitions = int(campaign_config["normal_repetitions"])
     elif campaign == "pilot":
@@ -166,6 +204,8 @@ def adversarial_cases(
         repetitions = int(campaign_config["pilot_adversarial_repetitions"])
     elif campaign == "experiment":
         repetitions = int(campaign_config["adversarial_repetitions"])
+    elif campaign == "smoke":
+        repetitions = int(campaign_config["smoke_adversarial_repetitions"])
     else:
         return []
     return [
@@ -257,17 +297,18 @@ def error_history(
             "runner_error": str(error),
             **dict(runtime_metadata or {}),
         },
-        operations=[
-            OperationRecord(
-                operation_id="runner",
-                kind="setup",
-                key="x",
-                trial_id=trial_id,
-                property=property_name,
-                operation_status="HARNESS_ERROR",
-                error_message=str(error),
-            )
-        ],
+        precondition={
+            "status": "PRECONDITION_MISS",
+            "checks": [
+                {
+                    "name": "trial-initialization",
+                    "status": "PRECONDITION_MISS",
+                    "expected": "trial created and initialized",
+                    "actual": str(error),
+                }
+            ],
+        },
+        operations=[],
         metadata={"runner_python": sys.version},
     )
 
@@ -325,30 +366,36 @@ def run_case(
                 runtime_metadata=trial_metadata,
             )
         else:
-            trial.close()
             trial.manifest["runner_error"] = str(error)
             trial.manifest["subtrial_finished_ns"] = time.monotonic_ns()
-            trial.operations.append(
-                OperationRecord(
-                    operation_id="runner",
-                    kind="setup",
-                    key="x",
-                    trial_id=trial_id,
-                    property=property_name,
-                    operation_status="HARNESS_ERROR",
-                    error_message=str(error),
+            if not trial.precondition.get("checks"):
+                trial.mark_precondition_miss(
+                    "runner-failed-before-precondition",
+                    expected="property precondition checks recorded",
+                    actual=str(error),
                 )
-            )
             history = History(
                 manifest=dict(trial.manifest),
                 operations=list(trial.operations),
+                precondition={
+                    "status": trial.precondition["status"],
+                    "checks": [dict(check) for check in trial.precondition["checks"]],
+                },
+                diagnostics=list(trial.diagnostics),
+                final_observation=(
+                    dict(trial.final_observation)
+                    if trial.final_observation is not None
+                    else None
+                ),
                 fault_events=list(trial.fault_events),
                 metadata={"runner_python": sys.version},
             )
+            trial.close()
     history.manifest["campaign_ordinal"] = ordinal
     history.manifest["adversarial"] = adversarial
     path = output_root / campaign / f"{trial_id}.json"
     history_hash = write_history(path, history)
+    checked = check_history(history)
     return {
         "trial_id": trial_id,
         "ordinal": ordinal,
@@ -359,7 +406,9 @@ def run_case(
         "seed": seed,
         "path": path.as_posix(),
         "history_hash": history_hash,
-        "runner_version": history.manifest.get("runner_version"),
+        "outcome": checked.outcome.value,
+        "precondition_status": history.precondition.get("status"),
+        "runner_commit": history.manifest.get("runner_commit"),
         "runner_error": history.manifest.get("runner_error"),
     }
 
@@ -397,6 +446,7 @@ def _record_from_history(
         )
     if mismatches:
         raise ValueError(f"cannot resume {path}: " + "; ".join(mismatches))
+    checked = check_history(history)
     return {
         "trial_id": expected["trial_id"],
         "ordinal": ordinal,
@@ -407,7 +457,9 @@ def _record_from_history(
         "seed": seed,
         "path": path.as_posix(),
         "history_hash": history.history_hash or compute_history_hash(history),
-        "runner_version": manifest.get("runner_version"),
+        "outcome": checked.outcome.value,
+        "precondition_status": history.precondition.get("status"),
+        "runner_commit": manifest.get("runner_commit"),
         "runner_error": manifest.get("runner_error"),
     }
 
@@ -427,6 +479,55 @@ def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
         temporary_path.unlink(missing_ok=True)
 
 
+def _smoke_gate(records_by_ordinal: dict[int, dict[str, Any]]) -> dict[str, Any]:
+    """Require complete smoke coverage, verified preconditions, and no harness errors."""
+
+    counts: dict[str, dict[str, int]] = {
+        property_name: {"planned": 0, "precondition_miss": 0, "harness_error": 0}
+        for property_name in PROPERTIES
+    }
+    for record in records_by_ordinal.values():
+        property_name = str(record.get("property"))
+        if property_name not in counts:
+            continue
+        bucket = counts[property_name]
+        bucket["planned"] += 1
+        if record.get("precondition_status") == "PRECONDITION_MISS":
+            bucket["precondition_miss"] += 1
+        if record.get("outcome") == "HARNESS_ERROR":
+            bucket["harness_error"] += 1
+    rates = {
+        property_name: (
+            values["precondition_miss"] / values["planned"]
+            if values["planned"]
+            else 1.0
+        )
+        for property_name, values in counts.items()
+    }
+    failures = [
+        f"{property_name}: precondition-miss rate {rates[property_name]:.3f} exceeds 0.05"
+        for property_name in PROPERTIES
+        if rates[property_name] > 0.05
+    ]
+    if any(values["harness_error"] for values in counts.values()):
+        failures.append("one or more smoke histories were classified HARNESS_ERROR")
+    if len(records_by_ordinal) != 32:
+        failures.append(
+            f"smoke coverage is incomplete: completed {len(records_by_ordinal)} of 32 histories"
+        )
+    for property_name, values in counts.items():
+        if values["planned"] != 8:
+            failures.append(
+                f"{property_name}: expected 8 configuration cells, found {values['planned']}"
+            )
+    return {
+        "passed": not failures,
+        "precondition_miss_rate_by_property": rates,
+        "counts_by_property": counts,
+        "failures": failures,
+    }
+
+
 def _campaign_manifest(
     *,
     campaign: str,
@@ -436,23 +537,19 @@ def _campaign_manifest(
     expected_case_count: int,
     started_ns: int,
     planned_ordinals: list[int] | None = None,
-    global_expected_case_count: int | None = None,
-    shard_index: int | None = None,
-    shard_count: int | None = None,
-    parallel_workers: int | None = None,
-    worker_resources: list[dict[str, Any]] | None = None,
     status: str,
     resumed: bool,
     finished_ns: int | None = None,
     error: str | None = None,
+    smoke_gate: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     planned = list(planned_ordinals or range(1, expected_case_count + 1))
     records = [records_by_ordinal[ordinal] for ordinal in sorted(records_by_ordinal)]
-    runner_versions = sorted(
+    runner_commits = sorted(
         {
-            str(record["runner_version"])
+            str(record["runner_commit"])
             for record in records
-            if record.get("runner_version")
+            if record.get("runner_commit")
         }
     )
     completed_ordinals = set(records_by_ordinal)
@@ -470,7 +567,6 @@ def _campaign_manifest(
         "status": status,
         "seed_base": seed_base,
         "expected_case_count": expected_case_count,
-        "global_expected_case_count": global_expected_case_count or expected_case_count,
         "planned_ordinals": planned,
         "case_count": len(records),
         "completed_case_count": len(records),
@@ -479,23 +575,22 @@ def _campaign_manifest(
         "last_updated_ns": time.monotonic_ns(),
         "software_versions": runtime_metadata["software_versions"],
         "image_digest": runtime_metadata["image_digest"],
-        "prediction_commit": runtime_metadata["prediction_commit"],
-        "prediction_manifest_hash": runtime_metadata["prediction_manifest_hash"],
-        "runner_versions": runner_versions,
+        "prediction_commit": runtime_metadata.get("prediction_commit"),
+        "prediction_manifest_hash": runtime_metadata.get("prediction_manifest_hash"),
+        "protocol_commit": runtime_metadata.get("protocol_commit"),
+        "protocol_hash": runtime_metadata.get("protocol_hash"),
+        "runner_commit": runtime_metadata.get("runner_commit"),
+        "runner_dirty": runtime_metadata.get("runner_dirty"),
+        "runner_commits": runner_commits,
         "resumed": resumed,
         "records": records,
     }
-    if shard_index is not None or shard_count is not None:
-        payload["shard_index"] = shard_index
-        payload["shard_count"] = shard_count
-    if parallel_workers is not None:
-        payload["parallel_workers"] = parallel_workers
-    if worker_resources is not None:
-        payload["worker_resources"] = worker_resources
     if finished_ns is not None:
         payload["finished_ns"] = finished_ns
     if error is not None:
         payload["error"] = error
+    if smoke_gate is not None:
+        payload["smoke_gate"] = smoke_gate
     return payload
 
 
@@ -506,8 +601,7 @@ def _check_previous_manifest(
     seed_base: int,
     expected_case_count: int,
     planned_ordinals: list[int] | None = None,
-    shard_index: int | None = None,
-    shard_count: int | None = None,
+    runtime_metadata: dict[str, Any] | None = None,
 ) -> None:
     if not path.is_file():
         return
@@ -527,20 +621,27 @@ def _check_previous_manifest(
     if planned_ordinals is not None:
         recorded_plan = payload.get("planned_ordinals")
         if recorded_plan is not None and recorded_plan != planned_ordinals:
-            raise ValueError("existing campaign manifest uses a different shard plan")
-    if shard_index is not None:
-        recorded_index = payload.get("shard_index")
-        if recorded_index is not None and recorded_index != shard_index:
-            raise ValueError("existing campaign manifest belongs to a different shard")
-    if shard_count is not None:
-        recorded_shards = payload.get("shard_count")
-        recorded_index = payload.get("shard_index")
-        if (
-            recorded_shards is not None
-            and recorded_shards != shard_count
-            and recorded_index is not None
-        ):
-            raise ValueError("existing campaign manifest uses a different shard count")
+            raise ValueError("existing campaign manifest uses a different deterministic plan")
+    if runtime_metadata is not None:
+        provenance_fields = (
+            "prediction_commit",
+            "prediction_manifest_hash",
+            "protocol_commit",
+            "protocol_hash",
+            "runner_commit",
+            "software_versions",
+            "image_digest",
+        )
+        changed = [
+            field
+            for field in provenance_fields
+            if payload.get(field) != runtime_metadata.get(field)
+        ]
+        if changed:
+            raise ValueError(
+                "existing campaign manifest has different runtime provenance: "
+                + ", ".join(changed)
+            )
     if payload.get("status") == "COMPLETE" and payload.get("case_count") != expected_case_count:
         raise ValueError("completed campaign manifest is missing cases")
 
@@ -550,22 +651,12 @@ def run_campaign(
     output_root: Path,
     *,
     resume: bool = False,
-    shard_index: int = 0,
-    shard_count: int = 1,
 ) -> dict[str, Any]:
-    if shard_count < 1:
-        raise ValueError("shard_count must be positive")
-    if shard_index < 0 or shard_index >= shard_count:
-        raise ValueError("shard_index must be within shard_count")
     configurations = load_configurations(ROOT / "configs/configurations.json")
     campaign_config = load_json(ROOT / "configs/campaign.json")
     runtime_metadata = campaign_runtime_metadata(output_root)
-    full_plan = campaign_plan(campaign, configurations, campaign_config)
-    plan = [
-        case
-        for case in full_plan
-        if (case[0] - 1) % shard_count == shard_index
-    ]
+    _require_frozen_provenance(campaign, runtime_metadata)
+    plan = campaign_plan(campaign, configurations, campaign_config)
     planned_ordinals = [case[0] for case in plan]
     seed_uris = tuple(
         value
@@ -578,7 +669,6 @@ def run_campaign(
     controller = controller_from_environment() if any(case[3] for case in plan) else None
     seed_base = int(campaign_config["seed_base"])
     expected_case_count = len(plan)
-    global_expected_case_count = len(full_plan)
     campaign_dir = output_root / campaign
     manifest_path = campaign_dir / "campaign-manifest.json"
     if not resume:
@@ -588,8 +678,7 @@ def run_campaign(
             seed_base=seed_base,
             expected_case_count=expected_case_count,
             planned_ordinals=planned_ordinals,
-            shard_index=shard_index,
-            shard_count=shard_count,
+            runtime_metadata=runtime_metadata,
         )
         existing_paths = [
             campaign_dir / f"{trial_id_for(campaign, ordinal, configuration_id, property_name)}.json"
@@ -607,8 +696,7 @@ def run_campaign(
             seed_base=seed_base,
             expected_case_count=expected_case_count,
             planned_ordinals=planned_ordinals,
-            shard_index=shard_index,
-            shard_count=shard_count,
+            runtime_metadata=runtime_metadata,
         )
 
     records_by_ordinal: dict[int, dict[str, Any]] = {}
@@ -638,9 +726,6 @@ def run_campaign(
             expected_case_count=expected_case_count,
             started_ns=started,
             planned_ordinals=planned_ordinals,
-            global_expected_case_count=global_expected_case_count,
-            shard_index=shard_index,
-            shard_count=shard_count,
             status="RUNNING",
             resumed=resume,
         ),
@@ -678,9 +763,6 @@ def run_campaign(
                     expected_case_count=expected_case_count,
                     started_ns=started,
                     planned_ordinals=planned_ordinals,
-                    global_expected_case_count=global_expected_case_count,
-                    shard_index=shard_index,
-                    shard_count=shard_count,
                     status="RUNNING",
                     resumed=resume,
                 ),
@@ -704,13 +786,11 @@ def run_campaign(
             expected_case_count=expected_case_count,
             started_ns=started,
             planned_ordinals=planned_ordinals,
-            global_expected_case_count=global_expected_case_count,
-            shard_index=shard_index,
-            shard_count=shard_count,
             status=status,
             resumed=resume,
             finished_ns=time.monotonic_ns(),
             error=fatal_error,
+            smoke_gate=_smoke_gate(records_by_ordinal) if campaign == "smoke" else None,
         )
         _write_json_atomic(manifest_path, final_manifest)
     return final_manifest
@@ -718,32 +798,18 @@ def run_campaign(
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--campaign", choices=("normal", "pilot", "experiment"), required=True)
+    parser.add_argument("--campaign", choices=("smoke", "normal", "pilot", "experiment"), required=True)
     parser.add_argument(
         "--resume",
         action="store_true",
         help="reuse and validate completed histories in the campaign directory",
     )
     parser.add_argument("--output-root", type=Path, default=ROOT / "results/raw")
-    parser.add_argument(
-        "--shard-index",
-        type=int,
-        default=0,
-        help="zero-based shard index in the deterministic campaign plan",
-    )
-    parser.add_argument(
-        "--shard-count",
-        type=int,
-        default=1,
-        help="number of independent shards sharing the campaign plan",
-    )
     args = parser.parse_args()
     manifest = run_campaign(
         args.campaign,
         args.output_root,
         resume=args.resume,
-        shard_index=args.shard_index,
-        shard_count=args.shard_count,
     )
     print(
         json.dumps(
@@ -752,12 +818,17 @@ def main() -> int:
                 "status": manifest["status"],
                 "completed_case_count": manifest["completed_case_count"],
                 "expected_case_count": manifest["expected_case_count"],
+                "smoke_gate": manifest.get("smoke_gate"),
             },
             sort_keys=True,
         ),
         flush=True,
     )
-    return 130 if manifest["status"] == "INTERRUPTED" else 0
+    if manifest["status"] == "INTERRUPTED":
+        return 130
+    if args.campaign == "smoke" and not manifest.get("smoke_gate", {}).get("passed"):
+        return 2
+    return 0
 
 
 if __name__ == "__main__":

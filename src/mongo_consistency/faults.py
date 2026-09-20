@@ -56,18 +56,34 @@ class FaultControllerClient:
         return {member: self._request(member, "/health") for member in self.endpoints}
 
     def isolate(self, member: str, event_id: str) -> dict[str, Any]:
-        return self._request(
+        response = self._request(
             member,
             "/apply",
             {"action": "isolate", "event_id": event_id},
         )
+        if (
+            response.get("member") != member
+            or response.get("event_id") != event_id
+            or response.get("verified") is not True
+            or response.get("replication_isolated") is not True
+        ):
+            raise FaultControllerError(f"isolation was not verified for {member}: {response!r}")
+        return response
 
     def heal(self, member: str, event_id: str) -> dict[str, Any]:
-        return self._request(
+        response = self._request(
             member,
             "/apply",
             {"action": "heal", "event_id": event_id},
         )
+        if (
+            response.get("member") != member
+            or response.get("event_id") != event_id
+            or response.get("verified") is not True
+            or response.get("replication_isolated") is not False
+        ):
+            raise FaultControllerError(f"healing was not verified for {member}: {response!r}")
+        return response
 
     def isolate_many(self, members: list[str], event_id: str) -> list[dict[str, Any]]:
         return [self.isolate(member, event_id) for member in members]

@@ -7,12 +7,18 @@ import json
 from pathlib import Path
 from typing import Any
 
+from jsonschema import Draft202012Validator
+from jsonschema.exceptions import SchemaError
+from referencing import Registry, Resource
+
+from mongo_consistency.checkers import check_history
 from mongo_consistency.config import load_configurations, load_json, load_predictions
 from mongo_consistency.history import read_history
 from mongo_consistency.models import Outcome
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_NAMES = (
+    "campaign-run.v1.json",
     "manifest.v1.json",
     "operation.v1.json",
     "fault-event.v1.json",
@@ -29,6 +35,63 @@ def _read_json(path: Path) -> Any:
 def _require(condition: bool, message: str, errors: list[str]) -> None:
     if not condition:
         errors.append(message)
+
+
+def _load_validators(root: Path, errors: list[str]) -> dict[str, Draft202012Validator]:
+    schemas: dict[str, dict[str, Any]] = {}
+    resources: list[tuple[str, Resource[Any]]] = []
+    schema_ids: set[str] = set()
+
+    for schema_name in SCHEMA_NAMES:
+        path = root / "schemas" / schema_name
+        try:
+            payload = _read_json(path)
+        except (OSError, UnicodeError, json.JSONDecodeError) as error:
+            errors.append(f"{path}: cannot read schema: {error}")
+            continue
+        if not isinstance(payload, dict):
+            errors.append(f"{path}: schema must be an object")
+            continue
+        try:
+            Draft202012Validator.check_schema(payload)
+        except SchemaError as error:
+            errors.append(f"{path}: invalid Draft 2020-12 schema: {error.message}")
+            continue
+        schema_id = payload.get("$id")
+        if not isinstance(schema_id, str) or not schema_id:
+            errors.append(f"{path}: schema must define a non-empty $id")
+            continue
+        if schema_id in schema_ids:
+            errors.append(f"{path}: duplicate schema $id {schema_id!r}")
+            continue
+        schema_ids.add(schema_id)
+        schemas[schema_name] = payload
+        resources.append((schema_id, Resource.from_contents(payload)))
+
+    registry = Registry().with_resources(resources)
+    validators: dict[str, Draft202012Validator] = {}
+    for schema_name, schema in schemas.items():
+        validators[schema_name] = Draft202012Validator(schema, registry=registry)
+    return validators
+
+
+def _check_schema_instance(
+    instance: Any,
+    validator: Draft202012Validator,
+    location: str,
+    errors: list[str],
+) -> None:
+    validation_errors = sorted(
+        validator.iter_errors(instance),
+        key=lambda error: (
+            tuple(str(part) for part in error.absolute_path),
+            error.message,
+        ),
+    )
+    for error in validation_errors:
+        instance_path = ".".join(str(part) for part in error.absolute_path)
+        suffix = f".{instance_path}" if instance_path else ""
+        errors.append(f"{location}{suffix}: {error.message}")
 
 
 def _check_manifest(manifest: Any, location: str, errors: list[str]) -> None:
@@ -52,7 +115,7 @@ def _check_manifest(manifest: Any, location: str, errors: list[str]) -> None:
     for field in required:
         _require(field in manifest, f"{location}: missing {field}", errors)
     _require(manifest.get("schema_version") == "manifest.v1", f"{location}: schema_version must be manifest.v1", errors)
-    _require(manifest.get("campaign_id") in {"pilot", "normal", "experiment"}, f"{location}: invalid campaign_id", errors)
+    _require(manifest.get("campaign_id") in {"smoke", "pilot", "normal", "experiment", "rq2"}, f"{location}: invalid campaign_id", errors)
     _require(manifest.get("configuration_id") in {f"C{number}" for number in range(1, 9)}, f"{location}: invalid configuration_id", errors)
     _require(manifest.get("property") in {"RYW", "MR", "MW", "WFR"}, f"{location}: invalid property", errors)
     _require(isinstance(manifest.get("causal_session"), bool), f"{location}: causal_session must be boolean", errors)
@@ -60,7 +123,11 @@ def _check_manifest(manifest: Any, location: str, errors: list[str]) -> None:
     _require(isinstance(manifest.get("timeout_policy"), dict), f"{location}: timeout_policy must be an object", errors)
 
 
-def _check_campaign_manifest(path: Path, errors: list[str]) -> None:
+def _check_campaign_manifest(
+    path: Path,
+    errors: list[str],
+    validators: dict[str, Draft202012Validator],
+) -> None:
     try:
         payload = _read_json(path)
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
@@ -69,6 +136,12 @@ def _check_campaign_manifest(path: Path, errors: list[str]) -> None:
     _require(isinstance(payload, dict), f"{path}: expected an object", errors)
     if not isinstance(payload, dict):
         return
+    validator = validators.get("campaign-run.v1.json")
+    if validator is not None:
+        previous_error_count = len(errors)
+        _check_schema_instance(payload, validator, str(path), errors)
+        if len(errors) != previous_error_count:
+            return
     _require(payload.get("schema_version") == "campaign-run.v1", f"{path}: invalid schema_version", errors)
     if "status" in payload:
         _require(
@@ -129,28 +202,11 @@ def _check_campaign_manifest(path: Path, errors: list[str]) -> None:
                     f"{path}: records contain duplicate or unplanned ordinals",
                     errors,
                 )
-        global_count = payload.get("global_expected_case_count")
-        if global_count is not None:
-            if isinstance(expected_count, int) and not isinstance(expected_count, bool):
-                _require(
-                    isinstance(global_count, int)
-                    and not isinstance(global_count, bool)
-                    and global_count >= expected_count,
-                    f"{path}: invalid global_expected_case_count",
-                    errors,
-                )
-            else:
-                _require(False, f"{path}: cannot check global_expected_case_count", errors)
-        shard_count = payload.get("shard_count")
-        if shard_count is not None:
-            _require(
-                isinstance(shard_count, int) and not isinstance(shard_count, bool) and shard_count >= 1,
-                f"{path}: invalid shard_count",
-                errors,
-            )
-
-
-def _check_summary(path: Path, errors: list[str]) -> None:
+def _check_summary(
+    path: Path,
+    errors: list[str],
+    validators: dict[str, Draft202012Validator],
+) -> None:
     try:
         payload = _read_json(path)
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
@@ -159,6 +215,12 @@ def _check_summary(path: Path, errors: list[str]) -> None:
     _require(isinstance(payload, dict), f"{path}: expected an object", errors)
     if not isinstance(payload, dict):
         return
+    validator = validators.get("summary.v1.json")
+    if validator is not None:
+        previous_error_count = len(errors)
+        _check_schema_instance(payload, validator, str(path), errors)
+        if len(errors) != previous_error_count:
+            return
     _require(payload.get("schema_version") == "summary.v1", f"{path}: invalid schema_version", errors)
     _require(payload.get("status") in {"DATA", "NO_DATA"}, f"{path}: invalid status", errors)
     counts = payload.get("outcome_counts")
@@ -172,14 +234,7 @@ def _check_summary(path: Path, errors: list[str]) -> None:
 
 def validate(root: Path) -> list[str]:
     errors: list[str] = []
-    for schema_name in SCHEMA_NAMES:
-        path = root / "schemas" / schema_name
-        try:
-            payload = _read_json(path)
-        except (OSError, UnicodeError, json.JSONDecodeError) as error:
-            errors.append(f"{path}: cannot read schema: {error}")
-            continue
-        _require(isinstance(payload, dict), f"{path}: schema must be an object", errors)
+    validators = _load_validators(root, errors)
 
     try:
         load_configurations(root / "configs/configurations.json")
@@ -193,14 +248,33 @@ def validate(root: Path) -> list[str]:
     if raw_root.exists():
         for path in sorted(raw_root.rglob("*.json")):
             if path.name == "campaign-manifest.json":
-                _check_campaign_manifest(path, errors)
+                _check_campaign_manifest(path, errors, validators)
                 continue
             try:
+                payload = _read_json(path)
+            except (OSError, UnicodeError, json.JSONDecodeError) as error:
+                errors.append(f"{path}: cannot read JSON: {error}")
+                continue
+            history_validator = validators.get("history.v1.json")
+            if history_validator is not None:
+                previous_error_count = len(errors)
+                _check_schema_instance(payload, history_validator, str(path), errors)
+                if len(errors) != previous_error_count:
+                    continue
+            try:
                 history = read_history(path)
-            except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as error:
+            except (OSError, UnicodeError, json.JSONDecodeError, TypeError, KeyError, ValueError) as error:
                 errors.append(f"{path}: {error}")
                 continue
             _check_manifest(history.manifest, f"{path}.manifest", errors)
+            outcome_validator = validators.get("outcome.v1.json")
+            if outcome_validator is not None:
+                _check_schema_instance(
+                    check_history(history).to_dict(),
+                    outcome_validator,
+                    f"{path}:outcome",
+                    errors,
+                )
             for index, operation in enumerate(history.operations):
                 _require(bool(operation.operation_id), f"{path}: operation {index} has no operation_id", errors)
             for index, event in enumerate(history.fault_events):
@@ -208,7 +282,7 @@ def validate(root: Path) -> list[str]:
 
     summary = root / "results/summary/summary.json"
     if summary.is_file():
-        _check_summary(summary, errors)
+        _check_summary(summary, errors, validators)
     return errors
 
 

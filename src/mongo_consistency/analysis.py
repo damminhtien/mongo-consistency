@@ -111,7 +111,6 @@ def _trace(history: History) -> list[dict[str, Any]]:
             ),
         }
         for operation in history.operations
-        if operation.kind != "setup"
     ]
 
 
@@ -739,8 +738,8 @@ def _write_summary_csv(path: Path, summaries: list[dict[str, Any]]) -> None:
         "VIOLATION",
         "UNAVAILABLE",
         "INDETERMINATE",
+        "PRECONDITION_MISS",
         "HARNESS_ERROR",
-        "UNSUPPORTED",
         "consistency_violation_rate",
         "operation_success_rate",
         "history_completion_rate",

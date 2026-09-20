@@ -12,17 +12,46 @@ from mongo_consistency.checkers import check_history
 from mongo_consistency.config import load_configurations, load_predictions
 from mongo_consistency.history import compute_history_hash, read_history, write_history
 from mongo_consistency.models import History, OperationRecord, Outcome
+from mongo_consistency.trial import classify_exception
 
 
 def operation(operation_id: str, kind: str, key: str = "x", **kwargs: object) -> OperationRecord:
     return OperationRecord(operation_id=operation_id, kind=kind, key=key, **kwargs)
 
 
-def base_history(property_name: str, operations: list[OperationRecord]) -> History:
+def base_history(
+    property_name: str,
+    operations: list[OperationRecord],
+    *,
+    final_observation: dict[str, object] | None = None,
+) -> History:
     return History(
         manifest={"trial_id": "fixture-1", "property": property_name},
         operations=operations,
+        precondition={
+            "status": "SATISFIED",
+            "checks": [{"name": "fixture-state", "status": "SATISFIED"}],
+        },
+        final_observation=final_observation,
     )
+
+
+def final_observation(updates: list[dict[str, object]]) -> dict[str, object]:
+    state = {
+        "reachable": True,
+        "exists": True,
+        "observation_valid": True,
+        "updates": updates,
+    }
+    return {
+        "converged": True,
+        "topology": {
+            "stable": True,
+            "primary": "mongo1",
+            "secondaries": ["mongo2", "mongo3"],
+        },
+        "members": {member: dict(state) for member in ("mongo1", "mongo2", "mongo3")},
+    }
 
 
 class ConfigurationTests(unittest.TestCase):
@@ -38,14 +67,14 @@ class CheckerTests(unittest.TestCase):
         passing = base_history(
             "RYW",
             [
-                operation("write", "write", version=2, write_id="w1"),
+                operation("write", "write", intended_version=2, write_id="w1"),
                 operation("read", "read", observed_version=2),
             ],
         )
         violating = base_history(
             "RYW",
             [
-                operation("write", "write", version=2, write_id="w1"),
+                operation("write", "write", intended_version=2, write_id="w1"),
                 operation("read", "read", observed_version=1),
             ],
         )
@@ -67,35 +96,27 @@ class CheckerTests(unittest.TestCase):
         passing = base_history(
             "MW",
             [
-                operation("first_write", "write", version=1, write_id="w1"),
+                operation("first_write", "write", intended_version=1, write_id="w1"),
                 operation(
                     "second_write",
                     "write",
-                    version=2,
+                    intended_version=2,
                     write_id="w2",
                     parent_write_id="w1",
                 ),
-                operation(
-                    "observer",
-                    "observer",
-                    observed_updates=(
-                        {"write_id": "w1", "version": 1},
-                        {"write_id": "w2", "version": 2},
-                    ),
-                ),
             ],
+            final_observation=final_observation(
+                [{"write_id": "w1", "version": 1}, {"write_id": "w2", "version": 2}]
+            ),
         )
         violating = History(
             manifest=passing.manifest,
             operations=[
                 passing.operations[0],
                 passing.operations[1],
-                operation(
-                    "observer",
-                    "observer",
-                    observed_updates=({"write_id": "w2", "version": 2},),
-                ),
             ],
+            precondition=passing.precondition,
+            final_observation=final_observation([{"write_id": "w2", "version": 2}]),
         )
         different_key = History(
             manifest=passing.manifest,
@@ -105,16 +126,37 @@ class CheckerTests(unittest.TestCase):
                     "second_write",
                     "write",
                     key="y",
-                    version=2,
+                    intended_version=2,
                     write_id="w2",
                     parent_write_id="w1",
                 ),
-                passing.operations[2],
             ],
+            precondition=passing.precondition,
+            final_observation=passing.final_observation,
         )
         self.assertEqual(Outcome.PASS, check_history(passing).outcome)
         self.assertEqual(Outcome.VIOLATION, check_history(violating).outcome)
         self.assertEqual(Outcome.HARNESS_ERROR, check_history(different_key).outcome)
+
+    def test_mw_requires_stable_post_heal_topology(self) -> None:
+        history = base_history(
+            "MW",
+            [
+                operation("first_write", "write", intended_version=1, write_id="w1"),
+                operation(
+                    "second_write",
+                    "write",
+                    intended_version=2,
+                    write_id="w2",
+                    parent_write_id="w1",
+                ),
+            ],
+            final_observation=final_observation(
+                [{"write_id": "w1", "version": 1}, {"write_id": "w2", "version": 2}]
+            ),
+        )
+        history.final_observation["topology"]["stable"] = False
+        self.assertEqual(Outcome.INDETERMINATE, check_history(history).outcome)
 
     def test_wfr_requires_same_key_and_read_dependency(self) -> None:
         passing = base_history(
@@ -124,31 +166,27 @@ class CheckerTests(unittest.TestCase):
                 operation(
                     "write",
                     "write",
-                    version=2,
+                    intended_version=2,
                     write_id="w2",
                     depends_on_read_id="read",
                     depends_on_version=1,
                 ),
-                operation(
-                    "observer",
-                    "observer",
-                    observed_updates=({"write_id": "w2", "version": 2},),
-                    observed_versions=(1, 2),
-                ),
             ],
+            final_observation=final_observation(
+                [
+                    {"write_id": "w1", "version": 1},
+                    {"write_id": "w2", "version": 2},
+                ]
+            ),
         )
         violating = History(
             manifest=passing.manifest,
             operations=[
                 passing.operations[0],
                 passing.operations[1],
-                operation(
-                    "observer",
-                    "observer",
-                    observed_updates=({"write_id": "w2", "version": 2},),
-                    observed_versions=(2,),
-                ),
             ],
+            precondition=passing.precondition,
+            final_observation=final_observation([{"write_id": "w2", "version": 2}]),
         )
         different_key = History(
             manifest=passing.manifest,
@@ -158,13 +196,14 @@ class CheckerTests(unittest.TestCase):
                     "write",
                     "write",
                     key="y",
-                    version=2,
+                    intended_version=2,
                     write_id="w2",
                     depends_on_read_id="read",
                     depends_on_version=1,
                 ),
-                passing.operations[2],
             ],
+            precondition=passing.precondition,
+            final_observation=passing.final_observation,
         )
         self.assertEqual(Outcome.PASS, check_history(passing).outcome)
         self.assertEqual(Outcome.VIOLATION, check_history(violating).outcome)
@@ -177,7 +216,10 @@ class CheckerTests(unittest.TestCase):
                 operation(
                     "write",
                     "write",
-                    operation_status="TIMEOUT",
+                    intended_version=1,
+                    write_id="w1",
+                    operation_status="INDETERMINATE",
+                    command_started=True,
                     response_received=False,
                 ),
                 operation("read", "read", observed_version=0),
@@ -186,7 +228,7 @@ class CheckerTests(unittest.TestCase):
         read_error = base_history(
             "RYW",
             [
-                operation("write", "write", version=1, write_id="w1"),
+                operation("write", "write", intended_version=1, write_id="w1"),
                 operation("read", "read", operation_status="UNAVAILABLE"),
             ],
         )
@@ -196,7 +238,11 @@ class CheckerTests(unittest.TestCase):
     def test_malformed_history_is_harness_error(self) -> None:
         history = History(
             manifest={"trial_id": "fixture-1", "property": "RYW"},
-            operations=[operation("write", "write", version=-1, write_id="w1")],
+            operations=[operation("write", "write", intended_version=-1, write_id="w1")],
+            precondition={
+                "status": "SATISFIED",
+                "checks": [{"name": "fixture-state", "status": "SATISFIED"}],
+            },
         )
         self.assertEqual(Outcome.HARNESS_ERROR, check_history(history).outcome)
 
@@ -204,8 +250,8 @@ class CheckerTests(unittest.TestCase):
         history = base_history(
             "RYW",
             [
-                operation("write", "write", version=1, write_id="w1"),
-                operation("read", "read", operation_status="UNSUPPORTED"),
+                operation("write", "write", intended_version=1, write_id="w1"),
+                operation("read", "read", operation_status="UNAVAILABLE"),
             ],
         )
         history.fault_events.append(
@@ -224,7 +270,7 @@ class CheckerTests(unittest.TestCase):
         history = base_history(
             "RYW",
             [
-                operation("write", "write", version=1, write_id="w1"),
+                operation("write", "write", intended_version=1, write_id="w1"),
                 operation("read", "read", observed_version=1),
             ],
         )
@@ -240,7 +286,7 @@ class CheckerTests(unittest.TestCase):
         history = base_history(
             "RYW",
             [
-                operation("write", "write", version=1, write_id="w1"),
+                operation("write", "write", intended_version=1, write_id="w1"),
                 operation("read", "read", observed_version=1),
             ],
         )
@@ -250,6 +296,43 @@ class CheckerTests(unittest.TestCase):
             write_history(path, history)
             self.assertTrue(path.is_file())
             self.assertEqual([], list(root.glob("*.tmp")))
+
+    def test_precondition_miss_is_not_counted_as_database_violation(self) -> None:
+        history = History(
+            manifest={"trial_id": "fixture-1", "property": "RYW"},
+            operations=[],
+            precondition={
+                "status": "PRECONDITION_MISS",
+                "checks": [{
+                    "name": "stale-member-remained-at-v0",
+                    "status": "PRECONDITION_MISS",
+                }],
+            },
+        )
+        self.assertEqual(Outcome.PRECONDITION_MISS, check_history(history).outcome)
+
+    def test_exception_classification_distinguishes_unsent_and_ambiguous_writes(self) -> None:
+        class ServerSelectionTimeout(Exception):
+            pass
+
+        class NetworkTimeout(Exception):
+            pass
+
+        class LocalHarnessFailure(Exception):
+            pass
+
+        self.assertEqual(
+            "UNAVAILABLE",
+            classify_exception(ServerSelectionTimeout(), "write", command_started=False)[0],
+        )
+        self.assertEqual(
+            "INDETERMINATE",
+            classify_exception(NetworkTimeout(), "write", command_started=True)[0],
+        )
+        self.assertEqual(
+            "HARNESS_ERROR",
+            classify_exception(LocalHarnessFailure(), "write", command_started=False)[0],
+        )
 
 
 if __name__ == "__main__":

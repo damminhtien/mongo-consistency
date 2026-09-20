@@ -44,6 +44,61 @@ def address_text(address: Any) -> str:
     return str(address)
 
 
+def _timestamp(value: Any) -> dict[str, int] | None:
+    """Convert BSON timestamps to stable JSON values without serializing BSON types."""
+
+    seconds = getattr(value, "time", None)
+    increment = getattr(value, "inc", None)
+    if isinstance(seconds, int) and isinstance(increment, int):
+        return {"seconds": seconds, "increment": increment}
+    if isinstance(value, dict):
+        seconds = value.get("t")
+        increment = value.get("i")
+        if isinstance(seconds, int) and isinstance(increment, int):
+            return {"seconds": seconds, "increment": increment}
+    return None
+
+
+def _cluster_timestamp(value: Any) -> dict[str, int] | None:
+    if not isinstance(value, dict):
+        return None
+    return _timestamp(value.get("clusterTime"))
+
+
+def _concern(value: Any) -> dict[str, Any] | None:
+    if not isinstance(value, dict):
+        return None
+    result: dict[str, Any] = {}
+    for key, item in value.items():
+        if key == "afterClusterTime":
+            converted = _timestamp(item)
+            if converted is not None:
+                result[key] = converted
+        elif isinstance(item, (str, int, float, bool)) or item is None:
+            result[str(key)] = item
+    return result
+
+
+def session_cluster_time(session: Any) -> dict[str, Any] | None:
+    """Return a compact copy of the session cluster-time document."""
+
+    value = getattr(session, "cluster_time", None)
+    if not isinstance(value, dict):
+        return None
+    result: dict[str, Any] = {}
+    timestamp = _timestamp(value.get("clusterTime"))
+    if timestamp is not None:
+        result["cluster_time"] = timestamp
+    signature = value.get("signature")
+    if isinstance(signature, dict) and isinstance(signature.get("keyId"), int):
+        result["signature_key_id"] = signature["keyId"]
+    return result or None
+
+
+def session_operation_time(session: Any) -> dict[str, int] | None:
+    return _timestamp(getattr(session, "operation_time", None))
+
+
 class RoutingMonitor:
     """Command listener that ties actual server routing to one operation."""
 
@@ -73,12 +128,32 @@ class RoutingMonitor:
             return
         with self._lock:
             operation_id = self._current_operation
-            self._pending[int(event.request_id)] = {
+            command = getattr(event, "command", {})
+            command = command if isinstance(command, dict) else {}
+            read_concern = command.get("readConcern")
+            write_concern = command.get("writeConcern")
+            entry = {
                 "operation_id": operation_id,
+                "request_id": int(event.request_id),
                 "command_name": command_name,
                 "started_ns": time.monotonic_ns(),
                 "actual_server_address": address_text(event.connection_id),
+                "driver_reported_role": self._role_lookup(address_text(event.connection_id)),
+                "command_started": True,
+                "status": "STARTED",
+                "cluster_time_sent": _cluster_timestamp(command.get("$clusterTime")),
+                "operation_time_sent": _timestamp(command.get("operationTime")),
+                "read_concern": _concern(read_concern),
+                "write_concern": _concern(write_concern),
+                "after_cluster_time": (
+                    _timestamp(read_concern.get("afterClusterTime"))
+                    if isinstance(read_concern, dict)
+                    else None
+                ),
             }
+            self._pending[int(event.request_id)] = entry
+            if operation_id is not None:
+                self._events.setdefault(operation_id, []).append(entry)
 
     def succeeded(self, event: Any) -> None:
         self._finish(event, "SUCCESS", None)
@@ -92,18 +167,16 @@ class RoutingMonitor:
             pending = self._pending.pop(int(event.request_id), None)
             if pending is None:
                 return
-            address = pending["actual_server_address"]
-            self._record(
-                pending["operation_id"],
+            reply = getattr(event, "reply", None)
+            reply = reply if isinstance(reply, dict) else {}
+            pending.update(
                 {
-                    "command_name": pending["command_name"],
                     "status": status,
-                    "started_ns": pending["started_ns"],
                     "end_ns": time.monotonic_ns(),
-                    "actual_server_address": address,
-                    "actual_role": self._role_lookup(address),
+                    "cluster_time_received": _cluster_timestamp(reply.get("$clusterTime")),
+                    "operation_time_received": _timestamp(reply.get("operationTime")),
                     "error_message": error_message,
-                },
+                }
             )
 
     def events_for(self, operation_id: str) -> list[dict[str, Any]]:
@@ -203,15 +276,22 @@ def operation_record_from_events(
 
     if not events:
         return operation
-    event = events[-1]
-    operation.requested_member = operation.requested_member
+    operation.command_events = tuple(dict(event) for event in events)
+    operation.command_started = any(event.get("command_started") for event in events)
+    event = next(
+        (item for item in reversed(events) if item.get("actual_server_address")),
+        events[-1],
+    )
     operation.actual_server_address = event.get("actual_server_address")
-    operation.actual_role = event.get("actual_role")
+    operation.driver_reported_role = event.get("driver_reported_role")
     operation.command_name = event.get("command_name")
     operation.start_ns = event.get("started_ns", operation.start_ns)
     operation.end_ns = event.get("end_ns", operation.end_ns)
-    if event.get("status") != "SUCCESS" and operation.operation_status == "SUCCESS":
-        operation.operation_status = "ERROR"
+    operation.after_cluster_time = event.get("after_cluster_time")
+    if event.get("status") not in {"SUCCESS", "STARTED"} and operation.operation_status == "SUCCESS":
+        operation.operation_status = (
+            "INDETERMINATE" if operation.kind == "write" else "UNAVAILABLE"
+        )
         operation.error_message = event.get("error_message")
         operation.response_received = False
     return operation

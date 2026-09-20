@@ -43,7 +43,7 @@ class AnalysisTests(unittest.TestCase):
                     operation_id="write",
                     kind="write",
                     key="x",
-                    version=1,
+                    intended_version=1,
                     write_id="w1",
                     start_ns=0,
                     end_ns=1_000_000,
@@ -57,6 +57,10 @@ class AnalysisTests(unittest.TestCase):
                     end_ns=3_000_000,
                 ),
             ],
+            precondition={
+                "status": "SATISFIED",
+                "checks": [{"name": "fixture-state", "status": "SATISFIED"}],
+            },
         )
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -90,7 +94,7 @@ class AnalysisTests(unittest.TestCase):
                     operation_id="write",
                     kind="write",
                     key="x",
-                    version=1,
+                    intended_version=1,
                     write_id="w1",
                     start_ns=0,
                     end_ns=1_000_000,
@@ -104,6 +108,10 @@ class AnalysisTests(unittest.TestCase):
                     end_ns=2_000_000,
                 ),
             ],
+            precondition={
+                "status": "SATISFIED",
+                "checks": [{"name": "fixture-state", "status": "SATISFIED"}],
+            },
             fault_events=[
                 {
                     "event_id": "fault",
