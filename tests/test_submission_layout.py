@@ -158,6 +158,34 @@ class SubmissionLayoutTests(unittest.TestCase):
             "output/submission/manifest.txt",
         ):
             self.assertIn(artifact, workflow)
+        steps = [
+            workflow.index("make analyse"),
+            workflow.index("make check-release-ready"),
+            workflow.index("make submission"),
+        ]
+        self.assertEqual(sorted(steps), steps)
+
+    def test_ci_rebuilds_analysis_before_submission(self) -> None:
+        workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+        self.assertLess(workflow.index("make analyse"), workflow.index("make submission"))
+
+    def test_source_package_includes_raw_campaign_evidence(self) -> None:
+        from tempfile import TemporaryDirectory
+
+        from scripts.build_submission import copy_source_tree
+
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            history = root / "results/raw/experiment/history.json"
+            smoke = root / "results/smoke/history.json"
+            history.parent.mkdir(parents=True)
+            smoke.parent.mkdir(parents=True)
+            history.write_text("{}", encoding="utf-8")
+            smoke.write_text("{}", encoding="utf-8")
+            copied = copy_source_tree(root, root / "package")
+        copied_paths = {path.as_posix() for path in copied}
+        self.assertIn("results/raw/experiment/history.json", copied_paths)
+        self.assertNotIn("results/smoke/history.json", copied_paths)
 
 
 if __name__ == "__main__":

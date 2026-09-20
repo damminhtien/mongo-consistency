@@ -46,6 +46,13 @@ RQ2 uses representative configurations under normal operation, secondary
 failure, primary failure, and network partition. Campaign sizes and gate
 conditions are specified in the protocol.
 
+## Release package
+
+CI rebuilds analysis from committed raw histories before producing its PDF, ZIP
+archive, and checksum manifest. A `v*` tag publishes those three files as
+GitHub Release assets. The release workflow requires complete RQ1 and RQ2
+campaigns and all team student IDs before creating a release.
+
 A first SIGINT or SIGTERM asks the runner to finish the current trial,
 clean up faults, and write an INTERRUPTED manifest. Rerunning the same
 campaign with resume enabled validates existing histories and continues from

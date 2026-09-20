@@ -13,6 +13,7 @@ make test
 make check-docs
 make check-schemas
 make analyse
+make check-release-ready
 make submission
 ~~~
 

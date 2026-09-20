@@ -1,12 +1,15 @@
 PYTHON ?= python3
 MC_SMOKE_MOUNT ?= ./results/smoke
-.PHONY: check-docs check-schemas submission test setup smoke pilot experiment experiment-fresh rq2 analyse
+.PHONY: check-docs check-schemas check-release-ready submission test setup smoke pilot experiment experiment-fresh rq2 analyse
 
 check-docs:
 	$(PYTHON) scripts/check_documentation.py
 
 check-schemas:
 	PYTHONPATH=src $(PYTHON) scripts/validate_records.py
+
+check-release-ready:
+	$(PYTHON) scripts/check_release_ready.py
 
 submission:
 	$(PYTHON) scripts/build_submission.py
