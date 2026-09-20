@@ -1,10 +1,11 @@
 # MongoDB consistency experiment
 
-The project records a reproducible DSA5208 experiment for MongoDB client-visible consistency. The implementation records raw operation histories, checks RYW, MR, MW, and WFR offline, and builds the submission package from those records.
+The project contains source, tests, protocol, experiment runner,
+offline checker, analysis, and LaTeX package for the DSA5208 MongoDB
+client-consistency study. The experiment and its evidence rules are defined in
+[docs/experimental-protocol.md](docs/experimental-protocol.md).
 
-The cluster runner uses a three-member MongoDB 7.0.34 replica set in Docker Compose with Python 3.14.7, PyMongo 4.18.1, Docker Engine 29.8.0, and Compose 5.5.1. The checkout contains the 192-history pilot and the complete 1,280-history main campaign. Analysis and conclusions remain limited to the recorded versions, settings, workloads, and fault schedules.
-
-## Canonical documents
+## Project documents
 
 - [Assignment summary](docs/assignment.md)
 - [Project plan](docs/project-plan.md)
@@ -16,44 +17,64 @@ The cluster runner uses a three-member MongoDB 7.0.34 replica set in Docker Comp
 
 ## Commands
 
-```bash
+~~~bash
 make test
 make check-docs
 make check-schemas
 make setup
+make smoke
 make pilot
 make experiment
-make experiment-parallel
-make experiment-fresh
+make rq2
 make analyse
 make submission
-```
+~~~
 
-`make setup` checks the pinned toolchain, starts and verifies the local replica set, and records the MongoDB image digest. `make check-schemas` validates the record contracts and any generated records. `make pilot`, `make experiment`, and `make experiment-parallel` require Docker. `make analyse` consumes raw histories and does not require a live MongoDB connection. `make submission` builds the PDF and reproduction archive.
+Install the pinned host-side Python dependencies before running these checks:
+`python3 -m pip install -r requirements-dev.txt`. The Docker runner uses the
+smaller runtime-only `requirements.txt`.
 
-`make experiment` is resumable. The first Ctrl-C or termination request finishes the active trial and writes an `INTERRUPTED` manifest; running the command again validates and skips completed histories. Use `make experiment-fresh` only for an empty campaign directory.
+make setup, make smoke, make pilot, make experiment, and make rq2 require a
+running Docker daemon. make analyse rebuilds summaries and plots from saved raw
+histories without connecting to MongoDB. make submission builds the report PDF
+and checksummed reproduction archive.
 
-`make experiment-parallel` uses two workers by default. Each worker gets its own Compose project, three-member replica set, client and replica networks, named volumes, host ports, and result directory. The coordinator stops the baseline stack before starting workers, forwards shutdown signals, and merges only histories whose trial identity and bytes pass validation. Set `PARALLEL_WORKERS=3` or another value up to 32 when the machine has enough resources. Worker scratch data stays under `results/parallel/` and is ignored; `make analyse` reads the merged files under `results/raw/`. A campaign is complete only when the canonical manifest says `COMPLETE` and lists all planned histories.
+make smoke runs 32 histories and is a machinery check, not scientific
+evidence. make pilot runs 192 separate histories. RQ1 is a sequential
+1,280-history campaign: 320 normal controls and 960 adversarial histories.
+RQ2 uses representative configurations under normal operation, secondary
+failure, primary failure, and network partition. Campaign sizes and gate
+conditions are specified in the protocol.
 
-The main campaign has 320 normal-control histories and 960 adversarial histories, for 1,280 histories total. The 192-history pilot remains separate; RQ1 rates and factorial contrasts use only main-campaign adversarial histories. The pilot checks timing and topology preconditions and is not pooled into the main estimates.
+A first SIGINT or SIGTERM asks the runner to finish the current trial,
+clean up faults, and write an INTERRUPTED manifest. Rerunning the same
+campaign with resume enabled validates existing histories and continues from
+the deterministic plan. A fresh run is allowed only with an empty campaign
+directory.
 
 ## Layout
 
-```text
-configs/       frozen configurations, schedules, predictions, and campaign rules
-src/           history model, checkers, runner, routing, faults, and analysis
-scripts/       command entry points and validation tools
-tests/         offline fixtures and integration checks
-results/raw/   canonical trial histories and manifests
-results/parallel/ worker scratch histories for isolated workers
-results/summary/ derived tables and metrics
-figures/       generated report figures
-schemas/       versioned record contracts
-submission/    LaTeX report and package metadata
-```
+~~~text
+configs/       settings, schedules, predictions, and campaign definitions
+src/           history model, topology oracle, workloads, checkers, analysis
+scripts/       setup, campaign, analysis, build, and validation entry points
+tests/         offline fixtures and harness checks
+schemas/       versioned history and outcome contracts
+docs/          project decisions, protocol, slide mapping, report plan
+submission/    LaTeX sources, metadata, and package instructions
+results/raw/   canonical campaign histories
+results/summary/ generated tables and summaries
+figures/       generated plots
+~~~
 
-## Safety and reproducibility
+## Evidence and safety
 
-The runner has no Docker socket, Docker credentials, host filesystem mount, or unrelated host-data access. Reads and writes use `retryReads=false` and `retryWrites=false`. A possible mutation after a timeout is recorded as `INDETERMINATE`. `HARNESS_ERROR` and `UNSUPPORTED` remain outside database metrics.
+Each trial uses a unique namespace, explicit client session, deterministic seed,
+and logged requested and actual routing. Possible writes with lost responses
+are INDETERMINATE. The six history outcomes are PASS, VIOLATION, UNAVAILABLE,
+INDETERMINATE, PRECONDITION_MISS, and HARNESS_ERROR. Only PASS and VIOLATION
+enter the consistency denominator.
 
-Every trial has a unique namespace, a seeded campaign ordinal, actual routing details, software versions, a fault event log, and a canonical history hash. The prediction manifest is committed before result files. Generated files remain outside the source inputs until the analysis command writes them.
+The runner has no Docker socket, Docker credentials, or unrelated host-data
+mount. Predictions and protocol are committed before scientific campaigns.
+Generated summaries and report macros are rebuilt from raw histories.

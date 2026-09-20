@@ -1,204 +1,349 @@
 # Experimental protocol
 
-## Trial unit
+The protocol is the scientific source of truth for the experiment. The runner,
+schemas, analysis, report, and reproduction commands must agree with it. Any
+change to a frozen prediction or schedule requires a new protocol commit before
+the associated campaign starts.
 
-A trial is one configuration, property, schedule, seed, and unique namespace. The three-member replica set stays alive for the trial. The runner does not reset the database after each property. A trial records the initial document state `x=v0`; that initialization is outside the property predicate.
+## Research scope
 
-The pinned runtime is MongoDB 7.0.34, PyMongo 4.18.1, Python 3.14.7, Docker Engine 29.8.0, and Docker Compose 5.5.1. MongoDB 7.0.34 was selected because its image starts on the Docker Desktop kernel available on the experiment machine; the setup record still captures the actual versions and image digest.
+RQ1 is:
 
-Each trial has a manifest with these fields:
+> How do read concern (RC), write concern (WC), and causal sessions affect
+> read-your-writes (RYW), monotonic reads (MR), monotonic writes (MW), and
+> writes-follow-reads (WFR)?
 
-| Field | Requirement |
-| --- | --- |
-| `schema_version` | Version of the raw-history schema. |
-| `trial_id` | Globally unique trial identifier. |
-| `campaign_id` | `pilot`, `normal`, or `experiment`; the `adversarial` field distinguishes controls from fault schedules. |
-| `configuration_id` | One of C1-C8. |
-| `read_concern` | `local` or `majority`. |
-| `write_concern` | `w:1` or `majority`, including timeout settings. |
-| `causal_session` | `true` or `false`; both use an explicit session. |
-| `property` | `RYW`, `MR`, `MW`, or `WFR`. |
-| `schedule_id` | Registered fault and operation schedule. |
-| `seed` | `20260915 + campaign_ordinal`. |
-| `software_versions` | Python, PyMongo, Docker, Compose, and MongoDB versions. |
-| `image_digest` | Resolved MongoDB image digest. |
-| `members` | Member names, addresses, and roles at setup. |
-| `timeout_policy` | Connection, operation, election, and subtrial limits. |
-| `fault_policy` | Fault events, targets, and cleanup result. |
-| `prediction_commit` | Commit containing the frozen prediction manifest. |
-| `runner_version` | Runner source revision and schema version. |
-| `checker_version` | Offline checker source revision and schema version. |
-| `history_hash` | SHA-256 of canonical raw history bytes. |
+The deployment has three data-bearing MongoDB members in Docker Compose. RQ1
+compares configuration semantics. Property-specific stale-replica and election
+schedules are instruments for constructing the states needed to test each
+property; they are not a second, combined topology treatment. RQ2 separately
+compares failure conditions.
 
-## Logical history
+The configuration matrix is:
 
-The workload uses one logical document per trial:
+| ID | Read concern | Write concern | Causal session |
+| --- | --- | --- | --- |
+| C1 | `local` | `w:1` | off |
+| C2 | `local` | `w:1` | on |
+| C3 | `majority` | `w:1` | on |
+| C4 | `local` | `majority` | on |
+| C5 | `majority` | `majority` | off |
+| C6 | `majority` | `majority` | on |
+| C7 | `majority` | `w:1` | off |
+| C8 | `local` | `majority` | off |
+
+The prediction manifest uses a durability-aware interpretation of the
+documented guarantees. C3 targets MR and WFR; C4 targets MW; C6 targets all four
+properties. Other cells are not assigned a guarantee target. A target is a
+prediction about successful histories under the registered schedule, not a
+claim that every repetition must pass. The eight configurations form a
+three-factor matrix. Factorial contrasts are exploratory descriptions of the
+observed cells, not a complete inferential factorial experiment.
+
+## Actors and topology
+
+Each trial has three distinct actors:
+
+1. The subject client issues the tested operations through exactly one explicit
+   PyMongo `ClientSession`. Causal ON sets `causal_consistency=True`; causal OFF
+   sets it to `False`. Neither condition omits the session.
+2. The diagnostic layer uses independent direct connections to `mongo1`,
+   `mongo2`, and `mongo3`. It observes topology and document state but never
+   uses or advances the subject session.
+3. The fault controller changes replica-network reachability only. The runner
+   has no Docker socket, Docker credentials, or unrelated host-data mount.
+
+`TopologyOracle` sends `{hello: 1}` directly to each member. It does not infer
+roles from the subject driver's topology cache and has no guessed-secondary
+fallback. A stable topology means exactly one reachable `PRIMARY` and two
+reachable `SECONDARY` members in replica set `rs0`. The oracle also records
+election ID, set version, member write optime, and the primary's last committed
+optime when available. Driver-cached roles are retained only as separate
+diagnostic fields.
+
+The Compose network has a client path and a replica path. A partition blocks
+replication traffic on the replica path while keeping runner access to the
+selected member. Isolation is verified by controller state, direct member
+access, and the expected document versions. A successful firewall command by
+itself is not proof that the intended state exists.
+
+## Trial unit and logical history
+
+A trial is one configuration, property, schedule, seed, and unique namespace.
+The same three-member replica set remains alive; the runner does not reset the
+database after each property. Each trial creates a separate logical document
+`x` and first verifies that all members contain version 0 (`init`).
+
+The document stores an append-only update list. One logical writer allocates
+integer versions. Each update records `write_id`, `version`, `effect`,
+`parent_write_id`, `depends_on_read_id`, and `depends_on_version`. These fields
+express application-level dependencies; server timestamps and cluster metadata
+are diagnostic evidence, not substitutes for those dependencies. MW and WFR
+use the same document. A different-key history is invalid for either checker.
+
+Every history stores a first-class precondition object:
 
 ```json
 {
-  "_id": "trial-id/x",
-  "updates": [
-    {
-      "write_id": "w1",
-      "version": 1,
-      "effect": "set-v1",
-      "parent_write_id": null,
-      "depends_on_read_id": null,
-      "depends_on_version": null
-    }
-  ]
+  "status": "SATISFIED",
+  "checks": [{"name": "all-members-at-v0", "status": "SATISFIED"}]
 }
 ```
 
-One logical writer allocates integer versions. The checker never treats a Lamport tuple, server timestamp, or wall-clock timestamp as evidence that one application update supersedes another. `parent_write_id`, `depends_on_read_id`, and `depends_on_version` are explicit application dependencies. Server metadata is diagnostic only.
+Its status is `SATISFIED` or `PRECONDITION_MISS`. Each check records the
+expected state, actual observation, and observation time. Subject operations
+are not issued after a required precondition fails.
 
-MW and WFR use this same document. A history using `x` for one operation and `y` for the other is rejected as an invalid fixture for either predicate.
+## Operation and diagnostic evidence
 
-The observer reads the complete `x` document once. It records the returned update list, the observed version set, and the read timestamp. It does not combine fields from multiple reads. The versioned record contracts in `schemas/` define the serialized form.
+For each subject operation the recorder stores operation and session IDs,
+requested member, command-monitor `actual_server_address`, directly observed
+`actual_role` and observation time, separate driver-reported role, causal-session
+setting, read/write concern, fault event, start/end times, status, error details,
+logical dependencies, and observed document contents. It records session
+`$clusterTime` and `operationTime` before and after the call, plus command
+`$clusterTime`, `operationTime`, read/write concern, and `afterClusterTime` when
+present. `observed_*` fields come from database responses or direct diagnostic
+reads, never from version arithmetic.
 
-## Recorded operation
+The command monitor records whether a command reached a server. A network or
+server-selection error before a write was sent is `UNAVAILABLE`; a timeout or
+lost response after a write may have reached MongoDB is `INDETERMINATE`.
+Definitive server responses remain distinguishable from harness failures.
 
-Every operation record includes:
+## Registered schedules
 
-```text
-operation_id
-trial_id
-property
-kind
-requested_member
-actual_server_address
-actual_role
-session_id
-causal_session
-read_concern
-write_concern
-start_ns
-end_ns
-operation_status
-error_code
-error_message
-timeout_category
-fault_event_id
-dependency_metadata
-document_version_before
-document_version_after
-```
+Each property has its own operation order. No shared `partition -> election ->
+run all properties` schedule is used. `SUBJECT` marks operations issued through
+the tested session; setup and diagnostic operations are outside the tested
+history.
 
-The requested member is the routing intent. The command monitor supplies the actual server address and command name. The runner records the role observed during setup and the command timing. A successful primary write uses the driver-selected primary; tagged secondary reads use a named secondary tag. Application versions before and after an operation are recorded when the schedule makes them observable.
+### RYW: stale-secondary read after write
 
-## Property checkers
+1. Verify stable topology and version 0 on all members.
+2. Select stale secondary `S_stale` and fresh secondary `S_fresh`.
+3. Isolate `S_stale`'s replication path while preserving client access.
+4. Verify `S_stale` is reachable, still a secondary, and contains only `v0`.
+5. `SUBJECT W1(x,v1)` on the primary; record its actual server.
+6. Verify `S_fresh` contains `v1` and `S_stale` still contains `v0`.
+7. `SUBJECT R1(x)` routed to `S_stale` in the same session.
+8. Heal, verify stable topology, then collect independent post-heal observations.
 
-The checkers consume a canonical history and return one outcome plus a reason. They do not infer hidden database state.
+The diagnostic split `V(S_fresh)=1` and `V(S_stale)=0` is required before R1.
+If R1 returns a version lower than W1, the history is a violation. If R1 cannot
+complete, the result is unavailable rather than a consistency violation.
 
-- RYW passes when the read of `x` returns the version written by the preceding write or a later version. A lower observed version is a violation.
-- MR passes when the second read returns the version from the first read or a later version. A lower second observation is a violation.
-- MW passes when the observer sees a state containing the successor write without the predecessor write only if the schedule defines that state as the tested outcome. The checker marks a completed predecessor and successor on the same `x`; a successor that is visible while the predecessor is absent is a violation.
-- WFR passes when a write that explicitly depends on the version read by R1 is observed together with its dependency. A dependent successor on `x` without the version read by R1 is a violation.
+### MR: fresh read followed by stale read
 
-The checkers require the expected operation IDs, same-key identity, dependency fields, and a complete observer snapshot. Missing or contradictory records are not converted into a database violation.
+1. Verify stable topology and version 0 on all members.
+2. Select `S_stale` and `S_fresh`; isolate `S_stale` before creating version 1.
+3. Verify `S_stale` remains directly reachable as a secondary at `v0`.
+4. `SETUP W1(x,v1)` on the healthy primary with majority acknowledgement. This
+   setup write is not a subject operation and does not use the subject session.
+5. Verify `S_fresh` contains `v1` and `S_stale` contains `v0`.
+6. `SUBJECT R1(x)` from `S_fresh`, followed by `SUBJECT R2(x)` from
+   `S_stale`, using the same explicit session.
+7. Heal, verify stable topology, then collect independent post-heal observations.
 
-## Outcomes
+The diagnostic split is required before R1. If R2 returns a lower version than
+R1, the history is an MR violation.
 
-| Outcome | Meaning | Included in database metrics |
-| --- | --- | --- |
-| `PASS` | The recorded complete history satisfies the property. | Yes. |
-| `VIOLATION` | The recorded complete history contradicts the property. | Yes. |
-| `UNAVAILABLE` | The required read or write could not be served under the schedule. | No for violation rate; retained separately. |
-| `INDETERMINATE` | A required result is ambiguous, such as a lost write response or timeout after a possible mutation. | No for violation rate; retained separately. |
-| `HARNESS_ERROR` | The runner, fault controller, or recorder failed independently of the database outcome. | No. |
-| `UNSUPPORTED` | A required topology precondition could not be established. | No. |
+### MW: ordered writes across an election
 
-The consistency violation rate is `VIOLATION / (PASS + VIOLATION)`. A write timeout or lost write response is `INDETERMINATE`, never an assumed failed write.
+1. Verify stable topology and version 0 on all members; record old primary
+   `P_old`.
+2. Isolate `P_old` from replica peers while preserving client access.
+3. Directly verify that `P_old` remains reachable and reports writable primary.
+4. Immediately issue `SUBJECT W1(x,v1)` through the same session and verify its
+   actual server is `P_old`.
+5. Wait independently for the connected majority side to elect `P_new`.
+6. Issue `SUBJECT W2(x,v2)` through the same session, with
+   `parent_write_id=W1`; verify the actual server is `P_new`.
+7. Heal and wait for one primary plus two secondaries.
+8. The independent observer reads the complete document directly from all
+   three members and waits until all three update lists agree.
 
-## Network and fault control
+If the converged snapshot contains W2 but not W1, the history is an MW
+violation. A majority-acknowledged W1 that cannot complete on the isolated old
+primary is an availability outcome, not a harness error. An unresolved W2
+response is indeterminate.
 
-Compose creates two paths:
+### WFR: dependent write after a read from the old branch
 
-- `replica_net` carries member-to-member replication and election traffic.
-- `client_net` carries runner-to-member traffic.
+1. Verify stable topology and version 0 on all members; record old primary
+   `P_old`.
+2. Isolate `P_old` from replica peers while preserving client access.
+3. `SETUP W1(x,v1)` directly on `P_old` with `w:1`; do not use the subject
+   session.
+4. Verify `P_old` contains `v1` while both majority-side members contain `v0`.
+5. Issue `SUBJECT R1(x)` targeting `P_old`; record the concrete version returned.
+6. Only after a concrete read version is recorded, wait for the majority side
+   to elect `P_new`.
+7. Issue `SUBJECT W2(x,v2)` on `P_new` using the same session, with
+   `depends_on_read_id=R1` and `depends_on_version` set to R1's returned version.
+8. Heal and use the independent, post-heal three-member convergence observer.
 
-The three members use fixed addresses on both paths. Their `/etc/hosts` entries
-map `mongo1`, `mongo2`, and `mongo3` to the fixed `replica_net` addresses, so
-replication does not silently fall back to `client_net`. The runner has no such
-override and resolves the same names through `client_net`; this preserves client
-access while a sidecar filters only `eth1`.
-
-The fault controller is a separate process with a narrow control interface. It applies named events to replica traffic while the runner keeps client access to the selected member. The runner has no Docker socket, Docker credentials, host filesystem mount, or access to unrelated host data. If a stale-member client path cannot be preserved, the trial is `UNSUPPORTED`.
-
-Every schedule has an event ID, start condition, target members, expected topology state, cleanup action, and cleanup verification. Election and recovery intervals are recorded from the fault events. Cleanup must restore a stable three-member replica set before the next trial; otherwise the history is a harness error.
-
-## Schedules
-
-### RYW
-
-1. Confirm a stable replica set and record `v0`.
-2. Isolate replication traffic to the tagged stale secondary while preserving client access to it.
-3. Write `v1` on the current primary.
-4. Read `x` from the tagged stale secondary in the same explicit session.
-5. Record the read result, heal replication, and verify stability.
-
-### MR
-
-1. Confirm a stable replica set and record `v0`.
-2. Isolate one tagged secondary while preserving client access.
-3. Read `x` from a fresh secondary and record its version.
-4. Read `x` from the isolated stale secondary using the same explicit session.
-5. Record both observations, heal replication, and verify stability.
-
-### MW
-
-1. Complete W1 on the old primary and record its write ID on `x`.
-2. Apply the partition while the workload is ready to issue W2.
-3. Wait for a new primary with the 30-second topology barrier.
-4. Complete W2 on the new primary, on the same `x`, with its `parent_write_id` set to W1.
-5. Run one observer snapshot of `x`.
-6. Heal the partition and verify a stable replica set.
-
-The workload is not postponed until after election. W1 is before the partition, and W2 is issued only after the election barrier has completed. The schedule therefore distinguishes predecessor completion from successor visibility.
-
-### WFR
-
-1. Complete R1 on the old side and record the observed version of `x`.
-2. Apply the partition while the workload is ready to issue the dependent write.
-3. Wait for a new primary with the 30-second topology barrier.
-4. Complete W2 on the new primary, on the same `x`, with `depends_on_read_id` and `depends_on_version` set from R1.
-5. Run one observer snapshot of `x`.
-6. Heal the partition and verify a stable replica set.
+If R1 fails, record availability. If R1 returns no concrete version, do not
+issue W2 as though the dependency existed. If the converged snapshot contains
+W2 but not the version returned by R1, the history is a WFR violation. If the
+causal session prevents W2 from completing, retain that outcome rather than
+manufacturing a violation.
 
 ### Normal control
 
-The control schedule runs the same operation order and dependency metadata without an injected fault. It uses a fresh namespace and the same configuration cell. It is a baseline for completion, latency, and ordinary operation rather than a substitute for the adversarial schedule.
+The control executes the corresponding property operations on a stable,
+unpartitioned replica set, with the same configuration, session rules, logical
+document, and operation deadlines. It is reported separately from the
+adversarial RQ1 estimate.
 
-## Timeouts and campaign order
+## Final observation and outcomes
+
+After fault cleanup, the topology oracle must first verify stable topology.
+Then an independent diagnostic observer reads the same document directly from
+`mongo1`, `mongo2`, and `mongo3`. Convergence requires all three members to be
+reachable, return a valid document, and agree on the complete update list. If
+topology or document convergence fails, the checker returns `INDETERMINATE`.
+The observer never uses the subject session or its read concern.
+
+The six history outcomes are:
+
+| Outcome | Meaning |
+| --- | --- |
+| `PASS` | A complete, valid history satisfies its predicate. |
+| `VIOLATION` | A complete, valid history contradicts its predicate. |
+| `UNAVAILABLE` | A required database operation did not complete. |
+| `INDETERMINATE` | A possible mutation or required observation has unresolved effect. |
+| `PRECONDITION_MISS` | The schedule did not establish the state required by its predicate. |
+| `HARNESS_ERROR` | The recorder, runner, controller, or cleanup failed independently of database behavior. |
+
+Only `PASS` and `VIOLATION` enter the consistency denominator:
 
 ```text
-connectTimeoutMS=2000
-serverSelectionTimeoutMS=5000
-socketTimeoutMS=5000
-operation_deadline=5000ms
-wtimeoutMS=5000 where applicable
-election_barrier=30000ms
-subtrial_deadline=60000ms
-retryWrites=false
-retryReads=false
+violation_rate = VIOLATION / (PASS + VIOLATION)
 ```
 
-The campaign uses a seeded, stratified shuffle. The seed is `20260915 + campaign_ordinal`. Each case receives a new trial ID and namespace. The normal baseline contains 320 histories. The adversarial campaign contains 960 histories. Pilot execution uses five adversarial repetitions and one normal smoke trial per configuration/property cell.
+Other outcomes remain visible in separate counts. `PRECONDITION_MISS` is not a
+database failure and is excluded from consistency metrics.
 
-The 192 pilot histories are retained but excluded from main estimates. The 1,280 main histories are summarized as 320 normal controls and 960 adversarial trials. RQ1 rates and factorial contrasts use the adversarial group; control metrics are reported separately. `UNSUPPORTED` remains a visible outcome and is not included in the consistency denominator.
+## Fault and timeout policy
 
-The runner publishes each history and the campaign manifest with an atomic file replacement. A first `SIGINT` or `SIGTERM` requests a graceful stop: the active trial is allowed to finish its cleanup, the partial manifest is marked `INTERRUPTED`, and the process exits with status 130. A second signal force-stops the runner; histories already published remain valid. Re-running `make experiment` uses `--resume`, reconstructs the same shuffled ordinal list, validates every existing history against its trial ID, configuration, property, adversarial flag, and seed, and skips only validated files. It never reuses a file with a different case identity. The manifest records the expected and completed counts and the first missing ordinal. A fresh run is available with `make experiment-fresh` only when the campaign output directory is empty.
+The fault controller verifies its active isolation state and direct client
+access. After every fault it attempts healing and verifies stable topology
+before another trial starts. Cleanup failure makes the history a harness error
+and prevents further use of that unstable cluster.
 
-### Parallel execution
+```text
+connect timeout                 2 seconds
+server-selection timeout       5 seconds
+operation/socket deadline       5 seconds
+write-concern timeout           5 seconds
+election/topology barrier      30 seconds
+subtrial deadline              60 seconds
+retryReads=false
+retryWrites=false
+```
 
-`make experiment-parallel` uses the same global plan, ordinal, seed rule, workload code, timeout policy, and offline checkers as the serial runner. For `N` workers, ordinal `o` belongs to worker `(o - 1) mod N`. The coordinator creates a separate Compose project for every worker. Each project has three MongoDB members, a private client subnet, a private replica subnet, fixed member addresses, six distinct host ports, and project-scoped data volumes. No two workers share a replica set or a network. The worker container mounts only its own scratch result directory and the setup provenance file.
+The runner cannot access a Docker socket, Docker credentials, or unrelated host
+files. Fault-controller capabilities are isolated to network administration
+inside the corresponding MongoDB container's replica interface.
 
-The baseline Compose stack is stopped before workers start so that its members cannot consume resources or be mistaken for a worker. A first shutdown signal is forwarded to every worker; a second signal is a force-stop request. Worker histories are retained after cleanup, so a later invocation can resume them. The coordinator validates each existing and newly produced history against the global trial ID, configuration, property, adversarial flag, ordinal, seed, schema, and history hash. If a canonical file and a worker file both exist, their bytes must match. A missing history is copied atomically from its assigned worker only after validation.
+## Campaigns
 
-Parallel execution changes host scheduling and therefore can change measured latency. It does not change the registered history or its configuration semantics. The final campaign manifest is published only after the merge and cleanup checks. `make analyse` ignores worker scratch directories and reads the canonical set under `results/raw/`; a final result is usable only when that manifest has `status=COMPLETE`, `completed_case_count=1280`, and the expected ordinal list.
+### Smoke
 
-The recorded main campaign combines 696 valid histories from sequential execution with 584 valid histories from two-worker execution. An initial parallel attempt produced 449 fault-controller connection errors. Those records are retained under `results/attempts/`, excluded from the analyzer's `results/raw/` input, and were rerun with identical ordinals and seeds after the runner began waiting for healthy fault controllers. Runner revisions are recorded in the histories and campaign manifest. Latency summaries therefore describe runs under mixed host scheduling and are not an isolated estimate of database-setting effects.
+Run 32 adversarial histories: one for each of eight configurations and four
+properties. Smoke checks schedule construction and is never analysis or report
+evidence. The gate fails if any property has a precondition-miss rate above 5%,
+if any harness error occurs, or if any planned history is missing. The expected
+eight trials per property make even one precondition miss a gate failure.
 
-## Offline analysis
+### Pilot
 
-`make analyse` reads only raw histories, manifests, and the frozen prediction manifest. It recomputes checker outcomes, outcome counts, operation success, history completion, consistency violation rate, p50/p95/p99 latency, election and recovery time, and the read-concern, write-concern, causal-session main effects and interactions. Campaign summaries keep pilot, normal-control, and adversarial outcomes separate. Factorial effects are equal-weight contrasts of available cell-level rates with variable denominators; they are descriptive, not inferential. It writes summaries and figures without connecting to MongoDB.
+Run five adversarial repetitions per configuration/property cell and one normal
+control per cell:
+
+```text
+8 x 4 x 5 + 8 x 4 x 1 = 192 histories
+```
+
+The pilot validates the frozen harness and estimates schedule stability. Pilot
+histories are retained separately and excluded from RQ1 estimates. Any harness
+error, routing mismatch, cleanup error, or property precondition-miss rate above
+5% blocks the main campaign.
+
+### RQ1 main campaign
+
+Run sequentially on the laptop. Use 10 normal controls and 30 adversarial
+histories per configuration/property cell:
+
+```text
+normal controls: 8 x 4 x 10 = 320
+adversarial:     8 x 4 x 30 = 960
+total:                         1280 histories
+```
+
+Each namespace is unique. The database is not reset between histories. Use the
+fixed seed rule `20260915 + campaign_ordinal` and the deterministic shuffled
+plan. Campaign manifests and histories are written atomically. A graceful
+shutdown finishes the active trial's cleanup and marks the manifest
+`INTERRUPTED`; resume validates case identity, seed, history hash, and frozen
+provenance before skipping a completed case. RQ1 latency is not mixed with
+parallel execution measurements.
+
+### RQ2 failure comparison
+
+Keep the three-member topology and compare `NORMAL`, `SECONDARY_FAILURE`,
+`PRIMARY_FAILURE`, and `NETWORK_PARTITION` using 10 repetitions per registered
+cell. Representative configurations are C1/C6 for RYW, C1/C3/C6 for MR,
+C1/C4/C6 for MW, and C1/C3/C6 for WFR. This is 440 histories if every planned
+cell completes. RQ2 has a separate schedule manifest and is not pooled into
+RQ1.
+
+Node stop/start operations are orchestrated on the host through dedicated
+scripts. The runner itself never receives Docker socket access. Fault start,
+stop, recovery, election, and cleanup times are recorded.
+
+## Provenance and analysis
+
+Before the pilot, freeze configurations, predictions, schedules, schemas, and
+this protocol. The campaign manifest records distinct `prediction_commit`,
+`protocol_commit`, and `runner_commit`, plus prediction and protocol SHA-256
+hashes, actual software versions, and the resolved MongoDB image digest. Setup's
+generic source revision is not a substitute for any of those fields. Main
+campaigns refuse dirty or missing frozen provenance.
+
+`make analyse` reads only canonical raw histories and campaign manifests. It
+recomputes checker outcomes and reports, by property and configuration:
+
+- outcome counts, including all six history outcomes;
+- violation rate over `PASS + VIOLATION` only;
+- operation success and history completion rates;
+- operation latency p50, p95, and p99;
+- election and recovery time;
+- RC, WC, causal-session contrasts and interactions where the cell data allow.
+
+Contrast formulas are descriptive and exploratory. They do not silently impute
+missing cells or claim statistical significance. Analysis and report builds
+must work without MongoDB. Generated summaries, plots, macros, and PDFs derive
+from raw histories; no observation is copied into LaTeX by hand.
+
+## Reproduction order
+
+```bash
+make test
+make check-docs
+make check-schemas
+make setup
+make smoke
+# freeze protocol and predictions after smoke passes
+make pilot
+make experiment
+make rq2
+make analyse
+make submission
+```
+
+`make test`, documentation/schema checks, analysis, and submission build are
+offline. Setup, smoke, pilot, RQ1, and RQ2 require Docker Desktop and the pinned
+runtime. The report describes only the final frozen protocol and completed
+campaign; development attempts are not scientific results.

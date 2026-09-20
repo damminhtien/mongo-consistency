@@ -1,6 +1,7 @@
 # Step 1 decisions
 
-These decisions are closed unless a reproducibility or safety check shows that a recorded assumption cannot be implemented.
+These choices are closed unless a reproducibility or safety check shows that a
+recorded assumption cannot be implemented.
 
 ## Group
 
@@ -11,44 +12,48 @@ These decisions are closed unless a reproducibility or safety check shows that a
 ## System and toolchain
 
 - Final database: MongoDB replica set.
-- Baseline deployment: three data-bearing MongoDB members in Docker Compose.
-- Target versions: MongoDB 7.0.34, PyMongo 4.18.1, Python 3.14.7, Docker Engine 29.8.0, and Docker Compose 5.5.1.
-- The MongoDB and Docker pins were revised on 16 September 2026 after MongoDB 8.0.32 stopped on the Docker Desktop kernel available on this machine. A direct `mongo:7.0.34` startup probe passed; setup still records the actual image digest and runtime versions.
-- Setup records the actual executable versions and resolved MongoDB image digest.
+- Baseline deployment: three data-bearing members in Docker Compose.
+- Target versions: MongoDB 7.0.34, PyMongo 4.18.1, Python 3.14.7,
+  Docker Engine 29.8.0, and Docker Compose 5.5.1.
+- Setup records actual server and client versions plus the resolved MongoDB
+  image digest. The target pins are not a substitute for that runtime evidence.
 
 ## Experiment
 
-- Use all eight C1-C8 combinations of read concern, write concern, and causal session.
-- RQ1 studies configuration semantics with fault schedules as instruments for exposing stale and causal states.
-- RQ2 separately compares topology failures and normal operation.
-- Normal baseline: 320 histories.
-- Adversarial campaign: 960 histories.
-- Main total: 1,280 histories.
-- Pilot: five adversarial repetitions and one normal smoke trial per configuration/property cell.
-- Seed rule: `20260915 + campaign_ordinal`.
-- Use a unique namespace for every trial. Do not reset after every property.
-- Shuffle cases with a seeded, stratified order.
+- Use the C1-C8 matrix of read concern, write concern, and causal session.
+- RQ1 studies configuration semantics using property-specific fault schedules.
+- RQ2 separately studies topology failures and normal operation.
+- Main RQ1 design: 320 normal controls and 960 adversarial histories.
+- Pilot design: five adversarial repetitions plus one normal control for each
+  configuration/property cell, 192 histories total.
+- Run one 32-history machinery smoke before freezing the protocol and predictions.
+- Use seed 20260915 plus the campaign ordinal, unique namespaces, and a
+  deterministic shuffled plan.
 
 ## Protocol
 
-- Use one logical document `x` with append-only updates.
-- Allocate integer application versions from one logical writer.
-- Record `parent_write_id`, `depends_on_read_id`, and `depends_on_version` explicitly.
-- Use explicit PyMongo sessions for both causal ON and causal OFF.
-- Set `retryWrites=false` and `retryReads=false`.
-- Capture requested member, actual server address, actual role, session ID, fault event ID, timing, error details, and history hash.
-- Use a five-second operation deadline and a 30-second election/topology barrier.
-- Use property-specific RYW, MR, MW, WFR, and normal schedules.
+- Use one logical document x with append-only updates and integer application
+  versions from one logical writer.
+- Record parent_write_id, depends_on_read_id, and depends_on_version.
+- Use one explicit PyMongo session per trial, whether causal consistency is ON
+  or OFF.
+- Set retryReads=false and retryWrites=false.
+- Log actual server address, direct role observation, driver-reported role,
+  cluster/session timing, concerns, fault state, and operation status.
+- Use a five-second operation deadline and a separate 30-second election and
+  topology barrier.
+- Give RYW, MR, MW, WFR, and normal control distinct schedules.
 
 ## Outcomes and analysis
 
-- History outcomes are `PASS`, `VIOLATION`, `UNAVAILABLE`, and `INDETERMINATE`.
-- `HARNESS_ERROR` and `UNSUPPORTED` are retained but excluded from database metrics.
-- A lost write response or write timeout is `INDETERMINATE` because the write may have completed.
-- Report operation success, history completion, `VIOLATION / (PASS + VIOLATION)`, latency quantiles, election and recovery time, and factorial main effects and interactions.
-- Commit predictions before result files.
-- Rebuild summaries and figures offline from raw histories.
+- History outcomes: PASS, VIOLATION, UNAVAILABLE, INDETERMINATE,
+  PRECONDITION_MISS, HARNESS_ERROR.
+- Only PASS and VIOLATION enter the consistency denominator.
+- Treat a write timeout or lost response after command start as INDETERMINATE.
+- Report operation success, history completion, latency quantiles, election
+  and recovery time, and exploratory factorial contrasts.
+- Freeze prediction and protocol commits before the pilot/main results.
+- Rebuild summaries, plots, and report macros offline from raw histories.
 
-## Verification before the main campaign
-
-The main campaign required checker fixtures, malformed-history handling, same-key MW/WFR checks, actual routing capture, stale-member access, independent election barriers, fault cleanup, and runner isolation to pass. These checks are recorded in the test suite and were completed before the main campaign.
+See experimental-protocol.md for the complete experiment definition and
+acceptance criteria.

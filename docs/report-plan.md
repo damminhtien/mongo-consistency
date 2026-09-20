@@ -1,65 +1,72 @@
 # Report plan
 
-The report is a short experimental systems paper. Each result must be traceable through this chain:
+The report presents the final protocol and its measured evidence. It does not
+recount development attempts or copy unverified values into LaTeX. Every result
+must be reproducible from this chain:
 
-```text
-question -> theory -> prediction -> adversarial experiment -> recorded history -> checker -> explanation
-```
+~~~text
+question -> prediction -> registered schedule -> raw history -> offline checker -> analysis
+~~~
 
-## Section plan
+## Sections
 
-1. Abstract: state the system, four properties, configuration factors, failure instruments, and the measured outcomes. Do not state a result before the raw campaign and analysis are complete.
-2. Introduction: motivate client-visible consistency and state RQ1 and RQ2 separately.
-3. Background: define RYW, WFR, MR, and MW from the DSA5208 slides. Explain read concern, write concern, explicit causal sessions, primary election, and the limits of scalar ordering.
-4. Deployment: describe the three-member Compose replica set, client and replica networks, versions, image digest, and the restricted runner boundary.
-5. Predictions: show C1-C8 and the frozen guarantee targets. State that an unguaranteed cell permits a counterexample but does not predict one on every run.
-6. Method: define the logical document, integer versions, explicit dependencies, operation records, property schedules, timeout classes, outcome classes, campaign order, and history hashes.
-7. Results: report raw outcome counts, consistency rates, operation success, history completion, latency, election and recovery time, and factorial contrasts.
-8. Discussion: explain representative traces through the recorded routing, fault event, dependencies, and checker reason. Keep observed behaviour separate from MongoDB internal mechanisms that were not inspected.
-9. Limits: cover laptop-hosted replicas, synthetic network faults, finite schedules, timing sensitivity, version scope, and the boundary between RQ1 and RQ2.
-10. Reproduction: give the setup, pilot, serial or isolated-parallel main campaign, analysis, and submission commands. State which commands require Docker and which are offline.
-11. Conclusion: answer only the questions supported by the recorded histories.
-12. Tool use: disclose code-generation assistance and identify which claims were checked by tests or raw artifacts.
+1. Abstract: scope, factors, topology, campaign status, and results generated
+   from the final analysis.
+2. Introduction: state RQ1 and RQ2 separately and define the client-visible
+   consistency problem.
+3. Background: explain RYW, MR, MW, WFR, logical versions, and the limits of
+   inferring causality from scalar timestamps.
+4. Deployment: describe the three-member Compose topology, network paths,
+   actual software versions, image digest, and runner boundary.
+5. Predictions: show C1-C8 and the durability-aware guarantee targets.
+6. Method: define the logical document, explicit session, preconditions,
+   property-specific schedules, independent observer, timeouts, outcomes, and
+   provenance.
+7. Results: derive counts, rates, latency, election/recovery times, contrasts,
+   figures, and representative traces from the campaign artifacts.
+8. Discussion: compare predictions with observations and explain only what the
+   trace supports.
+9. Limits: cover one-host containers, synthetic faults, finite schedules, and
+   the limits of generalizing to other versions or deployments.
+10. Reproduction: distinguish Docker-required commands from offline analysis
+    and submission builds.
+11. Conclusion: answer only the research questions supported by completed
+    histories.
+12. Tool-use disclosure and evidence appendix.
 
-## Required figures
+## Required tables and figures
 
-- Compose architecture with separate client and replica paths.
-- Four slide-style counterexample timelines, one each for RYW, MR, MW, and WFR.
-- Normal topology and each fault topology used by the schedules.
-- Configuration-property outcome heatmap.
-- Factorial interaction plots for read concern, write concern, and causal session.
-- Representative raw trace with requested and actual routing.
-- Latency plot with p50, p95, and p99 values.
-- Prediction-versus-observation table or figure.
-
-## Required tables
-
-- Software versions, image digest, member addresses, and timeout policy.
-- C1-C8 settings and prediction targets.
-- Property definitions and operation sequences.
-- Counts for `PASS`, `VIOLATION`, `UNAVAILABLE`, `INDETERMINATE`, `HARNESS_ERROR`, and `UNSUPPORTED`.
-- Main effects and interactions for each property and metric.
-- One explanation table mapping a prediction to a representative history and checker reason.
-- Limitations and unanswered questions.
+- Version and image-digest table.
+- C1-C8 settings and prediction table.
+- Property definitions and operation schedules.
+- Outcome counts for PASS, VIOLATION, UNAVAILABLE, INDETERMINATE,
+  PRECONDITION_MISS, and HARNESS_ERROR.
+- Operation success, history completion, consistency rate, p50/p95/p99 latency,
+  election and recovery summaries.
+- RC, WC, causal-session contrasts and interactions where the data support
+  them; label these exploratory and descriptive.
+- Four slide-aligned property timelines.
+- Architecture and fault-topology diagrams.
+- Configuration/property outcome heatmap and prediction-versus-observation
+  plot.
+- Representative trace with requested route, actual server, session metadata,
+  fault state, and direct topology evidence.
 
 ## Evidence rules
 
-- The prediction manifest is committed before result files.
-- A result claim must cite a raw history, manifest, derived summary, or a checked source page.
-- `PASS` and `VIOLATION` determine the consistency denominator. Other outcomes stay visible and are not silently discarded.
-- Keep the 192-history pilot separate from the 1,280-history main campaign. Report the 320 normal controls and 960 adversarial histories in separate columns; RQ1 rates and factorial contrasts use the adversarial histories only.
-- Report any consistency violations found in normal controls by property and configuration. Keep them separate from adversarial RQ1 estimates, and do not let adversarial-only zero counts read as whole-campaign zero counts.
-- A timeout after a possibly completed write is `INDETERMINATE`.
-- Absence of a violation in the tested histories is not a universal guarantee.
-- A checker result does not establish an internal MongoDB mechanism unless an observable trace supports that explanation.
-- Parallel workers are an execution detail. Report their count and resource isolation, and treat latency as measured under that declared level of concurrency.
-- If a campaign is resumed across execution modes or runner revisions, report the accepted history count for each mode, keep failed harness attempts outside `results/raw/`, and qualify pooled latency as descriptive under mixed host load.
-- State property-specific violation denominators and the sample count behind any unusually high cell rate. Factorial contrasts use equal-weight available cell rates here and are descriptive, not inferential.
-
-## Source links
-
-- [Assignment summary](assignment.md)
-- [Project plan](project-plan.md)
-- [Slide alignment](slide-alignment.md)
-- [Experimental protocol](experimental-protocol.md)
-- [Step 1 decisions](step-1-decisions.md)
+- Commit prediction and protocol inputs before pilot/main results.
+- Keep prediction_commit, protocol_commit, and runner_commit distinct.
+- Use raw histories as the only source for summary metrics and generated report
+  macros.
+- The consistency denominator is PASS + VIOLATION. Report all other outcomes
+  separately; never count a precondition miss as a database violation.
+- Keep the pilot separate from RQ1. Report the 320 normal controls separately
+  from the 960 adversarial histories.
+- Do not pool parallel execution into RQ1 latency. RQ1 runs sequentially.
+- State the numerator and denominator for every property/configuration rate.
+- Treat zero observed violations as a finite observation, not proof of a
+  universal guarantee.
+- Explain a MongoDB internal mechanism only when the recorded observable trace
+  supports that explanation.
+- If there is no complete main manifest, report evidence as unavailable; do not
+  insert historical counts or predicted values as measurements.
