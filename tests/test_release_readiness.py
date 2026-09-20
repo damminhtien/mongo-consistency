@@ -84,6 +84,22 @@ def _valid_root(root: Path) -> None:
                 }
                 episode_records.append(record)
                 rq2_records.append(record)
+        event: dict[str, object] = {
+            "status": "APPLIED",
+            "recovery_status": "CONVERGED",
+            "coordinator_apply": {"ok": True, "action": "apply", "details": {}},
+            "recovery_details": {"ok": True, "action": "recover"},
+        }
+        if plan["topology_condition"] == "F1":
+            event["fault_verified"] = True
+        if plan["topology_condition"] == "F3":
+            event["coordinator_apply"] = {
+                "ok": True,
+                "action": "apply",
+                "details": {
+                    "controller": {"verified": True, "replication_isolated": True}
+                },
+            }
         episodes.append(
             {
                 "episode_id": episode_id,
@@ -92,6 +108,10 @@ def _valid_root(root: Path) -> None:
                 "signature_extension": plan["signature_extension"],
                 "history_count": len(episode_records),
                 "trial_ids": [record["trial_id"] for record in episode_records],
+                "fault_status": "APPLIED",
+                "recovery_status": "CONVERGED",
+                "error": None,
+                "event": event,
             }
         )
 

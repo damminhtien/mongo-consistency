@@ -57,7 +57,15 @@ class FaultControllerClient:
         return result
 
     def health(self) -> dict[str, dict[str, Any]]:
-        return {member: self._request(member, "/health") for member in self.endpoints}
+        return {member: self.member_health(member) for member in self.endpoints}
+
+    def member_health(self, member: str) -> dict[str, Any]:
+        result = self._request(member, "/health")
+        if result.get("member") != member:
+            raise FaultControllerError(
+                f"fault controller identity mismatch for {member}: {result!r}"
+            )
+        return result
 
     def isolate(self, member: str, event_id: str) -> dict[str, Any]:
         response = self._request(

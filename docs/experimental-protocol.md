@@ -380,6 +380,13 @@ The coordinator persists an active-fault journal before changing topology. If
 the host process exits before cleanup, the next `make rq2` invocation must
 recover and verify that fault before starting another episode.
 
+Each fault-controller sidecar shares the network namespace of its MongoDB
+member. Restarting a member can replace that namespace, so the host coordinator
+recreates and health-checks the matching sidecar after every node restart and
+before a partition. An episode counts as complete only when the fault action is
+verified and recovery converges; a failed action or recovery stops the campaign
+and cannot be skipped by `--resume`.
+
 RQ2 is a controlled behavior study, not an estimate of a universal violation
 probability. Report the observed count and denominator; for example, report
 "no violation was observed in 8 controlled repetitions." Do not report a zero

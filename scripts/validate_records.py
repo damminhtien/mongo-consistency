@@ -396,6 +396,34 @@ def _check_campaign_manifest(
                     )
                     if expected is None:
                         continue
+                    event = episode.get("event")
+                    _require(
+                        episode.get("fault_status") == "APPLIED"
+                        and episode.get("recovery_status") == "CONVERGED"
+                        and episode.get("error") is None
+                        and isinstance(event, dict)
+                        and event.get("status") == "APPLIED"
+                        and event.get("recovery_status") == "CONVERGED",
+                        f"{path}: RQ2 episode {episode_id} did not verify fault application and recovery",
+                        errors,
+                    )
+                    if expected["topology_condition"] == "F1":
+                        _require(
+                            isinstance(event, dict) and event.get("fault_verified") is True,
+                            f"{path}: RQ2 episode {episode_id} did not verify the surviving topology",
+                            errors,
+                        )
+                    if expected["topology_condition"] == "F3":
+                        apply = event.get("coordinator_apply") if isinstance(event, dict) else None
+                        details = apply.get("details") if isinstance(apply, dict) else None
+                        controller = details.get("controller") if isinstance(details, dict) else None
+                        _require(
+                            isinstance(controller, dict)
+                            and controller.get("verified") is True
+                            and controller.get("replication_isolated") is True,
+                            f"{path}: RQ2 episode {episode_id} lacks verified partition evidence",
+                            errors,
+                        )
                     episode_records = records_by_episode.get(episode_id, [])
                     record_ids = [record.get("trial_id") for record in episode_records]
                     listed_ids = episode.get("trial_ids")

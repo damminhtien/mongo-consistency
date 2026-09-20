@@ -228,6 +228,30 @@ def _check_campaign(root: Path, campaign: str, expected_count: int, errors: list
             expected_plan = RQ2_EPISODE_PLAN.get(episode_id) if isinstance(episode_id, str) else None
             if expected_plan is None:
                 continue
+            event = episode.get("event")
+            if (
+                episode.get("fault_status") != "APPLIED"
+                or episode.get("recovery_status") != "CONVERGED"
+                or episode.get("error") is not None
+                or not isinstance(event, dict)
+                or event.get("status") != "APPLIED"
+                or event.get("recovery_status") != "CONVERGED"
+            ):
+                errors.append(f"rq2: {episode_id} lacks verified fault application or recovery")
+            if expected_plan["topology_condition"] == "F1" and (
+                not isinstance(event, dict) or event.get("fault_verified") is not True
+            ):
+                errors.append(f"rq2: {episode_id} lacks surviving-topology verification")
+            if expected_plan["topology_condition"] == "F3":
+                apply = event.get("coordinator_apply") if isinstance(event, dict) else None
+                details = apply.get("details") if isinstance(apply, dict) else None
+                controller = details.get("controller") if isinstance(details, dict) else None
+                if (
+                    not isinstance(controller, dict)
+                    or controller.get("verified") is not True
+                    or controller.get("replication_isolated") is not True
+                ):
+                    errors.append(f"rq2: {episode_id} lacks verified partition evidence")
             expected_history_count = expected_plan["history_count"]
             if (
                 episode.get("history_count") != expected_history_count

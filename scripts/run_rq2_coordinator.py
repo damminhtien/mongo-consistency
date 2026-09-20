@@ -18,7 +18,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from mongo_consistency.faults import FaultControllerClient  # noqa: E402
+from mongo_consistency.faults import FaultControllerClient, FaultControllerError  # noqa: E402
 
 COMPOSE_FILE = ROOT / "compose.yaml"
 MEMBERS = {"mongo1", "mongo2", "mongo3"}
@@ -157,6 +157,11 @@ class FaultCoordinator:
 
     def _apply(self, condition: str, member: str, event_id: str) -> dict[str, Any]:
         if condition == "F3":
+            health = self._refresh_fault_controller(member)
+            if health.get("replication_isolated") is not False:
+                raise CoordinatorError(
+                    f"fault controller for {member} is already isolating replication traffic"
+                )
             response = self.controllers.isolate(member, event_id)
             return {"mechanism": "replica-network-isolation", "controller": response}
         result = self._compose("kill", "--signal", "SIGKILL", member)
@@ -164,10 +169,46 @@ class FaultCoordinator:
 
     def _recover(self, condition: str, member: str, event_id: str) -> dict[str, Any]:
         if condition == "F3":
-            response = self.controllers.heal(member, event_id)
-            return {"mechanism": "replica-network-heal", "controller": response}
+            refreshed = False
+            try:
+                response = self.controllers.heal(member, event_id)
+            except FaultControllerError:
+                self._refresh_fault_controller(member)
+                refreshed = True
+                response = self.controllers.heal(member, event_id)
+            return {
+                "mechanism": "replica-network-heal",
+                "controller": response,
+                "controller_refreshed": refreshed,
+            }
         result = self._compose("start", member)
-        return {"mechanism": "container-start", "stdout": result.stdout.strip()}
+        health = self._refresh_fault_controller(member)
+        if health.get("replication_isolated") is not False:
+            raise CoordinatorError(
+                f"fault controller for restarted {member} reports an active partition"
+            )
+        return {
+            "mechanism": "container-start",
+            "stdout": result.stdout.strip(),
+            "fault_controller": health,
+        }
+
+    def _refresh_fault_controller(self, member: str) -> dict[str, Any]:
+        controller_number = member.removeprefix("mongo")
+        service = f"fault-controller-{controller_number}"
+        self._compose("up", "-d", "--force-recreate", "--no-deps", service)
+        deadline = time.monotonic() + 20
+        last_error: Exception | None = None
+        while time.monotonic() < deadline:
+            try:
+                return self.controllers.member_health(member)
+            except FaultControllerError as error:
+                last_error = error
+                time.sleep(0.2)
+        raise CoordinatorError(
+            f"fault controller for {member} did not reattach to its current network namespace: "
+            f"{last_error}"
+        )
 
     def _compose(self, *arguments: str) -> subprocess.CompletedProcess[str]:
         try:

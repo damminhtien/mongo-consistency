@@ -887,6 +887,46 @@ def _manifest(
     return payload
 
 
+def _episode_is_valid(record: dict[str, Any]) -> bool:
+    """Return whether an episode applied, then recovered from, its registered fault."""
+
+    event = record.get("event")
+    if (
+        record.get("error") is not None
+        or record.get("fault_status") != "APPLIED"
+        or record.get("recovery_status") != "CONVERGED"
+        or not isinstance(event, dict)
+        or event.get("status") != "APPLIED"
+        or event.get("recovery_status") != "CONVERGED"
+    ):
+        return False
+
+    apply_result = event.get("coordinator_apply")
+    recovery_result = event.get("recovery_details")
+    if (
+        not isinstance(apply_result, dict)
+        or apply_result.get("ok") is not True
+        or apply_result.get("action") != "apply"
+        or not isinstance(recovery_result, dict)
+        or recovery_result.get("ok") is not True
+        or recovery_result.get("action") != "recover"
+    ):
+        return False
+
+    if record.get("topology_condition") == "F1" and event.get("fault_verified") is not True:
+        return False
+    if record.get("topology_condition") == "F3":
+        details = apply_result.get("details")
+        controller = details.get("controller") if isinstance(details, dict) else None
+        if (
+            not isinstance(controller, dict)
+            or controller.get("verified") is not True
+            or controller.get("replication_isolated") is not True
+        ):
+            return False
+    return True
+
+
 def _load_completed_episodes(
     campaign_directory: Path,
     episodes: list[EpisodePlan],
@@ -934,6 +974,11 @@ def _load_completed_episodes(
                     "recovery_status": event.get("recovery_status"),
                     "event": event,
                 }
+            )
+        if not _episode_is_valid(completed[episode.episode_id]):
+            raise ValueError(
+                f"existing RQ2 episode {episode.episode_id} did not verify fault application "
+                "and recovery; archive the failed attempt before resuming"
             )
     return records, completed
 
@@ -1121,6 +1166,13 @@ def run_campaign(output_root: Path, *, resume: bool = False) -> dict[str, Any]:
                 ),
                 flush=True,
             )
+            if not _episode_is_valid(episode_record):
+                raise RuntimeError(
+                    f"RQ2 episode {episode.episode_id} failed fault or recovery validation: "
+                    f"fault_status={episode_record['fault_status']!r}, "
+                    f"recovery_status={episode_record['recovery_status']!r}, "
+                    f"error={episode_record['error']!r}"
+                )
         else:
             status = "COMPLETE"
     except Exception as error:  # noqa: BLE001 - persist episode-level failure and completed work.
