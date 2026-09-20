@@ -123,8 +123,9 @@ frozen provenance; clean pilot; complete RQ1 and RQ2 manifests; offline analysis
 rendered and inspected PDF; reproducible archive; and CI checks. A passing unit
 suite does not substitute for live schedule evidence.
 
-The `make rq2` target and grouped runner are implemented. The campaign still
-requires a clean, committed protocol/runner snapshot and a running Docker
-daemon; no RQ2 histories have been executed or live-validated. The host
-coordinator applies faults outside the runner container through a temporary
-IPC mount, keeping Docker control out of the runner.
+The grouped RQ2 campaign completed on 20 September 2026 from clean runner and
+protocol commit `3c35e94`: 432 histories across 36 fault episodes, with all
+faults verified and all recovery checks converged. Record/schema validation
+passed and offline analysis was rebuilt. See [rq2-results.md](rq2-results.md).
+The host coordinator applies faults outside the runner container through a
+temporary IPC mount, keeping Docker control out of the runner.

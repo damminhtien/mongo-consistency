@@ -55,9 +55,13 @@ as its descriptive baseline and runs no additional normal condition.
 The RQ2 design groups trials into 24 core fault episodes and 12 partition
 extension episodes. Histories use unique keys and sessions; election and
 recovery timing is summarized once per episode. The grouped runner and
-`make rq2` target are implemented, but the 432-history campaign has not been
-run. The host coordinator controls faults through a temporary, narrowly mounted
-IPC directory; the runner receives no Docker socket.
+`make rq2` campaign completed on 20 September 2026: 432 histories across 36
+episodes, all with verified fault application and converged recovery. Outcomes
+were 352 PASS, 40 VIOLATION, and 40 INDETERMINATE; the latter are not counted as
+consistency passes or violations. The C1 partition RYW and MW violations were
+reproduced in all 20 signature repetitions. See [RQ2 results](docs/rq2-results.md).
+The host coordinator controls faults through a temporary, narrowly mounted IPC
+directory; the runner receives no Docker socket.
 
 ## Release package
 

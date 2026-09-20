@@ -464,7 +464,9 @@ runtime. RQ2 reuses the RQ1 normal baseline and runs no additional normal
 histories. The report describes only the final frozen protocol and completed
 campaign; development attempts are not scientific results.
 
-The grouped `make rq2` runner is implemented but has not yet been executed. A
-host-side coordinator applies node faults and partition rules through a
-temporary, narrowly mounted IPC directory; the runner container receives no
-Docker socket and runs as a non-root user matching the host-owned IPC path.
+The grouped `make rq2` runner completed on 20 September 2026 with 432 histories
+in 36 verified fault episodes. All fault actions were applied and all recovery
+checks converged. The host-side coordinator applies node faults and partition
+rules through a temporary, narrowly mounted IPC directory; the runner container
+receives no Docker socket and runs as a non-root user matching the host-owned
+IPC path. See [rq2-results.md](rq2-results.md) for the observed outcomes.

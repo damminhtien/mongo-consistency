@@ -62,14 +62,14 @@ offline analysis, and the rendered submission all pass the evidence checks.
 - [x] Implement the grouped RQ2 runner and host-only fault coordinator for
   C1/C3/C4/C6, F1/F2/F3, and RYW/MR/MW/WFR, with a 432-history plan across 36
   episodes and unique keys/sessions per history.
-- [ ] Freeze the clean protocol/runner provenance, then run the 384-history
+- [x] Freeze the clean protocol/runner provenance, then run the 384-history
   core and extend four partition signature cells to 20 repetitions (432 total);
   use RQ1 normal histories as the separate baseline.
-- [ ] Validate manifests, hashes, routing, cleanup, and completeness before analysis.
+- [x] Validate manifests, hashes, routing, cleanup, and completeness before analysis.
 
 ## Analysis and submission
 
-- [ ] Rebuild every summary and figure from raw histories without MongoDB.
+- [x] Rebuild every summary and figure from raw histories without MongoDB.
 - [ ] Add generated-result drift checks to CI.
 - [ ] Derive every outcome and metric in LaTeX from generated macros.
 - [ ] Render and visually inspect the final PDF after RQ1/RQ2 evidence is complete.
@@ -77,6 +77,9 @@ offline analysis, and the rendered submission all pass the evidence checks.
 - [ ] Commit coherent slices, inspect staged diffs, run git diff --check, and
   push main.
 
-Last recorded offline evidence: make test passed 70 tests on 20 September 2026;
-documentation and record checks passed before this RQ2 revision. The new RQ2
-runner has not been executed, and no live validation is claimed.
+RQ2 execution evidence (20 September 2026): `make rq2` completed 432/432
+histories and 36/36 episodes with verified fault application and converged
+recovery. Record/schema validation passed and `make analyse` rebuilt the summary
+and figures. `make check-release-ready` remains blocked by two pending team
+student IDs; it reported no RQ2 completeness or analysis errors. The full outcome
+table and signature-cell observations are in [docs/rq2-results.md](docs/rq2-results.md).
