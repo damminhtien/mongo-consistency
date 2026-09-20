@@ -12,10 +12,25 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from mongo_consistency.driver import RoutingMonitor, operation_record_from_events
 from mongo_consistency.models import OperationRecord
-from scripts.setup_experiment import initialize_replica_set
+from scripts.setup_experiment import initialize_replica_set, working_tree_clean
 
 
 class HarnessLayoutTests(unittest.TestCase):
+    def test_provenance_clean_check_excludes_generated_outputs(self) -> None:
+        for status_output, expected in (("", True), (" M src/package.py\n", False)):
+            completed = subprocess.CompletedProcess(
+                ["git", "status"], 0, status_output, ""
+            )
+            with patch("scripts.setup_experiment.run", return_value=completed) as run_mock:
+                self.assertEqual(expected, working_tree_clean())
+
+            command = run_mock.call_args.args[0]
+            self.assertIn("--untracked-files=all", command)
+            self.assertIn(":(exclude)results/**", command)
+            self.assertIn(":(exclude)figures/**", command)
+            self.assertIn(":(exclude)output/**", command)
+            self.assertIn(":(exclude)tmp/**", command)
+
     def test_setup_captures_replica_status_through_temporary_output_mount(self) -> None:
         def fake_run(
             command: list[str],

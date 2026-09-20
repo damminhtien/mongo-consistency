@@ -15,6 +15,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 COMPOSE_FILE = ROOT / "compose.yaml"
+GENERATED_PATH_EXCLUDES = (
+    ":(exclude)results/**",
+    ":(exclude)figures/**",
+    ":(exclude)output/**",
+    ":(exclude)tmp/**",
+)
 
 
 class SetupError(RuntimeError):
@@ -64,7 +70,18 @@ def source_revision() -> str:
 
 
 def working_tree_clean() -> bool:
-    result = run(["git", "status", "--porcelain"], check=False)
+    result = run(
+        [
+            "git",
+            "status",
+            "--porcelain",
+            "--untracked-files=all",
+            "--",
+            ".",
+            *GENERATED_PATH_EXCLUDES,
+        ],
+        check=False,
+    )
     return result.returncode == 0 and not result.stdout.strip()
 
 
