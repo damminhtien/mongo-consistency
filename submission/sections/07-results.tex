@@ -47,19 +47,111 @@ Recovery p50 (ms) & \ControlRecoveryMedian & \RecoveryMedian \\
 \end{tabular}
 \end{table}
 
-RQ2 is reported separately by fault condition, configuration, and property.
-The C1/C3/C4/C6 RQ1 normal controls are its descriptive baseline; normal
-histories are not rerun or pooled into the RQ2 campaign. Report each outcome
-and operation-availability count with its denominator, and report latency and
-rollback measures with their observation counts. Election and recovery
-summaries use the completed fault episodes (36 planned: 24 core and 12
-partition-extension episodes); the 432 planned histories sharing those
-episodes are not independent fault injections. Describe zero observed
-violations as a finite observation, not as a zero true violation probability.
+\clearpage
+\subsection{RQ2 fault campaign}
 
-The main comparison is configuration by property: prediction, checked
-observation, then an explanation supported by the saved trace. Property-specific
-denominators and outcome counts are shown with the generated plots.
+The RQ2 manifest state is \texttt{\RQTwoStatus}. The completed campaign contains
+\RQTwoHistoryCount\ histories: \RQTwoPassCount\ PASS,
+\RQTwoViolationCount\ VIOLATION, \RQTwoUnavailableCount\ UNAVAILABLE,
+\RQTwoIndeterminateCount\ INDETERMINATE,
+\RQTwoPreconditionMissCount\ PRECONDITION\_MISS, and
+\RQTwoHarnessErrorCount\ HARNESS\_ERROR. The descriptive violation rate is
+\RQTwoViolationCount/(\RQTwoPassCount+\RQTwoViolationCount) =
+\RQTwoConsistencyViolationPercent\% among resolved histories. It describes this
+fixed campaign matrix, not a universal violation probability. Subject
+\RQTwoOperationSuccessfulCount/\RQTwoOperationAttemptedCount\ operations
+succeeded (\RQTwoOperationSuccessPercent\%), and
+\RQTwoHistoryCompletionPercent\% of histories reached a classified outcome.
+Operation latency p50/p95/p99 was
+\RQTwoLatencyMedianMs/\RQTwoLatencyHighMs/\RQTwoLatencyTailMs\ ms. The independent
+observer checked \RQTwoRollbackCheckedWriteCount\ acknowledged writes and found
+\RQTwoRolledBackWriteCount\ rollbacks (\RQTwoRollbackPercent\%).
+
+RQ2 used the matching C1/C3/C4/C6 RQ1 normal histories as a descriptive
+baseline; it added no normal histories. The tables report every fault,
+configuration, and property cell. Outcome vectors list, in order, PASS,
+VIOLATION, UNAVAILABLE, INDETERMINATE, PRECONDITION\_MISS, and HARNESS\_ERROR.
+Operation availability is reported as successful/attempted subject operations.
+Latency quantiles are in milliseconds. Rollback counts use acknowledged writes
+as the observation unit.
+
+{\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{longtable}{@{}lllrll@{}}
+\caption{RQ2 outcomes and operation availability by fault, configuration, and property.}
+\label{tab:rq2-outcomes}\\
+\toprule
+Fault & Config & Property & $n$ & P/V/U/I/PM/HE & Ops S/A \\
+\midrule
+\endfirsthead
+\caption[]{RQ2 outcomes and operation availability (continued).}\\
+\toprule
+Fault & Config & Property & $n$ & P/V/U/I/PM/HE & Ops S/A \\
+\midrule
+\endhead
+\midrule
+\multicolumn{6}{r}{Continued on next page}\\
+\endfoot
+\bottomrule
+\endlastfoot
+\RQTwoOutcomeRows
+\end{longtable}
+}
+
+{\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{longtable}{@{}ll l r r r r@{}}
+\caption{RQ2 latency and acknowledged-write rollback by fault, configuration, and property.}
+\label{tab:rq2-latency-rollback}\\
+\toprule
+Fault & Config & Property & Latency p50/p95/p99 (ms) & Ack writes & Checked/rolled back & Rollback (\%) \\
+\midrule
+\endfirsthead
+\caption[]{RQ2 latency and acknowledged-write rollback (continued).}\\
+\toprule
+Fault & Config & Property & Latency p50/p95/p99 (ms) & Ack writes & Checked/rolled back & Rollback (\%) \\
+\midrule
+\endhead
+\midrule
+\multicolumn{7}{r}{Continued on next page}\\
+\endfoot
+\bottomrule
+\endlastfoot
+\RQTwoMetricRows
+\end{longtable}
+}
+
+Election and recovery use fault episodes as the unit (F1:
+\RQTwoFoneEpisodeCount; F2: \RQTwoFtwoEpisodeCount; F3:
+\RQTwoFthreeEpisodeCount); histories sharing an episode are not independent
+fault injections. Every fault action was applied and every episode converged.
+
+\clearpage
+{\small
+\begin{longtable}{@{}lrrrrrr@{}}
+\caption{RQ2 election and recovery by fault episode. Times are p50 seconds.}
+\label{tab:rq2-episodes}\\
+\toprule
+Fault & Episodes & Applied & Elections & Election p50 & Converged & Recovery p50 \\
+\midrule
+\RQTwoEpisodeRows
+\bottomrule
+\end{longtable}
+}
+
+Four F3 signature cells distinguish the observed behavior. C1 RYW produced the
+same stale-read violation in
+\RQTwoFthreeConeRYWViolationCount/\RQTwoFthreeConeRYWHistoryCount\ histories;
+C1 MW produced the same write-order violation in
+\RQTwoFthreeConeMWViolationCount/\RQTwoFthreeConeMWHistoryCount\ histories. In
+both cells an acknowledged version 1 was later read as version 0 (RYW), or
+successor write \texttt{w2} was visible while predecessor \texttt{w1} was absent
+(MW). C6 RYW and MW were INDETERMINATE in
+\RQTwoFthreeCsixRYWIndeterminateCount/\RQTwoFthreeCsixRYWHistoryCount\ and
+\RQTwoFthreeCsixMWIndeterminateCount/\RQTwoFthreeCsixMWHistoryCount\ histories,
+respectively: the required majority write timed out before the dependent
+operation was issued. These histories remain separate from consistency passes
+and violations.
 
 \maybefigure{submission/figures/outcome-heatmap.pdf}{Outcome heatmap by configuration and property.}
 \maybefigure{submission/figures/latency.pdf}{Operation latency quantiles by RQ1 condition; pilot excluded.}

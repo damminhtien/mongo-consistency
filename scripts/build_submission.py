@@ -181,6 +181,9 @@ def write_generated_analysis(path: Path, root: Path) -> None:
     status = "NO_DATA"
     pilot_history_count = 0
     main_campaign: dict[str, Any] = {}
+    rq2_campaign: dict[str, Any] = {}
+    summary_groups: list[dict[str, Any]] = []
+    fault_episode_summaries: list[dict[str, Any]] = []
     normal: dict[str, Any] = {}
     adversarial: dict[str, Any] = {}
     if summary_path.is_file():
@@ -204,6 +207,17 @@ def write_generated_analysis(path: Path, root: Path) -> None:
                 pilot = campaigns.get("pilot", {})
                 if isinstance(pilot, dict):
                     pilot_history_count = int(pilot.get("history_count", 0) or 0)
+                rq2 = campaigns.get("rq2", {})
+                if isinstance(rq2, dict):
+                    rq2_campaign = rq2
+            groups = summary.get("groups", [])
+            if isinstance(groups, list):
+                summary_groups = [row for row in groups if isinstance(row, dict)]
+            episodes = summary.get("fault_episode_summaries", [])
+            if isinstance(episodes, list):
+                fault_episode_summaries = [
+                    row for row in episodes if isinstance(row, dict)
+                ]
 
     def metric(summary: dict[str, Any], keys: tuple[str, ...]) -> str:
         value: object = summary
@@ -227,6 +241,68 @@ def write_generated_analysis(path: Path, root: Path) -> None:
         except (OSError, UnicodeError, json.JSONDecodeError):
             main_manifest = {}
     main_campaign_status = str(main_manifest.get("status", "NO_DATA"))
+
+    rq2_manifest: dict[str, Any] = {}
+    rq2_manifest_path = root / "results/raw/rq2/campaign-manifest.json"
+    if rq2_manifest_path.is_file():
+        try:
+            loaded_manifest = json.loads(rq2_manifest_path.read_text(encoding="utf-8"))
+            if isinstance(loaded_manifest, dict):
+                rq2_manifest = loaded_manifest
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            rq2_manifest = {}
+    rq2_manifest_status = str(rq2_manifest.get("status", "NO_DATA"))
+    rq2_groups = [row for row in summary_groups if row.get("campaign_id") == "rq2"]
+    rq2_group_by_key = {
+        (
+            str(row.get("topology_condition")),
+            str(row.get("configuration_id")),
+            str(row.get("property")),
+        ): row
+        for row in rq2_groups
+    }
+    rq2_faults = ("F1", "F2", "F3")
+    rq2_configurations = ("C1", "C3", "C4", "C6")
+    rq2_properties = ("RYW", "MR", "MW", "WFR")
+    rq2_fault_macro_names = {"F1": "Fone", "F2": "Ftwo", "F3": "Fthree"}
+    rq2_config_macro_names = {
+        "C1": "Cone",
+        "C3": "Cthree",
+        "C4": "Cfour",
+        "C6": "Csix",
+    }
+    rq2_expected_keys = {
+        (fault, configuration, property_name)
+        for fault in rq2_faults
+        for configuration in rq2_configurations
+        for property_name in rq2_properties
+    }
+    rq2_episode_by_fault = {
+        str(row.get("topology_condition")): row
+        for row in fault_episode_summaries
+        if row.get("topology_condition") in rq2_faults
+    }
+    rq2_complete = (
+        rq2_manifest_status == "COMPLETE"
+        and len(rq2_groups) == len(rq2_expected_keys)
+        and set(rq2_group_by_key) == rq2_expected_keys
+        and set(rq2_episode_by_fault) == set(rq2_faults)
+    )
+
+    def count_value(summary: dict[str, Any], field: str) -> int:
+        value = summary.get(field, 0)
+        return int(value) if isinstance(value, (int, float)) else 0
+
+    def percent_value(value: object, digits: int = 1) -> str:
+        if not isinstance(value, (int, float)):
+            return "NA" if rq2_complete else "--"
+        return f"{float(value) * 100:.{digits}f}"
+
+    def millisecond_value(value: object, digits: int = 1) -> str:
+        return f"{float(value):.{digits}f}" if isinstance(value, (int, float)) else "NA"
+
+    def second_value(value: object) -> str:
+        return f"{float(value) / 1000:.2f}" if isinstance(value, (int, float)) else "NA"
 
     normal_counts = normal.get("outcomes", {})
     adversarial_counts = adversarial.get("outcomes", {})
@@ -309,9 +385,246 @@ def write_generated_analysis(path: Path, root: Path) -> None:
                 macros[f"{property_name}{macro_suffix}Count"] = str(
                     int(property_counts.get(outcome, 0) or 0)
                 ) if has_property_histories else "--"
+    rq2_raw_macros = {
+        "RQTwoOutcomeRows": "",
+        "RQTwoMetricRows": "",
+        "RQTwoEpisodeRows": "",
+    }
+    macros["RQTwoStatus"] = rq2_manifest_status
+    if rq2_complete:
+        rq2_adversarial = rq2_campaign.get("adversarial", {})
+        rq2_outcomes = rq2_campaign.get("outcomes", {})
+        if not isinstance(rq2_adversarial, dict):
+            rq2_adversarial = {}
+        if not isinstance(rq2_outcomes, dict):
+            rq2_outcomes = {}
+        macros.update(
+            {
+                "RQTwoHistoryCount": str(count_value(rq2_campaign, "history_count")),
+                "RQTwoPassCount": str(int(rq2_outcomes.get("PASS", 0) or 0)),
+                "RQTwoViolationCount": str(int(rq2_outcomes.get("VIOLATION", 0) or 0)),
+                "RQTwoUnavailableCount": str(int(rq2_outcomes.get("UNAVAILABLE", 0) or 0)),
+                "RQTwoIndeterminateCount": str(int(rq2_outcomes.get("INDETERMINATE", 0) or 0)),
+                "RQTwoPreconditionMissCount": str(
+                    int(rq2_outcomes.get("PRECONDITION_MISS", 0) or 0)
+                ),
+                "RQTwoHarnessErrorCount": str(int(rq2_outcomes.get("HARNESS_ERROR", 0) or 0)),
+                "RQTwoConsistencyViolationPercent": percent_value(
+                    rq2_adversarial.get("consistency_violation_rate")
+                ),
+                "RQTwoOperationSuccessPercent": percent_value(
+                    rq2_adversarial.get("operation_success_rate")
+                ),
+                "RQTwoHistoryCompletionPercent": percent_value(
+                    rq2_adversarial.get("history_completion_rate")
+                ),
+                "RQTwoOperationSuccessfulCount": str(
+                    count_value(rq2_adversarial, "operation_successful_count")
+                ),
+                "RQTwoOperationAttemptedCount": str(
+                    count_value(rq2_adversarial, "operation_attempted_count")
+                ),
+                "RQTwoLatencyMedianMs": millisecond_value(
+                    (rq2_adversarial.get("latency_ms") or {}).get("p50")
+                ),
+                "RQTwoLatencyHighMs": millisecond_value(
+                    (rq2_adversarial.get("latency_ms") or {}).get("p95")
+                ),
+                "RQTwoLatencyTailMs": millisecond_value(
+                    (rq2_adversarial.get("latency_ms") or {}).get("p99")
+                ),
+                "RQTwoAcknowledgedWriteCount": str(
+                    count_value(rq2_adversarial, "acknowledged_write_count")
+                ),
+                "RQTwoRollbackCheckedWriteCount": str(
+                    count_value(rq2_adversarial, "rollback_checked_write_count")
+                ),
+                "RQTwoRolledBackWriteCount": str(
+                    count_value(rq2_adversarial, "rolled_back_write_count")
+                ),
+                "RQTwoRollbackPercent": percent_value(
+                    rq2_adversarial.get("acknowledged_write_rollback_rate")
+                ),
+            }
+        )
+
+        outcome_rows: list[str] = []
+        metric_rows: list[str] = []
+        episode_table_rows: list[str] = []
+        for fault in rq2_faults:
+            for configuration in rq2_configurations:
+                for property_name in rq2_properties:
+                    row = rq2_group_by_key[(fault, configuration, property_name)]
+                    prefix = (
+                        f"RQTwo{rq2_fault_macro_names[fault]}"
+                        f"{rq2_config_macro_names[configuration]}{property_name}"
+                    )
+                    counts = row.get("outcomes", {})
+                    if not isinstance(counts, dict):
+                        counts = {}
+                    macros[f"{prefix}HistoryCount"] = str(count_value(row, "history_count"))
+                    for outcome, macro_suffix in outcome_names.items():
+                        macros[f"{prefix}{macro_suffix}Count"] = str(
+                            int(counts.get(outcome, 0) or 0)
+                        )
+                    macros[f"{prefix}OperationSuccessfulCount"] = str(
+                        count_value(row, "operation_successful_count")
+                    )
+                    macros[f"{prefix}OperationAttemptedCount"] = str(
+                        count_value(row, "operation_attempted_count")
+                    )
+                    outcome_values = [
+                        int(counts.get(outcome, 0) or 0)
+                        for outcome in (
+                            "PASS",
+                            "VIOLATION",
+                            "UNAVAILABLE",
+                            "INDETERMINATE",
+                            "PRECONDITION_MISS",
+                            "HARNESS_ERROR",
+                        )
+                    ]
+                    operations = (
+                        f"{count_value(row, 'operation_successful_count')}/"
+                        f"{count_value(row, 'operation_attempted_count')}"
+                    )
+                    outcome_rows.append(
+                        f"{fault} & {configuration} & {property_name} & "
+                        f"{count_value(row, 'history_count')} & "
+                        f"{'/'.join(map(str, outcome_values))} & {operations} \\\\"
+                    )
+                    latency = row.get("latency_ms", {})
+                    if not isinstance(latency, dict):
+                        latency = {}
+                    latency_values = "/".join(
+                        millisecond_value(latency.get(quantile))
+                        for quantile in ("p50", "p95", "p99")
+                    )
+                    rollback_checked = count_value(row, "rollback_checked_write_count")
+                    rollback_rate = row.get("acknowledged_write_rollback_rate")
+                    metric_rows.append(
+                        f"{fault} & {configuration} & {property_name} & "
+                        f"{latency_values} & "
+                        f"{count_value(row, 'acknowledged_write_count')} & "
+                        f"{rollback_checked}/{count_value(row, 'rolled_back_write_count')} & "
+                        f"{percent_value(rollback_rate)} \\\\"
+                    )
+
+        for fault in rq2_faults:
+            fault_summary = (rq2_campaign.get("topology_conditions") or {}).get(fault, {})
+            if not isinstance(fault_summary, dict):
+                fault_summary = {}
+            prefix = f"RQTwo{rq2_fault_macro_names[fault]}"
+            macros.update(
+                {
+                    f"{prefix}OperationSuccessfulCount": str(
+                        count_value(fault_summary, "operation_successful_count")
+                    ),
+                    f"{prefix}OperationAttemptedCount": str(
+                        count_value(fault_summary, "operation_attempted_count")
+                    ),
+                    f"{prefix}OperationSuccessPercent": percent_value(
+                        fault_summary.get("operation_success_rate")
+                    ),
+                    f"{prefix}HistoryCompletionPercent": percent_value(
+                        fault_summary.get("history_completion_rate")
+                    ),
+                    f"{prefix}LatencyMedianMs": millisecond_value(
+                        (fault_summary.get("latency_ms") or {}).get("p50")
+                    ),
+                    f"{prefix}LatencyHighMs": millisecond_value(
+                        (fault_summary.get("latency_ms") or {}).get("p95")
+                    ),
+                    f"{prefix}LatencyTailMs": millisecond_value(
+                        (fault_summary.get("latency_ms") or {}).get("p99")
+                    ),
+                    f"{prefix}AcknowledgedWriteCount": str(
+                        count_value(fault_summary, "acknowledged_write_count")
+                    ),
+                    f"{prefix}RollbackCheckedWriteCount": str(
+                        count_value(fault_summary, "rollback_checked_write_count")
+                    ),
+                    f"{prefix}RolledBackWriteCount": str(
+                        count_value(fault_summary, "rolled_back_write_count")
+                    ),
+                    f"{prefix}RollbackPercent": percent_value(
+                        fault_summary.get("acknowledged_write_rollback_rate")
+                    ),
+                }
+            )
+
+            episode = rq2_episode_by_fault[fault]
+            episode_records = episode.get("episodes", [])
+            if not isinstance(episode_records, list):
+                episode_records = []
+            applied_count = sum(
+                isinstance(item, dict) and item.get("status") == "APPLIED"
+                for item in episode_records
+            )
+            converged_count = sum(
+                isinstance(item, dict) and item.get("recovery_status") == "CONVERGED"
+                for item in episode_records
+            )
+            macros.update(
+                {
+                    f"{prefix}EpisodeCount": str(count_value(episode, "episode_count")),
+                    f"{prefix}AppliedEpisodeCount": str(applied_count),
+                    f"{prefix}ElectionSuccessCount": str(
+                        count_value(episode, "election_success_count")
+                    ),
+                    f"{prefix}ElectionMedianSeconds": second_value(
+                        (episode.get("election_ms") or {}).get("p50")
+                    ),
+                    f"{prefix}RecoveryConvergedCount": str(converged_count),
+                    f"{prefix}RecoveryMedianSeconds": second_value(
+                        (episode.get("recovery_ms") or {}).get("p50")
+                    ),
+                }
+            )
+            episode_table_rows.append(
+                f"{fault} & {count_value(episode, 'episode_count')} & {applied_count} & "
+                f"{count_value(episode, 'election_success_count')} & "
+                f"{second_value((episode.get('election_ms') or {}).get('p50'))} & "
+                f"{converged_count} & "
+                f"{second_value((episode.get('recovery_ms') or {}).get('p50'))} \\\\"
+            )
+        rq2_raw_macros = {
+            "RQTwoOutcomeRows": "\n".join(outcome_rows),
+            "RQTwoMetricRows": "\n".join(metric_rows),
+            "RQTwoEpisodeRows": "\n".join(episode_table_rows),
+        }
+    else:
+        macros.update(
+            {
+                "RQTwoHistoryCount": "--",
+                "RQTwoPassCount": "--",
+                "RQTwoViolationCount": "--",
+                "RQTwoUnavailableCount": "--",
+                "RQTwoIndeterminateCount": "--",
+                "RQTwoPreconditionMissCount": "--",
+                "RQTwoHarnessErrorCount": "--",
+                "RQTwoConsistencyViolationPercent": "NO_DATA",
+                "RQTwoOperationSuccessPercent": "NO_DATA",
+                "RQTwoHistoryCompletionPercent": "NO_DATA",
+                "RQTwoOperationSuccessfulCount": "--",
+                "RQTwoOperationAttemptedCount": "--",
+                "RQTwoLatencyMedianMs": "NO_DATA",
+                "RQTwoLatencyHighMs": "NO_DATA",
+                "RQTwoLatencyTailMs": "NO_DATA",
+                "RQTwoAcknowledgedWriteCount": "--",
+                "RQTwoRollbackCheckedWriteCount": "--",
+                "RQTwoRolledBackWriteCount": "--",
+                "RQTwoRollbackPercent": "NO_DATA",
+            }
+        )
+
     content = "\n".join(
         f"\\newcommand{{\\{name}}}{{{escape_latex(value)}}}"
         for name, value in macros.items()
+    )
+    content += "\n" + "\n".join(
+        f"\\newcommand{{\\{name}}}{{{value}}}"
+        for name, value in rq2_raw_macros.items()
     )
     path.write_text(content + "\n", encoding="utf-8")
 

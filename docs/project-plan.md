@@ -91,18 +91,22 @@ cache state is logged separately and never treated as ground truth.
 
 1. Freeze the data model and schema for preconditions, operations, diagnostics,
    outcomes, and final observation.
-2. Finish direct topology observation, routing telemetry, and setup-version
-   provenance.
-3. Verify controller isolation, client reachability, fault recovery, and
-   post-heal convergence.
+2. [x] Finish direct topology observation, routing telemetry, and setup-version
+   provenance. RQ2 live snapshots and per-operation routes are recorded in its
+   provenance and raw histories.
+3. [x] Verify controller isolation, client reachability, fault recovery, and
+   post-heal convergence. All three targeted members were reached during F3
+   replication isolation; all 36 episodes converged.
 4. Validate the four schedules with checker fixtures and a 32-history smoke.
 5. Freeze predictions and protocol commits.
 6. Run the 192-history pilot; block main runs on harness errors, wrong routing,
    cleanup failures, or more than 5% precondition misses for any property.
 7. Run RQ1 sequentially: 320 normal controls plus 960 adversarial histories.
-8. Implement the grouped RQ2 runner and host coordinator, freeze their
+8. [x] Implement the grouped RQ2 runner and host coordinator, freeze their
    provenance, then run 384 core histories and 48 extra histories for four
-   partition signature cells.
+   partition signature cells. The completed campaign has 432 histories across
+   36 episodes; its generated report and detailed results are in
+   [rq2-results.md](rq2-results.md) and the submission Results section.
 9. Rebuild analysis, plots, LaTeX macros, PDF, and reproduction archive from raw
    histories.
 10. Audit the clean-clone path, generated artifacts, staged diff, and final

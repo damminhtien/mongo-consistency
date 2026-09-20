@@ -28,6 +28,37 @@ There were no harness errors, precondition misses, or unavailable histories.
 The 432 histories share 36 fault injections; histories within an episode are
 separate workloads, not independent fault events.
 
+F3 isolated each member from replication traffic in multiple episodes while
+leaving its client route available. The table counts subject operations whose
+recorded start time was at or after fault application and whose actual server
+address was the isolated member.
+
+| Isolated member | Episodes | Routed operations | SUCCESS | INDETERMINATE |
+| --- | ---: | ---: | ---: | ---: |
+| mongo1 | 8 | 48 | 32 | 16 |
+| mongo2 | 5 | 28 | 18 | 10 |
+| mongo3 | 7 | 36 | 22 | 14 |
+
+Every isolated member served successful client operations during the fault.
+Indeterminate operations are retained as timeouts and do not imply loss of the
+client route.
+
+## Operation availability, latency, and rollback
+
+| Fault | Histories | Successful/attempted operations | Success rate | Latency p50/p95/p99 (ms) | Acknowledged writes checked/rolled back |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| F1 | 128 | 288/288 | 100.0% | 1.28 / 7.38 / 108.22 | 160/0 |
+| F2 | 128 | 288/288 | 100.0% | 1.37 / 6.65 / 8.28 | 160/0 |
+| F3 | 176 | 304/344 | 88.4% | 1.36 / 4993.57 / 4996.67 | 172/40 |
+
+The latency quantiles use subject operations with recorded start and end times.
+Overall, 880/920 operations succeeded (95.7%). All 432 histories reached a
+classified outcome. The independent observer checked all 492 acknowledged
+writes; 40 later rolled back (8.13%). The make analyse command also generates
+results/summary/summary.csv with the 48 fault/configuration/property groups,
+including per-cell outcomes, operation denominators, latency, rollback counts,
+and the matching RQ1 normal baseline.
+
 ## Consistency outcomes
 
 | Fault | Property | Histories | PASS | VIOLATION | INDETERMINATE |
@@ -65,6 +96,10 @@ observed to have rolled back (8.13%).
 The C6 timeouts are not counted as consistency passes or violations because the
 required schedule did not reach its later operation. The outcome counts above
 retain those histories explicitly.
+
+The other 44 core configuration/fault/property cells passed all eight
+repetitions. The four signature cells above received 12 additional
+repetitions each, for 20 histories per cell.
 
 ## Episode timing
 

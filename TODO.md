@@ -20,7 +20,7 @@ offline analysis, and the rendered submission all pass the evidence checks.
 - [x] Define the six history outcomes; exclude precondition misses from database metrics.
 - [x] Use one logical document and explicit application dependencies for MW/WFR.
 - [x] Add offline RYW, MR, MW, and WFR checkers and same-key fixtures.
-- [ ] Validate every serialized history against the committed JSON Schemas.
+- [x] Validate every serialized history against the committed JSON Schemas.
 - [ ] Add fixtures for invalid direct roles, missing setup records, and every
   malformed or ambiguous history boundary.
 
@@ -33,9 +33,9 @@ offline analysis, and the rendered submission all pass the evidence checks.
   role, and direct role observation separately.
 - [x] Require independent post-heal observations across all three members in
   MW/WFR checkers.
-- [ ] Verify direct routing and post-heal convergence on the live Compose set.
-- [ ] Prove client access survives replication-path isolation for each targeted member.
-- [ ] Exercise elections, healing, and controller cleanup against live services.
+- [x] Verify direct routing and post-heal convergence on the live Compose set.
+- [x] Prove client access survives replication-path isolation for each targeted member.
+- [x] Exercise elections, healing, and controller cleanup against live services.
 
 ## Campaign runner and provenance
 
@@ -44,7 +44,7 @@ offline analysis, and the rendered submission all pass the evidence checks.
 - [x] Add graceful shutdown and atomic resumable manifests.
 - [x] Add distinct prediction/protocol/runner provenance fields and refuse
   non-smoke runs without frozen clean provenance.
-- [ ] Verify actual Python, PyMongo, MongoDB server, Docker, Compose versions and
+- [x] Verify actual Python, PyMongo, MongoDB server, Docker, Compose versions and
   image digest with a live setup.
 - [ ] Test resume rejection for changed provenance and altered history hashes.
 - [ ] Confirm the runner container cannot access Docker socket, credentials, or
@@ -70,6 +70,8 @@ offline analysis, and the rendered submission all pass the evidence checks.
 ## Analysis and submission
 
 - [x] Rebuild every summary and figure from raw histories without MongoDB.
+- [x] Publish generated RQ2 outcome, availability, latency, rollback, election,
+  and recovery results in the report and experiment notes.
 - [ ] Add generated-result drift checks to CI.
 - [ ] Derive every outcome and metric in LaTeX from generated macros.
 - [ ] Render and visually inspect the final PDF after RQ1/RQ2 evidence is complete.
@@ -77,7 +79,8 @@ offline analysis, and the rendered submission all pass the evidence checks.
 - [ ] Commit coherent slices, inspect staged diffs, run git diff --check, and
   push main.
 
-RQ2 execution evidence (20 September 2026): `make rq2` completed 432/432
+RQ2 / Task 2 status: complete. Execution evidence (20 September 2026):
+`make rq2` completed 432/432
 histories and 36/36 episodes with verified fault application and converged
 recovery. Record/schema validation passed and `make analyse` rebuilt the summary
 and figures. `make check-release-ready` remains blocked by two pending team
