@@ -1,10 +1,13 @@
 \section{Results}
 
-The analysis state is \texttt{\AnalysisStatus}, and the main campaign manifest is \texttt{\MainCampaignStatus}. It contains \texttt{\HistoryCount} histories: \texttt{\NormalHistoryCount} normal controls and \texttt{\AdversarialHistoryCount} adversarial trials. The separate pilot contains \texttt{\PilotHistoryCount} histories and is not pooled into these results. Tables are generated from \texttt{results/summary/summary.json}; a no-data build shows zero counts rather than copying predicted values.
+The analysis state is \texttt{\AnalysisStatus}; the RQ1 manifest state is
+\texttt{\MainCampaignStatus}. The macros in this section are generated from
+\texttt{results/summary/summary.json}. A \texttt{NO\_DATA} state means there is
+no measurement to interpret; it must not be read as zero violations.
 
 \begin{table}[ht]
 \centering
-\caption{Main-campaign outcomes by test condition.}
+\caption{RQ1 outcome counts, with normal controls and adversarial histories separated.}
 \label{tab:outcomes}
 \begin{tabular}{@{}lrr@{}}
 \toprule
@@ -14,35 +17,40 @@ PASS & \NormalPassCount & \AdversarialPassCount \\
 VIOLATION & \NormalViolationCount & \AdversarialViolationCount \\
 UNAVAILABLE & \NormalUnavailableCount & \AdversarialUnavailableCount \\
 INDETERMINATE & \NormalIndeterminateCount & \AdversarialIndeterminateCount \\
+PRECONDITION\_MISS & \NormalPreconditionMissCount & \AdversarialPreconditionMissCount \\
 HARNESS\_ERROR & \NormalHarnessErrorCount & \AdversarialHarnessErrorCount \\
-UNSUPPORTED & \NormalUnsupportedCount & \AdversarialUnsupportedCount \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-RQ1 uses the adversarial histories. Of \texttt{\AdversarialHistoryCount} planned adversarial trials, \texttt{\AdversarialUnsupportedCount} did not establish a required topology precondition and are reported as \texttt{UNSUPPORTED}. The violation rate uses only the \texttt{\AdversarialDecidableCount} adversarial histories labelled \texttt{PASS} or \texttt{VIOLATION}. The pilot is excluded. Each cell retains its configuration, property, schedule, and raw-history path.
-
-The normal controls had two MR violations: one in C5 (1/7 decidable histories) and one in C8 (1/8). The adversarial MR group had no violations among its 196 decidable histories. These control histories are not included in the RQ1 adversarial rate.
+The consistency denominator contains only PASS and VIOLATION. The adversarial
+denominator is \texttt{\AdversarialDecidableCount}; precondition misses,
+unavailable operations, unresolved outcomes, and harness errors remain
+separate. The pilot is excluded. Each cell is traceable to its configuration,
+property, schedule, and raw-history path.
 
 \begin{table}[ht]
 \centering
-\caption{Main-campaign metrics, with normal controls and adversarial trials reported separately.}
+\caption{Main-campaign metrics by test condition.}
 \label{tab:metrics}
 \begin{tabular}{@{}lrr@{}}
 \toprule
 Metric & Normal controls & Adversarial \\
 \midrule
-Consistency violation rate & \texttt{\ControlConsistencyViolationRate} & \texttt{\ConsistencyViolationRate} \\
-Operation success rate & \texttt{\ControlOperationSuccessRate} & \texttt{\OperationSuccessRate} \\
-History completion rate & \texttt{\ControlHistoryCompletionRate} & \texttt{\HistoryCompletionRate} \\
-Latency p50 / p95 / p99 (ms) & \texttt{\ControlLatencyMedian} / \texttt{\ControlLatencyHigh} / \texttt{\ControlLatencyTail} & \texttt{\LatencyMedian} / \texttt{\LatencyHigh} / \texttt{\LatencyTail} \\
-Election p50 (ms) & \texttt{\ControlElectionMedian} & \texttt{\ElectionMedian} \\
-Recovery p50 (ms) & \texttt{\ControlRecoveryMedian} & \texttt{\RecoveryMedian} \\
+Consistency violation rate & \ControlConsistencyViolationRate & \ConsistencyViolationRate \\
+Operation success rate & \ControlOperationSuccessRate & \OperationSuccessRate \\
+History completion rate & \ControlHistoryCompletionRate & \HistoryCompletionRate \\
+Latency p50 / p95 / p99 (ms) & \ControlLatencyMedian / \ControlLatencyHigh / \ControlLatencyTail & \LatencyMedian / \LatencyHigh / \LatencyTail \\
+Election p50 (ms) & \ControlElectionMedian & \ElectionMedian \\
+Recovery p50 (ms) & \ControlRecoveryMedian & \RecoveryMedian \\
 \bottomrule
 \end{tabular}
 \end{table}
 
+Property-specific denominators and outcome counts are shown with the generated
+plots. Contrast plots are exploratory; missing cells are not imputed.
+
 \maybefigure{submission/figures/outcome-heatmap.pdf}{Outcome heatmap by configuration and property.}
-\maybefigure{submission/figures/factorial-interactions.pdf}{Factorial contrasts for the main adversarial histories.}
-\maybefigure{submission/figures/latency.pdf}{Operation latency quantiles by main-campaign condition; pilot excluded.}
-\maybefigure{submission/figures/prediction-observation.pdf}{Prediction targets compared with checked adversarial histories.}
+\maybefigure{submission/figures/factorial-interactions.pdf}{Exploratory factorial contrasts for the RQ1 adversarial histories.}
+\maybefigure{submission/figures/latency.pdf}{Operation latency quantiles by RQ1 condition; pilot excluded.}
+\maybefigure{submission/figures/prediction-observation.pdf}{Prediction targets compared with checked histories.}

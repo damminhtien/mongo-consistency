@@ -1,21 +1,38 @@
 # MongoDB consistency submission package
 
-The package contains the report PDF, the LaTeX source, the repository documents, and the scripts and tests available in the checkout used for the build.
+The archive contains the report source, project documentation, executable
+harness, tests, and the raw evidence available in the source revision used to
+build it. Smoke histories are excluded from scientific evidence.
 
 ## Rebuild
 
-From a checkout with a LaTeX engine installed:
+From a checkout with the pinned Python environment and LaTeX tooling installed:
 
-```bash
+~~~bash
+make test
+make check-docs
+make check-schemas
+make analyse
 make submission
-```
+~~~
 
-The command writes `output/pdf/mongo-consistency-report.pdf`, `output/submission/mongo-consistency-submission.zip`, and a SHA-256 manifest. The archive source is under `source/` so that `make -C source submission` can rebuild the report.
+The command writes
+output/pdf/mongo-consistency-report.pdf,
+output/submission/mongo-consistency-submission.zip, and a SHA-256 manifest.
+The archive source is placed under source/ so the report can be rebuilt from
+that directory.
 
 ## Evidence status
 
-The checkout used for this package contains the 192-history pilot and the complete 1,280-history main campaign. `make analyse` rebuilds summaries and figures from canonical raw histories under `results/raw/`. The report keeps pilot results separate, reports the main campaign's 320 controls and 960 adversarial histories independently, and uses only the adversarial histories for RQ1 rates and factorial contrasts. The main dataset combines 696 sequential histories with 584 histories produced by two isolated workers; pooled latency is descriptive under those mixed scheduling modes. The initial 449 fault-controller failures are preserved under `results/attempts/`, excluded from analysis, and were rerun with the same ordinals and seeds after the health-check fix. The experiment manifest must remain `COMPLETE` before the package is rebuilt.
+The report reads its counts and metrics from generated analysis artifacts. A
+missing or incomplete campaign is labelled as such and is not presented as a
+zero-violation result. The 32-history smoke is machinery validation and is not
+included in the archive as scientific evidence. The pilot is kept separate
+from RQ1 estimates. RQ1 is run sequentially; RQ2 has a separate manifest and
+analysis condition.
 
 ## Metadata
 
-Set the team name, member names and student IDs, submission date, and any course-required AI disclosure in `source/submission/metadata.mk` before making the final archive.
+Set the team name, member names and student IDs, submission date, and any
+course-required AI disclosure in source/submission/metadata.mk before making
+the final archive.

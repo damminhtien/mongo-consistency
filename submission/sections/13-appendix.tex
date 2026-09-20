@@ -1,17 +1,22 @@
 \section{Build and evidence checklist}
 
-The archive includes the following items when they exist in the source tree:
+The reproduction archive contains source and evidence available at the commit
+used for the build:
 
 \begin{itemize}
-\item the compiled report and its LaTeX source;
-\item the bibliography and metadata used for the title page;
-\item the course brief, project plan, experimental protocol, and report plan;
-\item the slide-page mapping, configuration matrix, prediction manifest, and campaign schedule;
-\item setup, experiment, analysis, build, and documentation scripts;
-\item source code, tests, raw histories, summaries, figures, and image digests;
-\item a package README and a SHA-256 manifest.
+\item the report PDF and its LaTeX source;
+\item bibliography, submission metadata, and package instructions;
+\item assignment summary, project plan, protocol, report plan, and slide mapping;
+\item configuration matrix, prediction manifest, schedules, and schemas;
+\item setup, experiment, analysis, report-build, and validation scripts;
+\item source, tests, raw histories, summaries, plots, and image digests when present;
+\item a package README and SHA-256 manifest.
 \end{itemize}
 
-The package builder excludes version-control metadata, generated output, caches, and virtual environments. Those files are local build state, not project submission material.
+The package builder excludes version-control metadata, local caches, virtual
+environments, and smoke histories. Missing campaign evidence remains missing;
+it is not replaced with predicted values.
 
-The report source uses the official MongoDB and PyMongo references listed below. The archive records the checker version, prediction source revision, raw-history hashes, and the exact outcome classes used by the analysis.
+The report records separate prediction, protocol, and runner provenance. Every
+reported outcome is derived by the offline checker from a canonical raw
+history.

@@ -1,7 +1,6 @@
 PYTHON ?= python3
-PARALLEL_WORKERS ?= 2
-
-.PHONY: check-docs check-schemas submission test setup pilot experiment experiment-fresh experiment-parallel analyse
+MC_SMOKE_MOUNT ?= ./results/smoke
+.PHONY: check-docs check-schemas submission test setup smoke pilot experiment experiment-fresh rq2 analyse
 
 check-docs:
 	$(PYTHON) scripts/check_documentation.py
@@ -18,6 +17,9 @@ test:
 setup:
 	PYTHONPATH=src $(PYTHON) scripts/setup_experiment.py
 
+smoke: setup
+	MC_RESULTS_MOUNT=$(MC_SMOKE_MOUNT) docker compose -f compose.yaml run --rm runner scripts/run_campaign.py --campaign smoke --output-root results/raw --resume
+
 pilot: setup
 	docker compose -f compose.yaml run --rm runner scripts/run_campaign.py --campaign pilot --resume
 
@@ -26,9 +28,6 @@ experiment: setup
 
 experiment-fresh: setup
 	docker compose -f compose.yaml run --rm runner scripts/run_campaign.py --campaign experiment
-
-experiment-parallel: setup
-	PYTHONPATH=src:. $(PYTHON) scripts/run_parallel_campaign.py --campaign experiment --workers $(PARALLEL_WORKERS) --resume
 
 analyse:
 	PYTHONPATH=src $(PYTHON) scripts/analyse_results.py

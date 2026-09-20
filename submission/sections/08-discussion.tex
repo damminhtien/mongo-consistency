@@ -1,17 +1,26 @@
 \section{Discussion}
 
-The discussion compares each prediction with its checked main-campaign histories, then identifies the observable trace: member selection, returned version, election event, session ordering, waiting, rejection, or timeout. The requested member is kept separate from the actual server address, so a routing explanation can be checked against the command-monitor record. The factorial contrasts summarize read concern, write concern, causal-session, and interaction differences among adversarial histories with a decidable outcome.
+The discussion compares the committed prediction matrix with checked histories
+for each configuration and property. It separates a successful counterexample
+from an operation that was unavailable, a write whose effect is indeterminate,
+a missed precondition, or a harness error. A precondition miss says that the
+schedule did not construct the required state; it is not evidence for or
+against a database guarantee.
 
-\texttt{\AdversarialUnsupportedCount} of \texttt{\AdversarialHistoryCount} adversarial histories are \texttt{UNSUPPORTED} because the required topology precondition was not established: 54 MW and 46 WFR. The contrasts therefore describe the observed decidable histories, not the full planned matrix. No result from the pilot is pooled into these estimates.
+Representative explanations use the saved operation trace: requested route,
+actual server address, direct role observation, session timing, logical
+dependency, fault event, and final independent snapshot. Driver topology cache
+data are diagnostic only. Any explanation of a MongoDB mechanism must be
+identified as an inference from these observations rather than a direct
+inspection of internal state.
 
-All 15 adversarial RYW violations occurred in C1 (2/23 decidable histories), C7 (12/14), or C8 (1/30). C7 also had 16 RYW histories classified as \texttt{INDETERMINATE}. No violation was observed in the designated guarantee-target cells: C6 for RYW; C3 and C6 for MR and WFR; and C4 and C6 for MW. These finite outcomes do not prove those guarantees.
+The normal controls are reported separately from the adversarial RQ1
+comparison. The RC, WC, causal-session, and interaction contrasts are
+exploratory summaries of available cells. They do not repair missing outcomes
+or establish statistical significance.
 
-The two normal-control MR violations were \texttt{experiment-00664-C5-mr} and \texttt{experiment-00299-C8-mr}. In C5, the first read returned version 1 from \texttt{mongo3} and the second returned version 0 from \texttt{mongo1}; in C8, the reads returned versions 1 and 0 from \texttt{mongo2} and \texttt{mongo1}. Both histories used different secondary members and recorded no fault events. They are control observations, separate from the adversarial MR result.
-
-The heatmap marks a cell \texttt{NA} when it has no \texttt{PASS} or \texttt{VIOLATION} history. MW and WFR in C7 have no such observation. Factorial contrasts omit those cells and are descriptive; they do not estimate a complete, balanced 2-by-2-by-2 matrix.
-
-The factorial contrasts give equal weight to each available cell-level rate, despite different decidable-history counts across cells. They are descriptive contrasts, not inferential tests.
-
-Latency quantiles pool histories collected in sequential and two-worker execution modes. They summarize this run on one host and should not be read as an isolated database-setting effect or as a comparison of independent machines.
-
-A zero violation count means that no counterexample appeared under the tested workload and fault schedule. It does not support a claim about all MongoDB deployments. A high operation success rate also does not imply that returned histories satisfy every client-centric property. \texttt{UNAVAILABLE} and \texttt{INDETERMINATE} are availability or observation limits, not violations.
+A zero observed violation count means no counterexample appeared in the
+completed histories for that registered schedule. It is not proof of a
+universal guarantee. A high operation success rate is also distinct from
+history-level consistency: availability and consistency are reported
+separately.

@@ -89,7 +89,7 @@ EXCLUDED_PARTS = frozenset(
         ".venv",
     }
 )
-EXCLUDED_RELATIVE_PATHS = (Path("results/parallel"),)
+EXCLUDED_RELATIVE_PATHS = (Path("results/smoke"),)
 
 
 class BuildError(RuntimeError):
@@ -226,9 +226,6 @@ def write_generated_analysis(path: Path, root: Path) -> None:
                 main_manifest = loaded_manifest
         except (OSError, UnicodeError, json.JSONDecodeError):
             main_manifest = {}
-    parallel_workers = main_manifest.get("parallel_workers", main_manifest.get("shard_count"))
-    if parallel_workers is None:
-        parallel_workers = "NO_DATA"
     main_campaign_status = str(main_manifest.get("status", "NO_DATA"))
 
     normal_counts = normal.get("outcomes", {})
@@ -239,11 +236,13 @@ def write_generated_analysis(path: Path, root: Path) -> None:
         "VIOLATION": "Violation",
         "UNAVAILABLE": "Unavailable",
         "INDETERMINATE": "Indeterminate",
+        "PRECONDITION_MISS": "PreconditionMiss",
         "HARNESS_ERROR": "HarnessError",
-        "UNSUPPORTED": "Unsupported",
     }
     adversarial_pass = int(adversarial_counts.get("PASS", 0) or 0)
     adversarial_violation = int(adversarial_counts.get("VIOLATION", 0) or 0)
+    has_normal_histories = int(normal.get("history_count", 0) or 0) > 0
+    has_adversarial_histories = int(adversarial.get("history_count", 0) or 0) > 0
     experiment_history_count = int(main_campaign.get("history_count", 0) or 0)
     macros = {
         "AnalysisStatus": status,
@@ -251,12 +250,22 @@ def write_generated_analysis(path: Path, root: Path) -> None:
         "PilotHistoryCount": str(pilot_history_count),
         "NormalHistoryCount": str(int(normal.get("history_count", 0) or 0)),
         "AdversarialHistoryCount": str(int(adversarial.get("history_count", 0) or 0)),
-        "AdversarialDecidableCount": str(adversarial_pass + adversarial_violation),
+        "AdversarialDecidableCount": (
+            str(adversarial_pass + adversarial_violation)
+            if has_adversarial_histories
+            else "--"
+        ),
         "MainCampaignStatus": main_campaign_status,
-        "ParallelWorkerCount": str(parallel_workers),
         **{
-            f"{cohort}{outcome_name}Count": str(int(counts.get(outcome, 0) or 0))
-            for cohort, counts in (("Normal", normal_counts), ("Adversarial", adversarial_counts))
+            f"{cohort}{outcome_name}Count": (
+                str(int(counts.get(outcome, 0) or 0))
+                if has_histories
+                else "--"
+            )
+            for cohort, counts, has_histories in (
+                ("Normal", normal_counts, has_normal_histories),
+                ("Adversarial", adversarial_counts, has_adversarial_histories),
+            )
             for outcome, outcome_name in outcome_names.items()
         },
         "ConsistencyViolationRate": metric(adversarial, ("consistency_violation_rate",)),
@@ -289,8 +298,17 @@ def write_generated_analysis(path: Path, root: Path) -> None:
             macros[f"{property_name}HistoryCount"] = str(
                 int(property_summary.get("history_count", 0) or 0)
             )
-            macros[f"{property_name}ViolationCount"] = str(violation_count)
-            macros[f"{property_name}DecidableCount"] = str(pass_count + violation_count)
+            has_property_histories = int(property_summary.get("history_count", 0) or 0) > 0
+            macros[f"{property_name}ViolationCount"] = (
+                str(violation_count) if has_property_histories else "--"
+            )
+            macros[f"{property_name}DecidableCount"] = (
+                str(pass_count + violation_count) if has_property_histories else "--"
+            )
+            for outcome, macro_suffix in outcome_names.items():
+                macros[f"{property_name}{macro_suffix}Count"] = str(
+                    int(property_counts.get(outcome, 0) or 0)
+                ) if has_property_histories else "--"
     content = "\n".join(
         f"\\newcommand{{\\{name}}}{{{escape_latex(value)}}}"
         for name, value in macros.items()

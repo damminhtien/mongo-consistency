@@ -55,6 +55,7 @@ class SubmissionLayoutTests(unittest.TestCase):
             content = target.read_text(encoding="utf-8")
         self.assertIn(r"\newcommand{\AnalysisStatus}{NO\_DATA}", content)
         self.assertIn(r"\newcommand{\LatencyMedian}{NO\_DATA}", content)
+        self.assertIn(r"\newcommand{\AdversarialViolationCount}{--}", content)
 
     def test_generated_report_uses_main_campaign_and_separates_conditions(self) -> None:
         from tempfile import TemporaryDirectory
@@ -82,7 +83,7 @@ class SubmissionLayoutTests(unittest.TestCase):
                         "outcomes": {
                             "PASS": 434,
                             "VIOLATION": 6,
-                            "UNSUPPORTED": 449,
+                            "PRECONDITION_MISS": 449,
                         },
                         "consistency_violation_rate": 6 / 440,
                         "operation_success_rate": 0.8,
@@ -94,7 +95,7 @@ class SubmissionLayoutTests(unittest.TestCase):
                     "properties": {
                         "RYW": {
                             "history_count": 240,
-                            "outcomes": {"PASS": 109, "VIOLATION": 6, "UNSUPPORTED": 111},
+                            "outcomes": {"PASS": 109, "VIOLATION": 6, "PRECONDITION_MISS": 111},
                         },
                         "MR": {
                             "history_count": 240,
@@ -120,7 +121,7 @@ class SubmissionLayoutTests(unittest.TestCase):
             manifest_path = root / "results/raw/experiment/campaign-manifest.json"
             manifest_path.parent.mkdir(parents=True)
             manifest_path.write_text(
-                json.dumps({"status": "COMPLETE", "parallel_workers": 2}),
+                json.dumps({"status": "COMPLETE"}),
                 encoding="utf-8",
             )
             target = root / "generated-analysis.tex"
@@ -129,12 +130,13 @@ class SubmissionLayoutTests(unittest.TestCase):
         self.assertIn(r"\newcommand{\HistoryCount}{1280}", content)
         self.assertIn(r"\newcommand{\PilotHistoryCount}{192}", content)
         self.assertIn(r"\newcommand{\NormalViolationCount}{2}", content)
-        self.assertIn(r"\newcommand{\AdversarialUnsupportedCount}{449}", content)
+        self.assertIn(r"\newcommand{\AdversarialPreconditionMissCount}{449}", content)
         self.assertIn(r"\newcommand{\ConsistencyViolationRate}{0.0136}", content)
         self.assertIn(r"\newcommand{\MainCampaignStatus}{COMPLETE}", content)
-        self.assertIn(r"\newcommand{\ParallelWorkerCount}{2}", content)
+        self.assertNotIn("ParallelWorkerCount", content)
         self.assertIn(r"\newcommand{\RYWViolationCount}{6}", content)
         self.assertIn(r"\newcommand{\RYWDecidableCount}{115}", content)
+        self.assertIn(r"\newcommand{\RYWPreconditionMissCount}{111}", content)
         self.assertIn(r"\newcommand{\MRViolationCount}{0}", content)
         self.assertIn(r"\newcommand{\MRDecidableCount}{97}", content)
         self.assertNotIn(r"\newcommand{\ConsistencyViolationRate}{0.9900}", content)
@@ -144,19 +146,18 @@ class SubmissionLayoutTests(unittest.TestCase):
         self.assertIn('"schemas"', source)
         self.assertTrue((ROOT / "schemas/history.v1.json").is_file())
 
-    def test_parallel_worker_scratch_is_not_packaged(self) -> None:
+    def test_smoke_histories_are_not_packaged_as_submission_evidence(self) -> None:
         source = (ROOT / "scripts/build_submission.py").read_text(encoding="utf-8")
-        self.assertIn('Path("results/parallel")', source)
+        self.assertIn('Path("results/smoke")', source)
 
-    def test_report_discloses_normal_control_mr_counterexamples(self) -> None:
-        abstract = (ROOT / "submission/sections/01-abstract.tex").read_text(encoding="utf-8")
-        results = (ROOT / "submission/sections/07-results.tex").read_text(encoding="utf-8")
-        discussion = (ROOT / "submission/sections/08-discussion.tex").read_text(encoding="utf-8")
-        self.assertIn("two MR violations, one each in C5 (1/7) and C8 (1/8)", abstract)
-        self.assertIn("The normal controls had two MR violations", results)
-        self.assertIn("experiment-00664-C5-mr", discussion)
-        self.assertIn("experiment-00299-C8-mr", discussion)
-        self.assertIn("recorded no fault events", discussion)
+    def test_release_workflow_publishes_all_submission_outputs(self) -> None:
+        workflow = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
+        for artifact in (
+            "output/pdf/mongo-consistency-report.pdf",
+            "output/submission/mongo-consistency-submission.zip",
+            "output/submission/manifest.txt",
+        ):
+            self.assertIn(artifact, workflow)
 
 
 if __name__ == "__main__":

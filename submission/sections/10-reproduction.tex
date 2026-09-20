@@ -1,29 +1,51 @@
 \section{Reproduction}
 
-The source tree reserves the following paths:
+The canonical source tree contains:
 
 \begin{verbatim}
-configs/            settings, workloads, repetitions, fault schedules
-results/raw/        operation histories and trial manifests
-results/summary/    derived tables and metrics
+configs/            configurations, schedules, predictions, campaign rules
+results/raw/        canonical histories and campaign manifests
+results/summary/    derived analysis outputs
 figures/            plots generated from raw histories
 schemas/            versioned record contracts
-scripts/            setup, teardown, fault, build, and check commands
-src/                runner, recorder, checker, and analysis code
-tests/              offline and harness tests
-submission/         LaTeX source, bibliography, and metadata
+scripts/            setup, runner, analysis, build, and validation commands
+src/                topology, workloads, history, checkers, and analysis
+tests/              offline fixtures and harness checks
+submission/         LaTeX sources, bibliography, and metadata
 \end{verbatim}
 
-The target interface is:
+Run the offline checks first:
 
 \begin{verbatim}
-make setup
-make pilot
-make experiment
-make experiment-parallel
-make analyse
-make submission
+make test
+make check-docs
 make check-schemas
 \end{verbatim}
 
-\texttt{make setup} verifies the pinned versions, starts the three-member replica set, builds the restricted runner, and checks stable topology. The pilot runs five adversarial repetitions and one normal smoke trial per configuration/property cell; its 192 histories are kept separate from the main estimates. The main campaign contains 320 normal histories and 960 adversarial histories. The saved campaign manifest is \texttt{\MainCampaignStatus}. \texttt{make experiment-parallel} assigns the same global plan to isolated worker replica sets and validates the merge before publishing canonical histories. The accepted main histories comprise 696 sequential trials and 584 trials produced by two workers. The first parallel attempt left 449 controller-failure traces in \texttt{results/attempts/}; the same cases were rerun after health gating, and the failed traces are excluded from analysis. \texttt{make analyse} reads canonical raw histories without MongoDB and rebuilds campaign-separated summaries and figures. \texttt{make submission} compiles the PDF, checks source and package documents, and writes the reproduction archive.
+The live sequence is:
+
+\begin{verbatim}
+make setup
+make smoke
+make pilot
+make experiment
+make rq2
+\end{verbatim}
+
+The 32-history smoke validates machinery and is not scientific evidence. The
+192-history pilot is separate from the sequential RQ1 design of 320 normal
+controls and 960 adversarial histories. RQ2 uses its own representative
+configuration/fault matrix. The protocol requires frozen prediction and
+protocol commits before the pilot and main campaigns.
+
+Analysis and packaging do not require a live MongoDB server:
+
+\begin{verbatim}
+make analyse
+make submission
+\end{verbatim}
+
+Analysis recomputes checkers and summaries from raw histories. Submission
+builds the PDF and checksummed reproduction archive from the source available
+at that revision. A clean-clone reproduction must use the recorded toolchain
+and verify the package manifest before upload.

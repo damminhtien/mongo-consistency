@@ -1,7 +1,17 @@
 \section{Limits}
 
-The baseline uses three containers on one laptop. The containers are logical replicas, not independent machines. Docker network faults are synthetic and do not reproduce a real wide-area network. Scheduler timing, replication timing, driver selection, and election timing can vary between trials.
+The baseline uses three containers on one laptop. The containers are logical
+replicas, not independent machines. Docker network faults are synthetic and do
+not reproduce a real wide-area network. Scheduler, replication, routing, and
+election timing can vary between trials.
 
-The workloads are short and synthetic so that a checker can expose a causal counterexample. That design limits the range of application behaviour represented by the measurements. Thirty repetitions are registered-history repetitions, not a universal probability estimate. If timing remains unstable in the pilot, the affected cells receive a separate 100-repetition extension with Wilson intervals. Conclusions apply only to the MongoDB server, PyMongo driver, Python runtime, container image, settings, workload, and fault schedule recorded with the histories.
+The workloads are short and synthetic so a checker can evaluate a complete
+history. They cover only the registered operations and dependency patterns.
+Thirty repetitions are repetitions of these schedules, not a universal
+probability estimate. A precondition miss indicates that the required state
+was not created; it is reported separately and never converted into a database
+failure or violation.
 
-If a partition setup cannot reach a stale member independently of the blocked replication path, that case must be marked \texttt{UNSUPPORTED}. It must not be presented as a stale-read observation. A write timeout or lost response is \texttt{INDETERMINATE} because the mutation may have completed.
+Conclusions apply only to the server and driver versions, image digest,
+topology, settings, workloads, and fault schedules recorded in the campaign.
+Internal mechanisms are discussed only when supported by observable traces.
