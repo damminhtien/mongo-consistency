@@ -13,6 +13,8 @@ DEFAULT_MEMBERS = {
     "mongo2": "mongodb://mongo2:27017/",
     "mongo3": "mongodb://mongo3:27017/",
 }
+SETUP_WRITE_CONCERN_TIMEOUT_MS = 5000
+SETUP_WRITE_SOCKET_TIMEOUT_MS = 7000
 
 
 class TopologyError(RuntimeError):
@@ -61,6 +63,7 @@ class TopologyOracle:
         connect_timeout_ms: int = 2000,
         server_selection_timeout_ms: int = 2000,
         socket_timeout_ms: int = 2000,
+        setup_write_socket_timeout_ms: int = SETUP_WRITE_SOCKET_TIMEOUT_MS,
         client_factory: Any | None = None,
     ) -> None:
         self.members = dict(members or DEFAULT_MEMBERS)
@@ -69,27 +72,43 @@ class TopologyOracle:
         self.connect_timeout_ms = connect_timeout_ms
         self.server_selection_timeout_ms = server_selection_timeout_ms
         self.socket_timeout_ms = socket_timeout_ms
+        self.setup_write_socket_timeout_ms = setup_write_socket_timeout_ms
         self._client_factory = client_factory
         self._clients: dict[str, Any] = {}
+        self._setup_clients: dict[str, Any] = {}
 
-    def _client(self, member: str) -> Any:
+    def _new_client(self, member: str, *, socket_timeout_ms: int) -> Any:
         if member not in self.members:
             raise TopologyError(f"unknown replica-set member: {member}")
+        factory = self._client_factory
+        if factory is None:
+            pymongo = require_pymongo()
+            factory = pymongo.MongoClient
+        return factory(
+            self.members[member],
+            directConnection=True,
+            connectTimeoutMS=self.connect_timeout_ms,
+            serverSelectionTimeoutMS=self.server_selection_timeout_ms,
+            socketTimeoutMS=socket_timeout_ms,
+            retryReads=False,
+            retryWrites=False,
+        )
+
+    def _client(self, member: str) -> Any:
         if member not in self._clients:
-            factory = self._client_factory
-            if factory is None:
-                pymongo = require_pymongo()
-                factory = pymongo.MongoClient
-            self._clients[member] = factory(
-                self.members[member],
-                directConnection=True,
-                connectTimeoutMS=self.connect_timeout_ms,
-                serverSelectionTimeoutMS=self.server_selection_timeout_ms,
-                socketTimeoutMS=self.socket_timeout_ms,
-                retryReads=False,
-                retryWrites=False,
+            self._clients[member] = self._new_client(
+                member,
+                socket_timeout_ms=self.socket_timeout_ms,
             )
         return self._clients[member]
+
+    def _setup_client(self, member: str) -> Any:
+        if member not in self._setup_clients:
+            self._setup_clients[member] = self._new_client(
+                member,
+                socket_timeout_ms=self.setup_write_socket_timeout_ms,
+            )
+        return self._setup_clients[member]
 
     @staticmethod
     def _op_time(value: Any) -> dict[str, int] | None:
@@ -373,11 +392,11 @@ class TopologyOracle:
         """Issue a diagnostic/setup write without using the subject session."""
 
         pymongo = require_pymongo()
-        collection = self._client(member).get_database(
+        collection = self._setup_client(member).get_database(
             database_name,
             write_concern=pymongo.write_concern.WriteConcern(
                 w=1 if write_concern == "w:1" else "majority",
-                wtimeout=5000,
+                wtimeout=SETUP_WRITE_CONCERN_TIMEOUT_MS,
             ),
         )[collection_name]
         if replace:
@@ -395,9 +414,10 @@ class TopologyOracle:
         return {"matched_count": result.matched_count, "modified_count": result.modified_count}
 
     def close(self) -> None:
-        for client in self._clients.values():
+        for client in (*self._clients.values(), *self._setup_clients.values()):
             client.close()
         self._clients.clear()
+        self._setup_clients.clear()
 
     def __enter__(self) -> TopologyOracle:
         return self

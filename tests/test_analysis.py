@@ -9,12 +9,108 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from mongo_consistency.analysis import analyse
+from mongo_consistency.analysis import _merge_mr_rerun_rows, _trace_body, analyse
 from mongo_consistency.history import write_history
 from mongo_consistency.models import History, OperationRecord
 
 
 class AnalysisTests(unittest.TestCase):
+    def test_complete_mr_rerun_replaces_only_matching_history(self) -> None:
+        original = {
+            "trial_id": "experiment-00018-C6-mr",
+            "campaign_id": "experiment",
+            "configuration_id": "C6",
+            "property": "MR",
+            "adversarial": True,
+            "seed": 20260933,
+            "history_hash": "old-hash",
+            "path": "experiment/experiment-00018-C6-mr.json",
+        }
+        replacement = {
+            **original,
+            "history_hash": "new-hash",
+            "path": "mr-rerun/experiment/experiment-00018-C6-mr.json",
+        }
+        manifest = {
+            "campaign": "experiment",
+            "status": "COMPLETE",
+            "expected_case_count": 1,
+            "case_count": 1,
+            "completed_case_count": 1,
+            "planned_ordinals": [18],
+            "records": [
+                {
+                    "trial_id": replacement["trial_id"],
+                    "configuration_id": "C6",
+                    "property": "MR",
+                    "adversarial": True,
+                    "seed": 20260933,
+                    "history_hash": "new-hash",
+                }
+            ],
+        }
+
+        rows = _merge_mr_rerun_rows(
+            [original],
+            [replacement],
+            manifest,
+            expected_count=1,
+        )
+
+        self.assertEqual(["new-hash"], [row["history_hash"] for row in rows])
+        self.assertEqual("mr-rerun/experiment/experiment-00018-C6-mr.json", rows[0]["path"])
+
+    def test_mr_rerun_rejects_incomplete_manifest(self) -> None:
+        with self.assertRaisesRegex(ValueError, "manifest is incomplete"):
+            _merge_mr_rerun_rows([], [], {"campaign": "experiment", "status": "RUNNING"})
+
+    def test_representative_trace_renders_c6_causal_read_timeout(self) -> None:
+        row = {
+            "path": "experiment/experiment-00018-C6-ryw.json",
+            "history_hash": "c9ee334640ca60faaef80f5151b2560a951dadfb0553e48944707124046c9ffa",
+            "configuration_id": "C6",
+            "property": "RYW",
+            "adversarial": True,
+            "outcome": "UNAVAILABLE",
+            "trace": [
+                {
+                    "operation_id": "write",
+                    "status": "SUCCESS",
+                    "write_concern": "majority",
+                    "operation_time_after": {"seconds": 1789885744, "increment": 2},
+                    "actual_server_address": "mongo3:27017",
+                    "actual_role": "PRIMARY",
+                },
+                {
+                    "operation_id": "read",
+                    "status": "UNAVAILABLE",
+                    "causal_session": True,
+                    "read_concern": "majority",
+                    "after_cluster_time": {"seconds": 1789885744, "increment": 2},
+                    "error_code": "NetworkTimeout",
+                    "response_received": False,
+                    "duration_ms": 5000.0,
+                    "actual_server_address": "mongo1:27017",
+                    "actual_role": "SECONDARY",
+                },
+            ],
+            "fault_events": [
+                {"action": "isolate", "members": ["mongo1"], "status": "APPLIED"},
+                {
+                    "action": "heal",
+                    "status": "APPLIED",
+                    "stable_topology": {"stable": True},
+                },
+            ],
+        }
+
+        body, _height = _trace_body([row])
+
+        self.assertIn("afterClusterTime=(t=1789885744, i=2)", body)
+        self.assertIn("NetworkTimeout after 5.00 s", body)
+        self.assertIn("UNAVAILABLE", body)
+        self.assertIn("history SHA-256", body)
+
     def test_empty_analysis_is_explicitly_no_data(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

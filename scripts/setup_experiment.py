@@ -15,11 +15,15 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 COMPOSE_FILE = ROOT / "compose.yaml"
-GENERATED_PATH_EXCLUDES = (
-    ":(exclude)results/**",
-    ":(exclude)figures/**",
-    ":(exclude)output/**",
-    ":(exclude)tmp/**",
+PROVENANCE_PATHS = (
+    "Makefile",
+    "compose.yaml",
+    "configs/",
+    "infra/",
+    "requirements.txt",
+    "schemas/",
+    "scripts/",
+    "src/",
 )
 
 
@@ -56,20 +60,14 @@ def version_from_output(value: str) -> str:
     return match.group(1) if match else value.strip()
 
 
-def file_hash(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for block in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(block)
-    return digest.hexdigest()
-
-
 def source_revision() -> str:
     result = run(["git", "rev-parse", "HEAD"], check=False)
     return result.stdout.strip() if result.returncode == 0 else "unknown"
 
 
 def working_tree_clean() -> bool:
+    """Check only code and configuration inputs that can change runner behavior."""
+
     result = run(
         [
             "git",
@@ -77,8 +75,7 @@ def working_tree_clean() -> bool:
             "--porcelain",
             "--untracked-files=all",
             "--",
-            ".",
-            *GENERATED_PATH_EXCLUDES,
+            *PROVENANCE_PATHS,
         ],
         check=False,
     )
@@ -86,12 +83,20 @@ def working_tree_clean() -> bool:
 
 
 def committed_file_revision(relative_path: str) -> str | None:
-    status = run(["git", "status", "--porcelain", "--", relative_path], check=False)
-    if status.returncode != 0 or status.stdout.strip():
-        return None
+    """Return the latest committed revision even when a later draft is uncommitted."""
+
     result = run(["git", "log", "-1", "--format=%H", "--", relative_path], check=False)
     revision = result.stdout.strip()
     return revision if result.returncode == 0 and revision else None
+
+
+def committed_file_hash(relative_path: str) -> str | None:
+    """Hash the committed input recorded by its revision, not an edited worktree copy."""
+
+    result = run(["git", "show", f"HEAD:{relative_path}"], check=False)
+    if result.returncode != 0:
+        return None
+    return hashlib.sha256(result.stdout.encode("utf-8")).hexdigest()
 
 
 def runtime_versions() -> dict[str, str]:
@@ -251,8 +256,6 @@ def setup() -> dict[str, object]:
     replica_status = initialize_replica_set()
     runtime = runtime_versions()
     clean_tree = working_tree_clean()
-    predictions_path = ROOT / "configs/predictions.json"
-    protocol_path = ROOT / "docs/experimental-protocol.md"
     payload: dict[str, object] = {
         "recorded_at": datetime.now(UTC).isoformat(),
         "target": {
@@ -267,10 +270,11 @@ def setup() -> dict[str, object]:
         },
         "runner_commit": source_revision() if clean_tree else None,
         "working_tree_clean": clean_tree,
+        "working_tree_scope": list(PROVENANCE_PATHS),
         "prediction_commit": committed_file_revision("configs/predictions.json"),
         "protocol_commit": committed_file_revision("docs/experimental-protocol.md"),
-        "prediction_manifest_hash": file_hash(predictions_path),
-        "protocol_hash": file_hash(protocol_path),
+        "prediction_manifest_hash": committed_file_hash("configs/predictions.json"),
+        "protocol_hash": committed_file_hash("docs/experimental-protocol.md"),
         "compose_file": str(COMPOSE_FILE.relative_to(ROOT)),
     }
     setup_dir = ROOT / "results/setup"

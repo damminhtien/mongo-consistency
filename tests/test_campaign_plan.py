@@ -42,6 +42,32 @@ class CampaignPlanTests(unittest.TestCase):
             sorted(case[0] for shard in shards for case in shard),
         )
 
+    def test_property_rerun_keeps_original_ordinals_and_case_identity(self) -> None:
+        full = campaign_plan("experiment", self.configurations, self.campaign)
+        monotonic_reads = campaign_plan(
+            "experiment",
+            self.configurations,
+            self.campaign,
+            property_filter="MR",
+        )
+
+        self.assertEqual(320, len(monotonic_reads))
+        self.assertEqual(
+            [case for case in full if case[2] == "MR"],
+            monotonic_reads,
+        )
+        self.assertEqual(80, sum(not case[3] for case in monotonic_reads))
+        self.assertEqual(240, sum(case[3] for case in monotonic_reads))
+
+    def test_property_rerun_rejects_unknown_property(self) -> None:
+        with self.assertRaisesRegex(ValueError, "unknown property filter"):
+            campaign_plan(
+                "experiment",
+                self.configurations,
+                self.campaign,
+                property_filter="UNKNOWN",
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

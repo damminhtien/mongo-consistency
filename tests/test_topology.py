@@ -46,6 +46,14 @@ class FakeCollection:
         document = self.client.documents.get(self.client.member)
         return dict(document) if isinstance(document, dict) else document
 
+    @staticmethod
+    def update_one(*_args: Any, **_kwargs: Any) -> SimpleNamespace:
+        return SimpleNamespace(matched_count=1, modified_count=1)
+
+    @staticmethod
+    def replace_one(*_args: Any, **_kwargs: Any) -> SimpleNamespace:
+        return SimpleNamespace(matched_count=0, upserted_id="x")
+
 
 class FakeDatabase:
     def __init__(self, client: FakeClient) -> None:
@@ -67,11 +75,13 @@ class FakeClient:
         self.oracle_test_state = state
         self.documents = documents
         self.options = options
+        self.database_options: dict[str, Any] = {}
         self.admin = FakeAdmin(self)
         self.hello_count = 0
         self.closed = False
 
-    def get_database(self, _name: str, **_options: Any) -> FakeDatabase:
+    def get_database(self, _name: str, **options: Any) -> FakeDatabase:
+        self.database_options = options
         return FakeDatabase(self)
 
     def close(self) -> None:
@@ -96,11 +106,13 @@ class TopologyOracleTests(unittest.TestCase):
             for member in self.members
         }
         self.clients: dict[str, FakeClient] = {}
+        self.created_clients: list[FakeClient] = []
 
         def factory(uri: str, **options: Any) -> FakeClient:
             member = uri.split("//", 1)[1].split(":", 1)[0]
             client = FakeClient(member, self.states[member], self.documents, options)
             self.clients[member] = client
+            self.created_clients.append(client)
             return client
 
         self.oracle = TopologyOracle(self.members, client_factory=factory)
@@ -150,6 +162,47 @@ class TopologyOracleTests(unittest.TestCase):
         self.assertTrue(result["converged"])
         self.assertEqual({"mongo1", "mongo2", "mongo3"}, set(result["members"]))
         self.assertTrue(all(item["observation_valid"] for item in result["members"].values()))
+
+    def test_setup_write_uses_socket_deadline_after_write_concern_deadline(self) -> None:
+        pymongo_stub = SimpleNamespace(
+            write_concern=SimpleNamespace(WriteConcern=lambda **options: options),
+        )
+        self.oracle.member_state("mongo1")
+        with patch("mongo_consistency.topology.require_pymongo", return_value=pymongo_stub):
+            result = self.oracle.setup_write(
+                "mongo1",
+                "db",
+                "items",
+                "x",
+                {"write_id": "prep", "version": 1},
+            )
+
+        self.assertEqual({"matched_count": 1, "modified_count": 1}, result)
+        self.assertEqual(2, len(self.created_clients))
+        self.assertIsNot(self.created_clients[0], self.created_clients[1])
+        self.assertEqual(2000, self.created_clients[0].options["socketTimeoutMS"])
+        self.assertEqual(7000, self.created_clients[1].options["socketTimeoutMS"])
+        self.assertEqual(5000, self.created_clients[1].database_options["write_concern"]["wtimeout"])
+
+    def test_close_closes_diagnostic_and_setup_clients(self) -> None:
+        pymongo_stub = SimpleNamespace(
+            write_concern=SimpleNamespace(WriteConcern=lambda **options: options),
+        )
+        self.oracle.member_state("mongo1")
+        with patch("mongo_consistency.topology.require_pymongo", return_value=pymongo_stub):
+            self.oracle.setup_write(
+                "mongo2",
+                "db",
+                "items",
+                "x",
+                {"write_id": "prep", "version": 1},
+            )
+
+        self.oracle.close()
+
+        self.assertTrue(all(client.closed for client in self.created_clients))
+        self.assertEqual({}, self.oracle._clients)
+        self.assertEqual({}, self.oracle._setup_clients)
 
     def test_missing_documents_never_count_as_converged(self) -> None:
         self.documents = {member: None for member in self.members}

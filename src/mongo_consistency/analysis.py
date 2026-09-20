@@ -18,6 +18,9 @@ from .config import CONFIG_ROOT, load_configurations, load_predictions
 from .history import read_history
 from .models import History, Outcome
 
+MR_RERUN_RELATIVE_PATH = Path("mr-rerun/experiment")
+MR_RERUN_HISTORY_COUNT = 320
+
 
 def quantile(values: Iterable[float], probability: float) -> float | None:
     """Return a linear-interpolated quantile with stable empty handling."""
@@ -102,6 +105,14 @@ def _trace(history: History) -> list[dict[str, Any]]:
             "requested_member": operation.requested_member,
             "actual_server_address": operation.actual_server_address,
             "actual_role": operation.actual_role,
+            "causal_session": operation.causal_session,
+            "read_concern": operation.read_concern,
+            "write_concern": operation.write_concern,
+            "after_cluster_time": operation.after_cluster_time,
+            "operation_time_after": operation.operation_time_after,
+            "error_code": operation.error_code,
+            "response_received": operation.response_received,
+            "command_started": operation.command_started,
             "duration_ms": (
                 (operation.end_ns - operation.start_ns) / 1_000_000
                 if operation.start_ns is not None
@@ -143,19 +154,109 @@ def _history_row(path: Path, raw_root: Path) -> dict[str, Any]:
     return {
         "path": relative,
         "history_hash": history.history_hash,
+        "trial_id": manifest.get("trial_id"),
         "outcome": result.outcome.value,
         "reason": result.reason,
         "details": result.details,
         "configuration_id": manifest.get("configuration_id"),
         "property": manifest.get("property"),
         "campaign_id": manifest.get("campaign_id"),
+        "runner_commit": manifest.get("runner_commit"),
         "adversarial": manifest.get("adversarial", False),
         "seed": manifest.get("seed"),
         "operation_metrics": operations,
         "event_metrics": _event_durations(history),
         "trace": _trace(history),
+        "fault_events": [
+            {
+                "action": event.get("action"),
+                "event_id": event.get("event_id"),
+                "members": event.get("members", []),
+                "status": event.get("status"),
+                "applied_ns": event.get("applied_ns"),
+                "stable_topology": {
+                    key: event["stable_topology"].get(key)
+                    for key in ("stable", "primary", "secondaries")
+                }
+                if isinstance(event.get("stable_topology"), dict)
+                else {},
+            }
+            for event in history.fault_events
+        ],
         "prediction_manifest_hash": manifest.get("prediction_manifest_hash"),
     }
+
+
+def _merge_mr_rerun_rows(
+    base_rows: list[dict[str, Any]],
+    replacement_rows: list[dict[str, Any]],
+    manifest: dict[str, Any],
+    *,
+    expected_count: int = MR_RERUN_HISTORY_COUNT,
+) -> list[dict[str, Any]]:
+    """Replace the original MR slice only after a complete identity-checked rerun."""
+
+    if (
+        manifest.get("campaign") != "experiment"
+        or manifest.get("status") != "COMPLETE"
+        or manifest.get("expected_case_count") != expected_count
+        or manifest.get("case_count") != expected_count
+        or manifest.get("completed_case_count") != expected_count
+    ):
+        raise ValueError("MR rerun manifest is incomplete or does not match the registered plan")
+
+    planned_ordinals = manifest.get("planned_ordinals")
+    if (
+        not isinstance(planned_ordinals, list)
+        or len(planned_ordinals) != expected_count
+        or any(not isinstance(value, int) or isinstance(value, bool) for value in planned_ordinals)
+        or len(set(planned_ordinals)) != expected_count
+    ):
+        raise ValueError("MR rerun manifest has an invalid ordinal plan")
+    records = manifest.get("records")
+    if (
+        not isinstance(records, list)
+        or len(records) != expected_count
+        or any(not isinstance(record, dict) for record in records)
+    ):
+        raise ValueError("MR rerun manifest does not contain all completed records")
+
+    base_mr_rows = {
+        row.get("trial_id"): row
+        for row in base_rows
+        if row.get("campaign_id") == "experiment" and row.get("property") == "MR"
+    }
+    replacement_by_id = {row.get("trial_id"): row for row in replacement_rows}
+    records_by_id = {record.get("trial_id"): record for record in records}
+    expected_ids = set(base_mr_rows)
+    if (
+        len(base_mr_rows) != expected_count
+        or len(replacement_by_id) != expected_count
+        or len(records_by_id) != expected_count
+        or set(replacement_by_id) != expected_ids
+        or set(records_by_id) != expected_ids
+    ):
+        raise ValueError("MR rerun cases do not exactly match the original MR histories")
+
+    for trial_id, replacement in replacement_by_id.items():
+        original = base_mr_rows[trial_id]
+        record = records_by_id[trial_id]
+        if replacement.get("campaign_id") != "experiment" or replacement.get("property") != "MR":
+            raise ValueError(f"MR rerun contains a non-MR history: {trial_id}")
+        for field in ("configuration_id", "property", "adversarial", "seed"):
+            if replacement.get(field) != original.get(field):
+                raise ValueError(f"MR rerun changed {field} for {trial_id}")
+            if record.get(field) != replacement.get(field):
+                raise ValueError(f"MR rerun manifest disagrees on {field} for {trial_id}")
+        if record.get("history_hash") != replacement.get("history_hash"):
+            raise ValueError(f"MR rerun manifest hash does not match history {trial_id}")
+
+    return [
+        replacement_by_id.get(row.get("trial_id"), row)
+        if row.get("campaign_id") == "experiment" and row.get("property") == "MR"
+        else row
+        for row in base_rows
+    ]
 
 
 def load_rows(raw_root: Path) -> list[dict[str, Any]]:
@@ -168,7 +269,29 @@ def load_rows(raw_root: Path) -> list[dict[str, Any]]:
         for path in raw_root.rglob("*.json")
         if path.name != "campaign-manifest.json"
     )
-    return [_history_row(path, raw_root) for path in paths]
+    rerun_root = raw_root / MR_RERUN_RELATIVE_PATH
+    rerun_paths = [path for path in paths if path.is_relative_to(rerun_root)]
+    base_paths = [path for path in paths if not path.is_relative_to(rerun_root)]
+    base_rows = [_history_row(path, raw_root) for path in base_paths]
+    if not rerun_root.exists():
+        return base_rows
+
+    manifest_path = rerun_root / "campaign-manifest.json"
+    if not manifest_path.is_file():
+        raise ValueError(f"MR rerun directory has no campaign manifest: {manifest_path}")
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise ValueError(f"cannot read MR rerun manifest {manifest_path}: {error}") from error
+    if not isinstance(manifest, dict):
+        raise ValueError(f"MR rerun manifest is not an object: {manifest_path}")
+    replacement_rows = [_history_row(path, raw_root) for path in rerun_paths]
+    if len(replacement_rows) != MR_RERUN_HISTORY_COUNT:
+        raise ValueError(
+            f"MR rerun contains {len(replacement_rows)} histories; "
+            f"expected {MR_RERUN_HISTORY_COUNT}"
+        )
+    return _merge_mr_rerun_rows(base_rows, replacement_rows, manifest)
 
 
 def _counts(rows: Iterable[dict[str, Any]]) -> dict[str, int]:
@@ -623,6 +746,98 @@ def _latency_body(
 
 
 def _trace_body(rows: list[dict[str, Any]]) -> tuple[str, int]:
+    def is_causal_timeout(candidate: dict[str, Any]) -> bool:
+        operations = {
+            item.get("operation_id"): item
+            for item in candidate.get("trace", [])
+        }
+        write = operations.get("write", {})
+        read = operations.get("read", {})
+        return (
+            candidate.get("configuration_id") == "C6"
+            and candidate.get("property") == "RYW"
+            and candidate.get("adversarial") is True
+            and candidate.get("outcome") == Outcome.UNAVAILABLE.value
+            and write.get("status") == "SUCCESS"
+            and write.get("write_concern") == "majority"
+            and read.get("status") == Outcome.UNAVAILABLE.value
+            and read.get("causal_session") is True
+            and read.get("read_concern") == "majority"
+            and read.get("after_cluster_time") == write.get("operation_time_after")
+            and read.get("error_code") == "NetworkTimeout"
+            and read.get("response_received") is False
+        )
+
+    row = next(
+        (candidate for candidate in rows if is_causal_timeout(candidate)),
+        None,
+    )
+    if row is not None:
+        operations = {item.get("operation_id"): item for item in row["trace"]}
+        write = operations["write"]
+        read = operations["read"]
+        isolate = next(
+            (event for event in row.get("fault_events", []) if event.get("action") == "isolate"),
+            {},
+        )
+        heal = next(
+            (event for event in row.get("fault_events", []) if event.get("action") == "heal"),
+            {},
+        )
+        after_cluster_time = read.get("after_cluster_time") or {}
+        after_label = (
+            f"t={after_cluster_time.get('seconds')}, i={after_cluster_time.get('increment')}"
+        )
+        duration = read.get("duration_ms")
+        duration_label = f"{float(duration) / 1000:.2f} s" if duration is not None else "timeout"
+        fault_member = next(iter(isolate.get("members", [])), "secondary")
+        stable = heal.get("stable_topology", {}).get("stable") is True
+        path = row.get("path", "raw history")
+        history_hash = str(row.get("history_hash", ""))
+        body = _svg_text(45, 75, f"{path}  outcome={row.get('outcome')}", size=13, color="#475569")
+        body += _svg_text(45, 96, f"history SHA-256: {history_hash}", size=12, color="#475569")
+        entries = (
+            (
+                "1  ISOLATE",
+                f"replication path on {fault_member}; event={isolate.get('status', 'unknown')}",
+                "#dbeafe",
+            ),
+            (
+                "2  W1",
+                f"writeConcern=majority; {write.get('actual_server_address')} "
+                f"({write.get('actual_role')}); {write.get('status')}",
+                "#dcfce7",
+            ),
+            (
+                "3  R1",
+                f"readConcern=majority; causal=ON; {read.get('actual_server_address')} "
+                f"({read.get('actual_role')}); afterClusterTime=({after_label})",
+                "#fef3c7",
+            ),
+            (
+                "4  RESULT",
+                f"{read.get('error_code')} after {duration_label}; no response or read value; UNAVAILABLE",
+                "#fee2e2",
+            ),
+            (
+                "5  HEAL",
+                f"event={heal.get('status', 'unknown')}; stable topology restored={stable}",
+                "#e2e8f0",
+            ),
+        )
+        for index, (label, description, fill) in enumerate(entries):
+            y = 116 + index * 46
+            body += _svg_box(42, y, 130, 34, label, fill)
+            body += _svg_text(190, y + 22, description, size=13)
+        body += _svg_text(
+            45,
+            361,
+            "The client reached the isolated secondary, but the read returned no document.",
+            size=13,
+            color="#475569",
+        )
+        return body, 385
+
     row = next((candidate for candidate in rows if candidate.get("trace")), None)
     if row is None:
         return _empty_figure("Representative trace", "No completed operation trace is available.")

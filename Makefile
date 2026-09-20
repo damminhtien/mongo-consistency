@@ -1,6 +1,6 @@
 PYTHON ?= python3
 MC_SMOKE_MOUNT ?= ./results/smoke
-.PHONY: check-docs check-schemas check-release-ready submission test setup smoke pilot experiment experiment-fresh rq2 analyse
+.PHONY: check-docs check-schemas check-release-ready submission test setup smoke smoke-mr pilot experiment experiment-fresh rerun-mr rq2 analyse
 
 check-docs:
 	$(PYTHON) scripts/check_documentation.py
@@ -23,6 +23,9 @@ setup:
 smoke: setup
 	MC_RESULTS_MOUNT=$(MC_SMOKE_MOUNT) docker compose -f compose.yaml run --rm runner scripts/run_campaign.py --campaign smoke --output-root results/raw --resume
 
+smoke-mr: setup
+	MC_RESULTS_MOUNT=./results/smoke-mr-rerun docker compose -f compose.yaml run --rm runner scripts/run_campaign.py --campaign smoke --property MR --output-root /workspace/results/raw --resume
+
 pilot: setup
 	docker compose -f compose.yaml run --rm runner scripts/run_campaign.py --campaign pilot --resume
 
@@ -31,6 +34,9 @@ experiment: setup
 
 experiment-fresh: setup
 	docker compose -f compose.yaml run --rm runner scripts/run_campaign.py --campaign experiment
+
+rerun-mr: setup
+	docker compose -f compose.yaml run --rm runner scripts/run_campaign.py --campaign experiment --property MR --output-root /workspace/results/raw/mr-rerun --resume
 
 analyse:
 	PYTHONPATH=src $(PYTHON) scripts/analyse_results.py

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import subprocess
 import sys
 import unittest
@@ -12,12 +13,20 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from mongo_consistency.driver import RoutingMonitor, operation_record_from_events
 from mongo_consistency.models import OperationRecord
-from scripts.setup_experiment import initialize_replica_set, working_tree_clean
+from scripts.setup_experiment import (
+    committed_file_hash,
+    committed_file_revision,
+    initialize_replica_set,
+    working_tree_clean,
+)
 
 
 class HarnessLayoutTests(unittest.TestCase):
-    def test_provenance_clean_check_excludes_generated_outputs(self) -> None:
-        for status_output, expected in (("", True), (" M src/package.py\n", False)):
+    def test_provenance_clean_check_scopes_to_runtime_inputs(self) -> None:
+        for status_output, expected in (
+            ("", True),
+            (" M src/package.py\n", False),
+        ):
             completed = subprocess.CompletedProcess(
                 ["git", "status"], 0, status_output, ""
             )
@@ -26,10 +35,9 @@ class HarnessLayoutTests(unittest.TestCase):
 
             command = run_mock.call_args.args[0]
             self.assertIn("--untracked-files=all", command)
-            self.assertIn(":(exclude)results/**", command)
-            self.assertIn(":(exclude)figures/**", command)
-            self.assertIn(":(exclude)output/**", command)
-            self.assertIn(":(exclude)tmp/**", command)
+            for path in ("Makefile", "compose.yaml", "configs/", "infra/", "scripts/", "src/"):
+                self.assertIn(path, command)
+            self.assertNotIn("README.md", command)
 
     def test_setup_captures_replica_status_through_temporary_output_mount(self) -> None:
         def fake_run(
@@ -57,6 +65,23 @@ class HarnessLayoutTests(unittest.TestCase):
         )
         capture_dir = Path(run_mock.call_args.kwargs["env"]["MC_RESULTS_MOUNT"])
         self.assertFalse(capture_dir.exists(), "temporary setup mount should be removed")
+
+    def test_frozen_protocol_provenance_uses_committed_content(self) -> None:
+        responses = [
+            subprocess.CompletedProcess(["git", "log"], 0, "frozen-commit\n", ""),
+            subprocess.CompletedProcess(["git", "show"], 0, "committed protocol\n", ""),
+        ]
+        with patch("scripts.setup_experiment.run", side_effect=responses) as run_mock:
+            revision = committed_file_revision("docs/experimental-protocol.md")
+            digest = committed_file_hash("docs/experimental-protocol.md")
+
+        self.assertEqual("frozen-commit", revision)
+        self.assertEqual(
+            hashlib.sha256(b"committed protocol\n").hexdigest(),
+            digest,
+        )
+        self.assertEqual("log", run_mock.call_args_list[0].args[0][1])
+        self.assertEqual("show", run_mock.call_args_list[1].args[0][1])
 
     def test_compose_has_three_members_and_separate_networks(self) -> None:
         compose = (ROOT / "compose.yaml").read_text(encoding="utf-8")

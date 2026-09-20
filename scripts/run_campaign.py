@@ -220,8 +220,13 @@ def campaign_plan(
     campaign: str,
     configurations: dict[str, dict[str, Any]],
     campaign_config: dict[str, Any],
+    *,
+    property_filter: str | None = None,
 ) -> list[tuple[int, str, str, bool]]:
     """Return the one deterministic, globally numbered plan for a campaign."""
+
+    if property_filter is not None and property_filter not in PROPERTIES:
+        raise ValueError(f"unknown property filter: {property_filter}")
 
     cases = [
         (configuration_id, property_name, False)
@@ -236,12 +241,15 @@ def campaign_plan(
         )
     )
     random.Random(int(campaign_config["seed_base"])).shuffle(cases)
-    return [
+    numbered = [
         (ordinal, configuration_id, property_name, adversarial)
         for ordinal, (configuration_id, property_name, adversarial) in enumerate(
             cases, start=1
         )
     ]
+    if property_filter is not None:
+        return [case for case in numbered if case[2] == property_filter]
+    return numbered
 
 
 def trial_id_for(
@@ -651,12 +659,18 @@ def run_campaign(
     output_root: Path,
     *,
     resume: bool = False,
+    property_filter: str | None = None,
 ) -> dict[str, Any]:
     configurations = load_configurations(ROOT / "configs/configurations.json")
     campaign_config = load_json(ROOT / "configs/campaign.json")
     runtime_metadata = campaign_runtime_metadata(output_root)
     _require_frozen_provenance(campaign, runtime_metadata)
-    plan = campaign_plan(campaign, configurations, campaign_config)
+    plan = campaign_plan(
+        campaign,
+        configurations,
+        campaign_config,
+        property_filter=property_filter,
+    )
     planned_ordinals = [case[0] for case in plan]
     seed_uris = tuple(
         value
@@ -804,12 +818,19 @@ def main() -> int:
         action="store_true",
         help="reuse and validate completed histories in the campaign directory",
     )
+    parser.add_argument(
+        "--property",
+        choices=PROPERTIES,
+        dest="property_filter",
+        help="run only this property while retaining its global campaign ordinals",
+    )
     parser.add_argument("--output-root", type=Path, default=ROOT / "results/raw")
     args = parser.parse_args()
     manifest = run_campaign(
         args.campaign,
         args.output_root,
         resume=args.resume,
+        property_filter=args.property_filter,
     )
     print(
         json.dumps(
