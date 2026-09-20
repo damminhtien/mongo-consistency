@@ -85,6 +85,51 @@ def _event_durations(history: History) -> dict[str, list[float]]:
     return {"election_ms": election, "recovery_ms": recovery}
 
 
+def _rollback_metrics(history: History) -> dict[str, Any]:
+    """Count acknowledged subject writes absent after all three members converge."""
+
+    acknowledged = [
+        operation
+        for operation in history.operations
+        if operation.kind == "write"
+        and operation.write_id
+        and operation.operation_status == "SUCCESS"
+    ]
+    observation = history.final_observation
+    members = observation.get("members") if isinstance(observation, dict) else None
+    final_ids: set[str] | None = None
+    if (
+        isinstance(observation, dict)
+        and observation.get("converged") is True
+        and isinstance(members, dict)
+        and len(members) == 3
+    ):
+        member_ids = [
+            value.get("observed_write_ids")
+            for value in members.values()
+            if isinstance(value, dict)
+            and value.get("reachable") is True
+            and value.get("observation_valid") is True
+            and isinstance(value.get("observed_write_ids"), list)
+        ]
+        if len(member_ids) == 3 and all(value == member_ids[0] for value in member_ids[1:]):
+            final_ids = set(member_ids[0])
+
+    checked = len(acknowledged) if final_ids is not None else 0
+    rolled_back = (
+        sum(operation.write_id not in final_ids for operation in acknowledged)
+        if final_ids is not None
+        else 0
+    )
+    return {
+        "acknowledged_write_count": len(acknowledged),
+        "rollback_checked_write_count": checked,
+        "rolled_back_write_count": rolled_back,
+        "acknowledged_write_rollback_rate": _rate(rolled_back, checked),
+        "rollback_observation_coverage": _rate(checked, len(acknowledged)),
+    }
+
+
 def _quantile_set(values: Iterable[float]) -> dict[str, float | None]:
     values_list = list(values)
     return {
@@ -137,6 +182,10 @@ def _history_row(path: Path, raw_root: Path) -> dict[str, Any]:
             "configuration_id": None,
             "property": None,
             "campaign_id": None,
+            "topology_condition": None,
+            "fault_episode_id": None,
+            "fault_repetition": None,
+            "signature_extension": None,
             "adversarial": None,
             "operation_metrics": {
                 "attempted": 0,
@@ -146,7 +195,15 @@ def _history_row(path: Path, raw_root: Path) -> dict[str, Any]:
                 "latency_ms": {},
             },
             "event_metrics": {"election_ms": [], "recovery_ms": []},
+            "rollback_metrics": {
+                "acknowledged_write_count": 0,
+                "rollback_checked_write_count": 0,
+                "rolled_back_write_count": 0,
+                "acknowledged_write_rollback_rate": None,
+                "rollback_observation_coverage": None,
+            },
             "trace": [],
+            "fault_events": [],
         }
     result = check_history(history)
     manifest = history.manifest
@@ -165,15 +222,34 @@ def _history_row(path: Path, raw_root: Path) -> dict[str, Any]:
         "adversarial": manifest.get("adversarial", False),
         "seed": manifest.get("seed"),
         "operation_metrics": operations,
-        "event_metrics": _event_durations(history),
+        "topology_condition": manifest.get("topology_condition"),
+        "fault_episode_id": manifest.get("fault_episode_id"),
+        "fault_repetition": manifest.get("fault_repetition"),
+        "signature_extension": manifest.get("signature_extension"),
+        "event_metrics": (
+            {"election_ms": [], "recovery_ms": []}
+            if manifest.get("campaign_id") == "rq2"
+            else _event_durations(history)
+        ),
+        "rollback_metrics": _rollback_metrics(history),
         "trace": _trace(history),
         "fault_events": [
             {
                 "action": event.get("action"),
                 "event_id": event.get("event_id"),
+                "episode_id": event.get("episode_id"),
+                "topology_condition": event.get("topology_condition"),
                 "members": event.get("members", []),
                 "status": event.get("status"),
+                "start_ns": event.get("start_ns"),
                 "applied_ns": event.get("applied_ns"),
+                "election_start_ns": event.get("election_start_ns"),
+                "election_end_ns": event.get("election_end_ns"),
+                "new_primary": event.get("new_primary"),
+                "election_error": event.get("election_error"),
+                "recovery_start_ns": event.get("recovery_start_ns"),
+                "recovery_end_ns": event.get("recovery_end_ns"),
+                "recovery_status": event.get("recovery_status"),
                 "stable_topology": {
                     key: event["stable_topology"].get(key)
                     for key in ("stable", "primary", "secondaries")
@@ -268,6 +344,7 @@ def load_rows(raw_root: Path) -> list[dict[str, Any]]:
         path
         for path in raw_root.rglob("*.json")
         if path.name != "campaign-manifest.json"
+        and ".rq2-staging" not in path.relative_to(raw_root).parts
     )
     rerun_root = raw_root / MR_RERUN_RELATIVE_PATH
     rerun_paths = [path for path in paths if path.is_relative_to(rerun_root)]
@@ -322,6 +399,18 @@ def _group_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
         for row in rows
         for value in row.get("event_metrics", {}).get("recovery_ms", [])
     ]
+    acknowledged_writes = sum(
+        row.get("rollback_metrics", {}).get("acknowledged_write_count", 0)
+        for row in rows
+    )
+    rollback_checked_writes = sum(
+        row.get("rollback_metrics", {}).get("rollback_checked_write_count", 0)
+        for row in rows
+    )
+    rolled_back_writes = sum(
+        row.get("rollback_metrics", {}).get("rolled_back_write_count", 0)
+        for row in rows
+    )
     decidable = counts[Outcome.PASS.value] + counts[Outcome.VIOLATION.value]
     completed = sum(
         counts[outcome.value]
@@ -341,6 +430,15 @@ def _group_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "latency_ms": _quantile_set(latency_values),
         "election_ms": _quantile_set(election_values),
         "recovery_ms": _quantile_set(recovery_values),
+        "acknowledged_write_count": acknowledged_writes,
+        "rollback_checked_write_count": rollback_checked_writes,
+        "rolled_back_write_count": rolled_back_writes,
+        "acknowledged_write_rollback_rate": _rate(
+            rolled_back_writes, rollback_checked_writes
+        ),
+        "rollback_observation_coverage": _rate(
+            rollback_checked_writes, acknowledged_writes
+        ),
     }
 
 
@@ -349,15 +447,17 @@ def group_summaries(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
     grouped: defaultdict[tuple[Any, ...], list[dict[str, Any]]] = defaultdict(list)
     for row in rows:
+        campaign_id = row.get("campaign_id")
         key = (
-            row.get("campaign_id"),
+            campaign_id,
             bool(row.get("adversarial", False)),
             row.get("configuration_id"),
             row.get("property"),
+            row.get("topology_condition") if campaign_id == "rq2" else None,
         )
         grouped[key].append(row)
     result: list[dict[str, Any]] = []
-    for (campaign, adversarial, configuration_id, property_name), members in sorted(
+    for (campaign, adversarial, configuration_id, property_name, topology_condition), members in sorted(
         grouped.items(), key=lambda item: tuple("" if value is None else str(value) for value in item[0])
     ):
         result.append(
@@ -366,10 +466,131 @@ def group_summaries(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "adversarial": adversarial,
                 "configuration_id": configuration_id,
                 "property": property_name,
+                "topology_condition": topology_condition,
                 **_group_summary(members),
             }
         )
+
+    normal_baselines = {
+        (summary["configuration_id"], summary["property"]): summary
+        for summary in result
+        if summary["campaign_id"] == "experiment"
+        and not summary["adversarial"]
+    }
+    for summary in result:
+        if summary["campaign_id"] != "rq2":
+            continue
+        baseline = normal_baselines.get(
+            (summary["configuration_id"], summary["property"])
+        )
+        summary["normal_baseline"] = (
+            {
+                "campaign_id": "experiment",
+                "history_count": baseline["history_count"],
+                "outcomes": baseline["outcomes"],
+                "consistency_violation_rate": baseline["consistency_violation_rate"],
+                "operation_success_rate": baseline["operation_success_rate"],
+                "history_completion_rate": baseline["history_completion_rate"],
+                "latency_ms": baseline["latency_ms"],
+            }
+            if baseline is not None
+            else None
+        )
     return result
+
+
+def fault_episode_summaries(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Summarize one timing record per RQ2 episode, not per history."""
+
+    episodes: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        if row.get("campaign_id") != "rq2":
+            continue
+        for event in row.get("fault_events", []):
+            event_id = event.get("event_id")
+            episode_id = event.get("episode_id") or row.get("fault_episode_id")
+            identity = str(event_id or episode_id or row.get("path"))
+            episodes.setdefault(
+                identity,
+                {
+                    "event_id": event_id,
+                    "episode_id": episode_id,
+                    "topology_condition": event.get("topology_condition")
+                    or row.get("topology_condition"),
+                    "action": event.get("action"),
+                    "members": event.get("members", []),
+                    "status": event.get("status"),
+                    "new_primary": event.get("new_primary"),
+                    "election_error": event.get("election_error"),
+                    "recovery_status": event.get("recovery_status"),
+                    "election_ms": _interval_ms(
+                        event.get("election_start_ns"), event.get("election_end_ns")
+                    ),
+                    "recovery_ms": _interval_ms(
+                        event.get("recovery_start_ns"), event.get("recovery_end_ns")
+                    ),
+                },
+            )
+
+    summaries = []
+    for condition in ("F1", "F2", "F3"):
+        condition_episodes = sorted(
+            (
+                episode
+                for episode in episodes.values()
+                if episode["topology_condition"] == condition
+            ),
+            key=lambda episode: str(episode["episode_id"]),
+        )
+        election_values = [
+            episode["election_ms"]
+            for episode in condition_episodes
+            if episode["election_ms"] is not None
+        ]
+        recovery_values = [
+            episode["recovery_ms"]
+            for episode in condition_episodes
+            if episode["recovery_ms"] is not None
+        ]
+        recovery_statuses = Counter(
+            episode["recovery_status"] or "NOT_RECORDED"
+            for episode in condition_episodes
+        )
+        summaries.append(
+            {
+                "topology_condition": condition,
+                "episode_count": len(condition_episodes),
+                "election_episode_count": len(election_values),
+                "election_success_count": sum(
+                    episode["election_ms"] is not None
+                    and episode["new_primary"] is not None
+                    for episode in condition_episodes
+                ),
+                "election_failure_count": sum(
+                    episode["election_ms"] is not None
+                    and episode["new_primary"] is None
+                    for episode in condition_episodes
+                ),
+                "election_ms": _quantile_set(election_values),
+                "recovery_episode_count": len(recovery_values),
+                "recovery_ms": _quantile_set(recovery_values),
+                "recovery_status_counts": dict(sorted(recovery_statuses.items())),
+                "episodes": condition_episodes,
+            }
+        )
+    return summaries
+
+
+def _interval_ms(start_ns: Any, end_ns: Any) -> float | None:
+    if (
+        isinstance(start_ns, int)
+        and not isinstance(start_ns, bool)
+        and isinstance(end_ns, int)
+        and not isinstance(end_ns, bool)
+        and end_ns >= start_ns
+    ):
+        return (end_ns - start_ns) / 1_000_000
+    return None
 
 
 def campaign_summaries(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
@@ -407,6 +628,24 @@ def campaign_summaries(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
                 for property_name in properties
             },
         }
+        if campaign_id == "rq2":
+            conditions = sorted(
+                {
+                    str(row["topology_condition"])
+                    for row in campaign_rows
+                    if row.get("topology_condition") is not None
+                }
+            )
+            campaigns[campaign_id]["topology_conditions"] = {
+                condition: _group_summary(
+                    [
+                        row
+                        for row in campaign_rows
+                        if row.get("topology_condition") == condition
+                    ]
+                )
+                for condition in conditions
+            }
     return campaigns
 
 
@@ -948,6 +1187,7 @@ def _write_summary_csv(path: Path, summaries: list[dict[str, Any]]) -> None:
         "adversarial",
         "configuration_id",
         "property",
+        "topology_condition",
         "history_count",
         "PASS",
         "VIOLATION",
@@ -958,6 +1198,15 @@ def _write_summary_csv(path: Path, summaries: list[dict[str, Any]]) -> None:
         "consistency_violation_rate",
         "operation_success_rate",
         "history_completion_rate",
+        "acknowledged_write_count",
+        "rollback_checked_write_count",
+        "rolled_back_write_count",
+        "acknowledged_write_rollback_rate",
+        "rollback_observation_coverage",
+        "normal_baseline_history_count",
+        "normal_baseline_consistency_violation_rate",
+        "normal_baseline_operation_success_rate",
+        "normal_baseline_history_completion_rate",
         "latency_p50_ms",
         "latency_p95_ms",
         "latency_p99_ms",
@@ -977,11 +1226,33 @@ def _write_summary_csv(path: Path, summaries: list[dict[str, Any]]) -> None:
                 "adversarial": summary["adversarial"],
                 "configuration_id": summary["configuration_id"],
                 "property": summary["property"],
+                "topology_condition": summary.get("topology_condition"),
                 "history_count": summary["history_count"],
                 **summary["outcomes"],
                 "consistency_violation_rate": summary["consistency_violation_rate"],
                 "operation_success_rate": summary["operation_success_rate"],
                 "history_completion_rate": summary["history_completion_rate"],
+                "acknowledged_write_count": summary["acknowledged_write_count"],
+                "rollback_checked_write_count": summary["rollback_checked_write_count"],
+                "rolled_back_write_count": summary["rolled_back_write_count"],
+                "acknowledged_write_rollback_rate": summary[
+                    "acknowledged_write_rollback_rate"
+                ],
+                "rollback_observation_coverage": summary[
+                    "rollback_observation_coverage"
+                ],
+                "normal_baseline_history_count": (
+                    summary.get("normal_baseline") or {}
+                ).get("history_count"),
+                "normal_baseline_consistency_violation_rate": (
+                    summary.get("normal_baseline") or {}
+                ).get("consistency_violation_rate"),
+                "normal_baseline_operation_success_rate": (
+                    summary.get("normal_baseline") or {}
+                ).get("operation_success_rate"),
+                "normal_baseline_history_completion_rate": (
+                    summary.get("normal_baseline") or {}
+                ).get("history_completion_rate"),
                 "latency_p50_ms": summary["latency_ms"]["p50"],
                 "latency_p95_ms": summary["latency_ms"]["p95"],
                 "latency_p99_ms": summary["latency_ms"]["p99"],
@@ -995,6 +1266,55 @@ def _write_summary_csv(path: Path, summaries: list[dict[str, Any]]) -> None:
             writer.writerow(row)
 
 
+def _write_fault_episode_csv(path: Path, summaries: list[dict[str, Any]]) -> None:
+    """Write election and recovery metrics with episode-level denominators."""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fields = [
+        "topology_condition",
+        "episode_count",
+        "election_episode_count",
+        "election_success_count",
+        "election_failure_count",
+        "election_p50_ms",
+        "election_p95_ms",
+        "election_p99_ms",
+        "recovery_episode_count",
+        "recovery_p50_ms",
+        "recovery_p95_ms",
+        "recovery_p99_ms",
+        "recovery_converged",
+        "recovery_indeterminate",
+        "recovery_error",
+        "recovery_not_recorded",
+    ]
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fields)
+        writer.writeheader()
+        for summary in summaries:
+            statuses = summary["recovery_status_counts"]
+            writer.writerow(
+                {
+                    "topology_condition": summary["topology_condition"],
+                    "episode_count": summary["episode_count"],
+                    "election_episode_count": summary["election_episode_count"],
+                    "election_success_count": summary["election_success_count"],
+                    "election_failure_count": summary["election_failure_count"],
+                    "election_p50_ms": summary["election_ms"]["p50"],
+                    "election_p95_ms": summary["election_ms"]["p95"],
+                    "election_p99_ms": summary["election_ms"]["p99"],
+                    "recovery_episode_count": summary["recovery_episode_count"],
+                    "recovery_p50_ms": summary["recovery_ms"]["p50"],
+                    "recovery_p95_ms": summary["recovery_ms"]["p95"],
+                    "recovery_p99_ms": summary["recovery_ms"]["p99"],
+                    "recovery_converged": statuses.get("CONVERGED", 0),
+                    "recovery_indeterminate": statuses.get("INDETERMINATE", 0),
+                    "recovery_error": statuses.get("ERROR", 0),
+                    "recovery_not_recorded": statuses.get("NOT_RECORDED", 0),
+                }
+            )
+
+
 def analyse(
     *,
     raw_root: Path,
@@ -1006,6 +1326,7 @@ def analyse(
 
     rows = load_rows(raw_root)
     summaries = group_summaries(rows)
+    episode_summaries = fault_episode_summaries(rows)
     configurations = load_configurations(CONFIG_ROOT / "configurations.json")
     predictions = load_predictions(CONFIG_ROOT / "predictions.json")
     factorial = factorial_analysis(summaries, configurations)
@@ -1017,6 +1338,7 @@ def analyse(
         "overall": _group_summary(rows),
         "campaign_summaries": campaign_summaries(rows),
         "groups": summaries,
+        "fault_episode_summaries": episode_summaries,
         "factorial": factorial,
         "predictions": predictions,
     }
@@ -1024,6 +1346,7 @@ def analyse(
     _write_json(summary_root / "history-results.json", rows)
     _write_json(summary_root / "factorial-contrasts.json", factorial)
     _write_summary_csv(summary_root / "summary.csv", summaries)
+    _write_fault_episode_csv(summary_root / "fault-episodes.csv", episode_summaries)
     figure_paths = generate_figures(
         figures_root,
         summaries,

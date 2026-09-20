@@ -41,16 +41,24 @@ question -> prediction -> registered schedule -> raw history -> offline checker 
 - Property definitions and operation schedules.
 - Outcome counts for PASS, VIOLATION, UNAVAILABLE, INDETERMINATE,
   PRECONDITION_MISS, and HARNESS_ERROR.
+- RQ2 outcome, availability, latency, rollback, election, and recovery summaries
+  by fault condition, configuration, and property. Show both history counts
+  and fault-episode counts; keep episode timing in the separate generated
+  `fault-episodes.csv` table.
 - Operation success, history completion, consistency rate, p50/p95/p99 latency,
   election and recovery summaries.
-- RC, WC, causal-session contrasts and interactions where the data support
-  them; label these exploratory and descriptive.
+- Configuration-by-property comparisons organized as prediction, observation,
+  and trace-supported explanation. Keep RC, WC, and causal-session contrasts
+  descriptive in the appendix; do not present them as the main contribution or
+  claim statistical significance.
 - Four slide-aligned property timelines.
 - Architecture and fault-topology diagrams.
 - Configuration/property outcome heatmap and prediction-versus-observation
   plot.
 - Representative trace with requested route, actual server, session metadata,
   fault state, and direct topology evidence.
+- The C6 RYW majority-read timeout as an observed unavailable outcome, with its
+  source history and hash, not as a stale-read violation.
 
 ## Evidence rules
 
@@ -62,10 +70,16 @@ question -> prediction -> registered schedule -> raw history -> offline checker 
   separately; never count a precondition miss as a database violation.
 - Keep the pilot separate from RQ1. Report the 320 normal controls separately
   from the 960 adversarial histories.
+- Use the C1/C3/C4/C6 RQ1 normal histories as the RQ2 baseline; do not rerun or
+  pool normal histories into RQ2. Report the 384 RQ2 core histories and 48
+  partition-signature extensions separately.
 - Do not pool parallel execution into RQ1 latency. RQ1 runs sequentially.
 - State the numerator and denominator for every property/configuration rate.
 - Treat zero observed violations as a finite observation, not proof of a
   universal guarantee.
+- Treat each grouped fault episode as the experimental unit for topology,
+  election, and recovery measurements. Histories sharing an episode are not
+  independent fault events.
 - Explain a MongoDB internal mechanism only when the recorded observable trace
   supports that explanation.
 - If there is no complete main manifest, report evidence as unavailable; do not

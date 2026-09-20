@@ -26,6 +26,34 @@ SCHEMA_NAMES = (
     "outcome.v1.json",
     "summary.v1.json",
 )
+RQ2_HISTORY_COUNT = 432
+RQ2_CONDITIONS = {"F1", "F2", "F3"}
+RQ2_CONFIGURATIONS = {"C1", "C3", "C4", "C6"}
+RQ2_PROPERTIES = {"RYW", "MR", "MW", "WFR"}
+RQ2_SIGNATURE_CELLS = {("C1", "RYW"), ("C6", "RYW"), ("C1", "MW"), ("C6", "MW")}
+RQ2_EPISODE_IDS = {
+    f"rq2-{condition.lower()}-r{repetition:02d}"
+    for repetition in range(1, 9)
+    for condition in RQ2_CONDITIONS
+} | {f"rq2-f3-r{repetition:02d}" for repetition in range(9, 21)}
+RQ2_EPISODE_PLAN = {
+    f"rq2-{condition.lower()}-r{repetition:02d}": {
+        "topology_condition": condition,
+        "repetition": repetition,
+        "signature_extension": False,
+        "history_count": 16,
+    }
+    for repetition in range(1, 9)
+    for condition in RQ2_CONDITIONS
+} | {
+    f"rq2-f3-r{repetition:02d}": {
+        "topology_condition": "F3",
+        "repetition": repetition,
+        "signature_extension": True,
+        "history_count": 4,
+    }
+    for repetition in range(9, 21)
+}
 
 
 def _read_json(path: Path) -> Any:
@@ -121,6 +149,60 @@ def _check_manifest(manifest: Any, location: str, errors: list[str]) -> None:
     _require(isinstance(manifest.get("causal_session"), bool), f"{location}: causal_session must be boolean", errors)
     _require(isinstance(manifest.get("namespace"), dict), f"{location}: namespace must be an object", errors)
     _require(isinstance(manifest.get("timeout_policy"), dict), f"{location}: timeout_policy must be an object", errors)
+    if manifest.get("campaign_id") == "rq2":
+        condition = manifest.get("topology_condition")
+        repetition = manifest.get("fault_repetition")
+        configuration_id = manifest.get("configuration_id")
+        property_name = manifest.get("property")
+        valid_condition = isinstance(condition, str) and condition in RQ2_CONDITIONS
+        valid_configuration = (
+            isinstance(configuration_id, str) and configuration_id in RQ2_CONFIGURATIONS
+        )
+        valid_property = isinstance(property_name, str) and property_name in RQ2_PROPERTIES
+        _require(valid_condition, f"{location}: invalid RQ2 topology_condition", errors)
+        _require(
+            valid_configuration,
+            f"{location}: invalid RQ2 configuration_id",
+            errors,
+        )
+        _require(valid_property, f"{location}: invalid RQ2 property", errors)
+        _require(
+            isinstance(repetition, int) and not isinstance(repetition, bool) and repetition >= 1,
+            f"{location}: invalid RQ2 fault_repetition",
+            errors,
+        )
+        expected_episode_id = (
+            f"rq2-{condition.lower()}-r{repetition:02d}"
+            if valid_condition
+            and isinstance(repetition, int)
+            and not isinstance(repetition, bool)
+            else None
+        )
+        _require(
+            manifest.get("fault_episode_id") == expected_episode_id,
+            f"{location}: fault_episode_id does not match condition/repetition",
+            errors,
+        )
+        _require(
+            isinstance(manifest.get("fault_event_id"), str)
+            and bool(manifest.get("fault_event_id")),
+            f"{location}: RQ2 fault_event_id is required",
+            errors,
+        )
+        signature = (
+            condition == "F3"
+            and valid_configuration
+            and valid_property
+            and (configuration_id, property_name) in RQ2_SIGNATURE_CELLS
+            and isinstance(repetition, int)
+            and not isinstance(repetition, bool)
+            and 9 <= repetition <= 20
+        )
+        _require(
+            manifest.get("signature_extension") is signature,
+            f"{location}: signature_extension does not match the registered plan",
+            errors,
+        )
 
 
 def _check_campaign_manifest(
@@ -202,6 +284,145 @@ def _check_campaign_manifest(
                     f"{path}: records contain duplicate or unplanned ordinals",
                     errors,
                 )
+    if payload.get("campaign") == "rq2":
+        _require(
+            expected_count == RQ2_HISTORY_COUNT,
+            f"{path}: RQ2 expected_case_count must be {RQ2_HISTORY_COUNT}",
+            errors,
+        )
+        planned_episode_ids = payload.get("planned_episode_ids")
+        valid_planned_ids = (
+            isinstance(planned_episode_ids, list)
+            and all(isinstance(episode_id, str) for episode_id in planned_episode_ids)
+        )
+        _require(
+            valid_planned_ids
+            and len(planned_episode_ids) == len(RQ2_EPISODE_IDS)
+            and set(planned_episode_ids) == RQ2_EPISODE_IDS,
+            f"{path}: RQ2 planned episodes do not match the registered 36 episodes",
+            errors,
+        )
+        episode_entries = payload.get("episodes")
+        _require(isinstance(episode_entries, list), f"{path}: RQ2 episodes must be a list", errors)
+        if isinstance(episode_entries, list):
+            episode_ids = [
+                episode.get("episode_id")
+                for episode in episode_entries
+                if isinstance(episode, dict)
+                and isinstance(episode.get("episode_id"), str)
+            ]
+            _require(
+                len(episode_ids) == len(episode_entries)
+                and len(episode_ids) == len(set(episode_ids))
+                and set(episode_ids).issubset(RQ2_EPISODE_IDS),
+                f"{path}: RQ2 episodes contain duplicate or unknown episode IDs",
+                errors,
+            )
+            if payload.get("status") == "COMPLETE":
+                _require(
+                    len(episode_entries) == len(RQ2_EPISODE_IDS)
+                    and set(episode_ids) == RQ2_EPISODE_IDS
+                    and payload.get("fault_episode_count") == len(RQ2_EPISODE_IDS)
+                    and payload.get("completed_fault_episode_count") == len(RQ2_EPISODE_IDS),
+                    f"{path}: complete RQ2 campaign must record all 36 episodes",
+                    errors,
+                )
+        if isinstance(records, list):
+            records_by_episode: dict[str, list[dict[str, Any]]] = {}
+            for index, record in enumerate(records):
+                if not isinstance(record, dict):
+                    continue
+                condition = record.get("topology_condition")
+                repetition = record.get("repetition")
+                configuration_id = record.get("configuration_id")
+                property_name = record.get("property")
+                valid_condition = isinstance(condition, str) and condition in RQ2_CONDITIONS
+                valid_configuration = (
+                    isinstance(configuration_id, str)
+                    and configuration_id in RQ2_CONFIGURATIONS
+                )
+                valid_property = isinstance(property_name, str) and property_name in RQ2_PROPERTIES
+                expected_episode_id = (
+                    f"rq2-{condition.lower()}-r{repetition:02d}"
+                    if valid_condition
+                    and isinstance(repetition, int)
+                    and not isinstance(repetition, bool)
+                    else None
+                )
+                for field in (
+                    "topology_condition",
+                    "fault_episode_id",
+                    "repetition",
+                    "signature_extension",
+                ):
+                    _require(field in record, f"{path}: records[{index}] missing RQ2 {field}", errors)
+                _require(
+                    valid_condition and valid_configuration and valid_property,
+                    f"{path}: records[{index}] has an invalid RQ2 cell",
+                    errors,
+                )
+                _require(
+                    expected_episode_id in RQ2_EPISODE_IDS
+                    and record.get("fault_episode_id") == expected_episode_id,
+                    f"{path}: records[{index}] fault_episode_id does not match",
+                    errors,
+                )
+                is_signature = (
+                    condition == "F3"
+                    and valid_configuration
+                    and valid_property
+                    and (configuration_id, property_name) in RQ2_SIGNATURE_CELLS
+                    and isinstance(repetition, int)
+                    and not isinstance(repetition, bool)
+                    and 9 <= repetition <= 20
+                )
+                _require(
+                    record.get("signature_extension") is is_signature,
+                    f"{path}: records[{index}] signature_extension does not match",
+                    errors,
+                )
+                if isinstance(expected_episode_id, str):
+                    records_by_episode.setdefault(expected_episode_id, []).append(record)
+
+            if isinstance(episode_entries, list):
+                for index, episode in enumerate(episode_entries):
+                    if not isinstance(episode, dict):
+                        continue
+                    episode_id = episode.get("episode_id")
+                    expected = (
+                        RQ2_EPISODE_PLAN.get(episode_id)
+                        if isinstance(episode_id, str)
+                        else None
+                    )
+                    if expected is None:
+                        continue
+                    episode_records = records_by_episode.get(episode_id, [])
+                    record_ids = [record.get("trial_id") for record in episode_records]
+                    listed_ids = episode.get("trial_ids")
+                    _require(
+                        episode.get("topology_condition") == expected["topology_condition"]
+                        and episode.get("repetition") == expected["repetition"]
+                        and episode.get("signature_extension") is expected["signature_extension"],
+                        f"{path}: episodes[{index}] metadata does not match the registered plan",
+                        errors,
+                    )
+                    _require(
+                        episode.get("history_count") == expected["history_count"]
+                        and len(episode_records) == expected["history_count"],
+                        f"{path}: episodes[{index}] history count does not match its records",
+                        errors,
+                    )
+                    _require(
+                        isinstance(listed_ids, list)
+                        and all(isinstance(trial_id, str) for trial_id in listed_ids)
+                        and len(listed_ids) == len(set(listed_ids))
+                        and all(isinstance(trial_id, str) for trial_id in record_ids)
+                        and set(listed_ids) == set(record_ids),
+                        f"{path}: episodes[{index}] trial_ids do not match the episode records",
+                        errors,
+                    )
+
+
 def _check_summary(
     path: Path,
     errors: list[str],
@@ -247,6 +468,8 @@ def validate(root: Path) -> list[str]:
     raw_root = root / "results/raw"
     if raw_root.exists():
         for path in sorted(raw_root.rglob("*.json")):
+            if ".rq2-staging" in path.relative_to(raw_root).parts:
+                continue
             if path.name == "campaign-manifest.json":
                 _check_campaign_manifest(path, errors, validators)
                 continue
@@ -279,6 +502,15 @@ def validate(root: Path) -> list[str]:
                 _require(bool(operation.operation_id), f"{path}: operation {index} has no operation_id", errors)
             for index, event in enumerate(history.fault_events):
                 _require(isinstance(event, dict), f"{path}: fault event {index} must be an object", errors)
+                if isinstance(event, dict):
+                    event_validator = validators.get("fault-event.v1.json")
+                    if event_validator is not None:
+                        _check_schema_instance(
+                            event,
+                            event_validator,
+                            f"{path}:fault_events[{index}]",
+                            errors,
+                        )
 
     summary = root / "results/summary/summary.json"
     if summary.is_file():

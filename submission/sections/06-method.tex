@@ -35,7 +35,38 @@ failure.
 
 The design uses a 32-history machinery smoke, a separate 192-history pilot,
 and a sequential RQ1 campaign of 320 controls plus 960 adversarial histories.
-The smoke and pilot are not included in RQ1 estimates. RQ2 uses its own
-representative configuration and fault-condition matrix.
+The smoke and pilot are not included in RQ1 estimates.
+
+RQ2 crosses C1, C3, C4, and C6 with secondary crash (F1), primary
+crash/election (F2), and primary-isolating network partition (F3), using RYW,
+MR, MW, and WFR in every cell. RQ1 normal histories for the same four
+configurations and properties provide the descriptive baseline; RQ2 adds no
+normal histories.
+
+There are eight core repetitions per cell: 3 faults x 8 repetitions x 4
+configurations x 4 properties = 384 histories. Four F3 signature cells
+(C1/C6 x RYW/MW) extend from eight to 20 repetitions, adding 48 histories. The
+registered RQ2 total is 432 histories. The execution groups each fault and
+repetition into one episode: 24 core episodes contain 16 histories each, and
+12 F3 extension episodes contain four histories each. Every history has its
+own document key and subject session. The episode, rather than each history
+sharing it, is the unit for election and recovery timing.
+
+For each property, the related operations bracket the fault transition:
+W1/fault/R1 for RYW, W1/R1/fault/R2 for MR, W1/fault/W2 for MW, and
+R1/fault/W2 for WFR. MR requires R1 to return its acknowledged version-1 seed
+write; otherwise the history is a precondition miss. In the four C1/C6 RYW/MW
+signature cells, F3 starts before W1: launch the independent writes
+concurrently and retain those routed to the former primary during the transient
+partition, observe the majority-side election, then issue R1 or W2 on that side.
+This captures a possible C1 `w:1` rollback and the contrasting C6
+majority-write wait or failure. The independent observer checks all three
+members after healing or restarting the failed node. The primary analysis
+retains any acknowledged write later rolled back after convergence.
+
+Eight controlled repetitions support reproducible-behavior comparisons, not a
+precise estimate of a true violation probability. The report states counts and
+denominators and keeps operation availability separate from completed-history
+consistency.
 
 \maybefigure{submission/figures/representative-trace.pdf}{Representative operation trace with requested and actual routing.}

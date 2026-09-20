@@ -37,8 +37,9 @@ repository.
 
 - RQ1: How do read concern, write concern, and causal sessions affect RYW, MR,
   MW, and WFR?
-- RQ2: How do normal operation, secondary failure, primary failure, and network
-  partition affect consistency outcomes, availability, and recovery?
+- RQ2: How do node failures, primary failover, and network partitions affect
+  client-centric consistency, operation availability, and recovery in a
+  three-member MongoDB replica set?
 - RQ3: Which observed routing, session-time, and topology evidence explains
   representative outcomes? Internal MongoDB mechanisms are not claimed unless
   the recorded trace supports the inference.
@@ -48,6 +49,10 @@ repository.
 RQ1 uses stale-replica and election schedules to expose the required states.
 RQ2 separately compares topology conditions. This boundary prevents a change in
 configuration and a change in failure model from being treated as one factor.
+RQ2 uses C1, C3, C4, and C6 for all four properties. It compares secondary
+crash, primary crash/election, and primary-isolating network partition. It
+reuses the matching RQ1 normal histories as its descriptive baseline and adds
+no normal histories of its own. C5 versus C6 is reserved for RQ3.
 
 ## Configuration and predictions
 
@@ -95,13 +100,21 @@ cache state is logged separately and never treated as ground truth.
 6. Run the 192-history pilot; block main runs on harness errors, wrong routing,
    cleanup failures, or more than 5% precondition misses for any property.
 7. Run RQ1 sequentially: 320 normal controls plus 960 adversarial histories.
-8. Run RQ2 on its representative configurations and four topology conditions.
+8. Implement the grouped RQ2 runner and host coordinator, freeze their
+   provenance, then run 384 core histories and 48 extra histories for four
+   partition signature cells.
 9. Rebuild analysis, plots, LaTeX macros, PDF, and reproduction archive from raw
    histories.
 10. Audit the clean-clone path, generated artifacts, staged diff, and final
     submission package.
 
 ## Completion gates
+
+The RQ2 plan groups one fault episode by fault condition and repetition. Its
+core is 24 episodes with 16 histories each; the partition extension is 12
+episodes with four histories each. Report episode counts separately from
+history counts so shared topology events are not presented as independent
+fault events.
 
 The work is complete only when all requirements in
 [experimental-protocol.md](experimental-protocol.md) have current evidence:
@@ -110,6 +123,8 @@ frozen provenance; clean pilot; complete RQ1 and RQ2 manifests; offline analysis
 rendered and inspected PDF; reproducible archive; and CI checks. A passing unit
 suite does not substitute for live schedule evidence.
 
-make smoke, make pilot, make experiment, and make rq2 require a running Docker
-daemon. If Docker is unavailable, continue with offline implementation
-and tests, but do not describe live validation as complete.
+The `make rq2` target and grouped runner are implemented. The campaign still
+requires a clean, committed protocol/runner snapshot and a running Docker
+daemon; no RQ2 histories have been executed or live-validated. The host
+coordinator applies faults outside the runner container through a temporary
+IPC mount, keeping Docker control out of the runner.

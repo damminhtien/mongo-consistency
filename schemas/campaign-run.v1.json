@@ -48,6 +48,25 @@
     "runner_dirty": {"type": ["boolean", "null"]},
     "runner_commits": {"type": "array", "items": {"type": "string", "minLength": 1}},
     "resumed": {"type": "boolean"},
+    "fault_episode_count": {"type": "integer", "minimum": 0},
+    "completed_fault_episode_count": {"type": "integer", "minimum": 0},
+    "planned_episode_ids": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+    "episodes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["episode_id", "topology_condition", "repetition", "history_count", "trial_ids"],
+        "properties": {
+          "episode_id": {"type": "string", "minLength": 1},
+          "topology_condition": {"enum": ["F1", "F2", "F3"]},
+          "repetition": {"type": "integer", "minimum": 1},
+          "signature_extension": {"type": "boolean"},
+          "history_count": {"type": "integer", "minimum": 1},
+          "trial_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+        },
+        "additionalProperties": true
+      }
+    },
     "records": {
       "type": "array",
       "items": {
@@ -89,7 +108,11 @@
           },
           "precondition_status": {"enum": ["SATISFIED", "PRECONDITION_MISS"]},
           "runner_commit": {"type": ["string", "null"]},
-          "runner_error": {"type": ["string", "null"]}
+          "runner_error": {"type": ["string", "null"]},
+          "topology_condition": {"enum": ["F1", "F2", "F3"]},
+          "fault_episode_id": {"type": "string", "minLength": 1},
+          "repetition": {"type": "integer", "minimum": 1},
+          "signature_extension": {"type": "boolean"}
         },
         "additionalProperties": true
       }

@@ -21,8 +21,13 @@ Live setup records the actual runtime versions and MongoDB image digest.
 The project tests read-your-writes (RYW), monotonic reads (MR), monotonic writes
 (MW), and writes-follow-reads (WFR). All operations within a trial use one
 logical document x where the property requires a shared key. RQ1 varies read
-concern, write concern, and causal-session setting. RQ2 separately compares
-normal operation, secondary failure, primary failure, and network partition.
+concern, write concern, and causal-session setting. RQ2 asks how node failures,
+primary failover, and network partitions affect client-centric consistency,
+operation availability, and recovery in the three-member replica set. It
+compares secondary crash, primary crash/election, and primary-isolating network
+partition under C1, C3, C4, and C6. RQ2 uses RQ1 normal histories as a
+descriptive baseline, covers RYW, MR, MW, and WFR, and does not repeat a
+normal campaign.
 
 ## Submission
 

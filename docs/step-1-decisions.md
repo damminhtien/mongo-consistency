@@ -22,13 +22,21 @@ recorded assumption cannot be implemented.
 
 - Use the C1-C8 matrix of read concern, write concern, and causal session.
 - RQ1 studies configuration semantics using property-specific fault schedules.
-- RQ2 separately studies topology failures and normal operation.
+- RQ2 studies secondary crash, primary crash/election, and primary-isolating
+  network partition; it does not repeat normal operation.
+- RQ2 uses C1, C3, C4, and C6 for RYW, MR, MW, and WFR. RQ1 normal histories
+  for these cells are its descriptive baseline. C5 versus C6 is reserved for
+  RQ3.
+- RQ2 has eight core repetitions per configuration/fault/property cell. Four
+  primary-partition signature cells extend to 20 repetitions. The total is
+  432 histories in 36 grouped fault episodes.
 - Main RQ1 design: 320 normal controls and 960 adversarial histories.
 - Pilot design: five adversarial repetitions plus one normal control for each
   configuration/property cell, 192 histories total.
 - Run one 32-history machinery smoke before freezing the protocol and predictions.
 - Use seed 20260915 plus the campaign ordinal, unique namespaces, and a
-  deterministic shuffled plan.
+  deterministic shuffled plan for RQ1. RQ2 pairs repetition indices across
+  fault conditions and gives each history its own namespace and session.
 
 ## Protocol
 

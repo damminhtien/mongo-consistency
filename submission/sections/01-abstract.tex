@@ -2,9 +2,13 @@
 
 This study evaluates read-your-writes (RYW), monotonic reads (MR), monotonic
 writes (MW), and writes-follow-reads (WFR) in a three-member MongoDB replica
-set. It varies read concern, write concern, and explicit causal sessions across
-the C1-C8 configuration matrix. Each property has a registered schedule and a
-separate offline checker.
+set. RQ1 varies read concern, write concern, and explicit causal sessions across
+the C1-C8 configuration matrix. RQ2 compares secondary crash, primary
+crash/election, and primary-isolating partition under C1, C3, C4, and C6 for
+the same four properties. Its registered design has 384 core histories and 48
+partition-signature extensions; RQ1 normal histories supply the descriptive
+baseline. Each property has a registered schedule and a separate offline
+checker.
 
 The report uses the campaign and analysis state recorded at build time:
 \texttt{\MainCampaignStatus} and \texttt{\AnalysisStatus}. It reports the

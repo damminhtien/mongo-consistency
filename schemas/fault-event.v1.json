@@ -6,7 +6,9 @@
   "required": ["event_id", "action", "members", "start_ns", "status"],
   "properties": {
     "event_id": {"type": "string", "minLength": 1},
-    "action": {"enum": ["isolate", "heal"]},
+    "action": {"enum": ["isolate", "heal", "stop"]},
+    "episode_id": {"type": "string", "minLength": 1},
+    "topology_condition": {"enum": ["F1", "F2", "F3"]},
     "members": {"type": "array", "items": {"type": "string"}},
     "start_ns": {"type": "integer", "minimum": 0},
     "applied_ns": {"type": ["integer", "null"], "minimum": 0},
@@ -15,10 +17,16 @@
     "election_end_ns": {"type": ["integer", "null"], "minimum": 0},
     "recovery_start_ns": {"type": ["integer", "null"], "minimum": 0},
     "recovery_end_ns": {"type": ["integer", "null"], "minimum": 0},
+    "recovery_requested_ns": {"type": ["integer", "null"], "minimum": 0},
+    "recovery_action": {"enum": ["start", "heal"]},
+    "recovery_status": {"enum": ["CONVERGED", "INDETERMINATE", "ERROR"]},
+    "stable_topology": {"type": "object"},
     "new_primary": {"type": ["string", "null"]},
     "status": {"enum": ["STARTED", "APPLIED", "ERROR"]},
     "responses": {"type": "array"},
-    "error": {"type": ["string", "null"]}
+    "error": {"type": ["string", "null"]},
+    "election_error": {"type": "string"},
+    "recovery_error": {"type": "string"}
   },
   "additionalProperties": true
 }

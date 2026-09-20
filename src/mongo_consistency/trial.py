@@ -138,6 +138,7 @@ class MongoTrial:
         self.property_name = property_name
         self.schedule_id = schedule_id
         self.seed = seed
+        self.subtrial_deadline_seconds = subtrial_deadline_seconds
         self.started_ns = time.monotonic_ns()
         self.deadline_ns = self.started_ns + int(subtrial_deadline_seconds * 1_000_000_000)
         self.runtime_metadata = dict(runtime_metadata or {})
@@ -328,6 +329,16 @@ class MongoTrial:
 
     def remaining_seconds(self) -> float:
         return max(0.0, (self.deadline_ns - time.monotonic_ns()) / 1_000_000_000)
+
+    def reset_deadline(self) -> None:
+        """Start a fresh bounded phase after shared episode barriers."""
+
+        self.deadline_ns = time.monotonic_ns() + int(
+            self.subtrial_deadline_seconds * 1_000_000_000
+        )
+        self.manifest.setdefault("subtrial_deadline_resets_ns", []).append(
+            time.monotonic_ns()
+        )
 
     def initialize(self) -> bool:
         """Create v0 through an independent direct client and verify all three copies."""

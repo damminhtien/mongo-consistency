@@ -39,8 +39,13 @@ source PDFs remain outside the repository at
 - Classify a lost possible write as INDETERMINATE and a missing schedule state
   as PRECONDITION_MISS.
 - Keep operation deadlines separate from election/topology barriers.
-- Treat 30 repetitions as registered-history repetitions, not a universal
-  probability estimate.
+- For RQ1, treat 30 repetitions as registered-history repetitions, not a
+  universal probability estimate.
+- For RQ2, use C1/C3/C4/C6 across F1/F2/F3 and RYW/MR/MW/WFR. Reuse matching
+  RQ1 normal histories as the descriptive baseline; do not rerun normal.
+- Group RQ2 into 24 core episodes with 16 histories each and 12 partition
+  extension episodes with four signature histories each. Report the 432
+  history count separately from the 36 fault-episode count.
 - Use the seeded ordinal rule and unique namespaces; do not reset after each
   property.
 

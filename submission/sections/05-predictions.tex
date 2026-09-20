@@ -24,3 +24,18 @@ C8 & local, majority, causal off & none & This cell completes the factorial desi
 \end{longtable}
 
 These are predictions for the registered workloads and fault schedules. They are not observations. Each row uses a seeded case order, a unique namespace, and a manifest with the software versions and image digest.
+
+The prediction targets use the durability-aware interpretation adopted in the experimental protocol.
+
+RQ2 evaluates four pre-registered hypotheses:
+
+\begin{itemize}
+\item H2.1: A secondary crash mainly reduces redundancy. Operations that remain routable should not create new consistency anomalies.
+\item H2.2: A primary crash mainly appears as election delay and temporary unavailability rather than completed but invalid histories.
+\item H2.3: A primary-isolating partition is the clearest condition for exposing differences between weak (local/\texttt{w: 1}) and majority settings, including stale state and acknowledged writes later rolled back.
+\item H2.4: Majority read/write concerns with a causal session should shift outcomes from successful but invalid histories toward waiting or temporary unavailability.
+\end{itemize}
+
+These hypotheses are predictions, not conclusions. A zero observed count is
+reported as no violation observed in the completed repetitions, not as a zero
+true violation probability.

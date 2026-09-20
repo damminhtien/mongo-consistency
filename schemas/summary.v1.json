@@ -33,6 +33,37 @@
       }
     },
     "groups": {"type": "array", "items": {"type": "object"}},
+    "fault_episode_summaries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "topology_condition",
+          "episode_count",
+          "election_episode_count",
+          "election_success_count",
+          "election_failure_count",
+          "election_ms",
+          "recovery_episode_count",
+          "recovery_ms",
+          "recovery_status_counts",
+          "episodes"
+        ],
+        "properties": {
+          "topology_condition": {"enum": ["F1", "F2", "F3"]},
+          "episode_count": {"type": "integer", "minimum": 0},
+          "election_episode_count": {"type": "integer", "minimum": 0},
+          "election_success_count": {"type": "integer", "minimum": 0},
+          "election_failure_count": {"type": "integer", "minimum": 0},
+          "election_ms": {"type": "object"},
+          "recovery_episode_count": {"type": "integer", "minimum": 0},
+          "recovery_ms": {"type": "object"},
+          "recovery_status_counts": {"type": "object"},
+          "episodes": {"type": "array", "items": {"type": "object"}}
+        },
+        "additionalProperties": true
+      }
+    },
     "factorial": {"type": "object"},
     "predictions": {"type": "object"}
   },

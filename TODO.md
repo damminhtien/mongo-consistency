@@ -59,7 +59,12 @@ offline analysis, and the rendered submission all pass the evidence checks.
 - [ ] Run the 192-history pilot; require zero harness errors and precondition
   misses at or below 5% per property.
 - [ ] Run sequential RQ1: 320 normal controls plus 960 adversarial histories.
-- [ ] Implement and run RQ2 on the representative configuration/fault matrix.
+- [x] Implement the grouped RQ2 runner and host-only fault coordinator for
+  C1/C3/C4/C6, F1/F2/F3, and RYW/MR/MW/WFR, with a 432-history plan across 36
+  episodes and unique keys/sessions per history.
+- [ ] Freeze the clean protocol/runner provenance, then run the 384-history
+  core and extend four partition signature cells to 20 repetitions (432 total);
+  use RQ1 normal histories as the separate baseline.
 - [ ] Validate manifests, hashes, routing, cleanup, and completeness before analysis.
 
 ## Analysis and submission
@@ -72,7 +77,6 @@ offline analysis, and the rendered submission all pass the evidence checks.
 - [ ] Commit coherent slices, inspect staged diffs, run git diff --check, and
   push main.
 
-Current offline evidence: make test passed 70 tests on 20 September 2026.
-Documentation and record checks also passed before the latest document rewrite.
-The Docker CLI is installed, but the daemon could not be reached during this
-session. No live smoke or campaign is claimed from that state.
+Last recorded offline evidence: make test passed 70 tests on 20 September 2026;
+documentation and record checks passed before this RQ2 revision. The new RQ2
+runner has not been executed, and no live validation is claimed.

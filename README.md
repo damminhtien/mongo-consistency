@@ -25,6 +25,7 @@ make setup
 make smoke
 make pilot
 make experiment
+# Requires a clean checkout with frozen provenance and a running Docker daemon.
 make rq2
 make analyse
 make submission
@@ -42,9 +43,21 @@ and checksummed reproduction archive.
 make smoke runs 32 histories and is a machinery check, not scientific
 evidence. make pilot runs 192 separate histories. RQ1 is a sequential
 1,280-history campaign: 320 normal controls and 960 adversarial histories.
-RQ2 uses representative configurations under normal operation, secondary
-failure, primary failure, and network partition. Campaign sizes and gate
-conditions are specified in the protocol.
+After the diagnostic-timeout correction, make smoke-mr exercises all eight MR
+configuration cells, and make rerun-mr reruns the 320 MR cases into a separate
+raw-results folder. Analysis substitutes the rerun only after validating its
+complete manifest and case identities; original histories remain available.
+RQ2 is registered for C1/C3/C4/C6, three fault conditions, and all four
+properties. Its 384-history core is extended by 48 histories in four partition
+signature cells, for 432 histories total. RQ2 reuses the RQ1 normal histories
+as its descriptive baseline and runs no additional normal condition.
+
+The RQ2 design groups trials into 24 core fault episodes and 12 partition
+extension episodes. Histories use unique keys and sessions; election and
+recovery timing is summarized once per episode. The grouped runner and
+`make rq2` target are implemented, but the 432-history campaign has not been
+run. The host coordinator controls faults through a temporary, narrowly mounted
+IPC directory; the runner receives no Docker socket.
 
 ## Release package
 

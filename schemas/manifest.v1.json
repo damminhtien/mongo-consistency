@@ -29,6 +29,13 @@
     "schedule_id": {"type": "string", "minLength": 1},
     "seed": {"type": "integer", "minimum": 0},
     "adversarial": {"type": "boolean"},
+    "topology_condition": {"enum": ["F1", "F2", "F3"]},
+    "fault_episode_id": {"type": "string", "minLength": 1},
+    "fault_repetition": {"type": "integer", "minimum": 1},
+    "fault_event_id": {"type": "string", "minLength": 1},
+    "faulted_member": {"enum": ["mongo1", "mongo2", "mongo3"]},
+    "initial_primary": {"enum": ["mongo1", "mongo2", "mongo3"]},
+    "signature_extension": {"type": "boolean"},
     "namespace": {
       "type": "object",
       "required": ["database", "collection", "document_id"],

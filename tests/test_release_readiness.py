@@ -8,6 +8,8 @@ from pathlib import Path
 from scripts.check_release_ready import (
     EXPECTED_RQ2_CELLS,
     RQ2_CONDITIONS,
+    RQ2_EPISODE_PLAN,
+    RQ2_SIGNATURE_CELLS,
     check_release_readiness,
 )
 
@@ -58,19 +60,50 @@ def _valid_root(root: Path) -> None:
                         }
                     )
     rq2_records: list[dict[str, object]] = []
-    for condition in RQ2_CONDITIONS:
+    episodes: list[dict[str, object]] = []
+    for episode_id, plan in RQ2_EPISODE_PLAN.items():
+        episode_records: list[dict[str, object]] = []
         for property_name, configurations in EXPECTED_RQ2_CELLS.items():
             for configuration_id in sorted(configurations):
-                for _ in range(10):
-                    rq2_records.append(
-                        {
-                            "topology_condition": condition,
-                            "configuration_id": configuration_id,
-                            "property": property_name,
-                            "outcome": "PASS",
-                            "runner_error": None,
-                        }
-                    )
+                signature_extension = (
+                    plan["signature_extension"] is True
+                    and (configuration_id, property_name) in RQ2_SIGNATURE_CELLS
+                )
+                if plan["signature_extension"] is True and not signature_extension:
+                    continue
+                record = {
+                    "trial_id": f"{episode_id}-{configuration_id}-{property_name}",
+                    "topology_condition": plan["topology_condition"],
+                    "fault_episode_id": episode_id,
+                    "repetition": plan["repetition"],
+                    "signature_extension": signature_extension,
+                    "configuration_id": configuration_id,
+                    "property": property_name,
+                    "outcome": "PASS",
+                    "runner_error": None,
+                }
+                episode_records.append(record)
+                rq2_records.append(record)
+        episodes.append(
+            {
+                "episode_id": episode_id,
+                "topology_condition": plan["topology_condition"],
+                "repetition": plan["repetition"],
+                "signature_extension": plan["signature_extension"],
+                "history_count": len(episode_records),
+                "trial_ids": [record["trial_id"] for record in episode_records],
+            }
+        )
+
+    rq2_manifest = _campaign_manifest("rq2", rq2_records)
+    rq2_manifest.update(
+        {
+            "fault_episode_count": len(RQ2_EPISODE_PLAN),
+            "completed_fault_episode_count": len(episodes),
+            "planned_episode_ids": list(RQ2_EPISODE_PLAN),
+            "episodes": episodes,
+        }
+    )
     for campaign, records in (
         ("pilot", pilot_records),
         ("experiment", experiment_records),
@@ -79,7 +112,7 @@ def _valid_root(root: Path) -> None:
         campaign_dir = root / "results/raw" / campaign
         campaign_dir.mkdir(parents=True)
         (campaign_dir / "campaign-manifest.json").write_text(
-            json.dumps(_campaign_manifest(campaign, records)),
+            json.dumps(rq2_manifest if campaign == "rq2" else _campaign_manifest(campaign, records)),
             encoding="utf-8",
         )
 
@@ -87,8 +120,30 @@ def _valid_root(root: Path) -> None:
         "status": "DATA",
         "campaign_summaries": {
             campaign: {"history_count": count}
-            for campaign, count in (("pilot", 192), ("experiment", 1280), ("rq2", 440))
+            for campaign, count in (("pilot", 192), ("experiment", 1280), ("rq2", 432))
         },
+        "fault_episode_summaries": [
+            {
+                "topology_condition": condition,
+                "episode_count": episode_count,
+            }
+            for condition, episode_count in (("F1", 8), ("F2", 8), ("F3", 20))
+        ],
+        "groups": [
+            {
+                "campaign_id": "rq2",
+                "topology_condition": condition,
+                "configuration_id": configuration_id,
+                "property": property_name,
+                "normal_baseline": {
+                    "campaign_id": "experiment",
+                    "history_count": 10,
+                },
+            }
+            for condition in RQ2_CONDITIONS
+            for property_name, configurations in EXPECTED_RQ2_CELLS.items()
+            for configuration_id in configurations
+        ],
     }
     summary_path = root / "results/summary/summary.json"
     summary_path.parent.mkdir(parents=True)

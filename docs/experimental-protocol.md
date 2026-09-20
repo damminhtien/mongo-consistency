@@ -16,8 +16,11 @@ RQ1 is:
 The deployment has three data-bearing MongoDB members in Docker Compose. RQ1
 compares configuration semantics. Property-specific stale-replica and election
 schedules are instruments for constructing the states needed to test each
-property; they are not a second, combined topology treatment. RQ2 separately
-compares failure conditions.
+property; they are not a second, combined topology treatment. RQ2 asks:
+
+> How do node failures, primary failover, and network partitions affect
+> client-centric consistency, operation availability, and recovery in a
+> three-member MongoDB replica set?
 
 The configuration matrix is:
 
@@ -292,16 +295,120 @@ parallel execution measurements.
 
 ### RQ2 failure comparison
 
-Keep the three-member topology and compare `NORMAL`, `SECONDARY_FAILURE`,
-`PRIMARY_FAILURE`, and `NETWORK_PARTITION` using 10 repetitions per registered
-cell. Representative configurations are C1/C6 for RYW, C1/C3/C6 for MR,
-C1/C4/C6 for MW, and C1/C3/C6 for WFR. This is 440 histories if every planned
-cell completes. RQ2 has a separate schedule manifest and is not pooled into
-RQ1.
+RQ2 keeps the three-member replica set and crosses four sentinel
+configurations with three fault conditions and all four client-centric
+properties. It does not run another normal condition. The RQ1 normal histories
+for C1, C3, C4, and C6 are the descriptive baseline because they use the same
+topology and property workload contract. Keep those records in the RQ1
+campaign; do not pool them into RQ2.
 
-Node stop/start operations are orchestrated on the host through dedicated
-scripts. The runner itself never receives Docker socket access. Fault start,
-stop, recovery, election, and cleanup times are recorded.
+| Configuration | Read concern | Write concern | Causal session | Role in RQ2 |
+| --- | --- | --- | --- | --- |
+| C1 | `local` | `w:1` | off | weak baseline |
+| C3 | `majority` | `w:1` | on | strong read, weak write durability |
+| C4 | `local` | `majority` | on | weak read, strong write |
+| C6 | `majority` | `majority` | on | strongest durable causal case |
+
+C5 remains outside RQ2. Comparing C5 with C6 is reserved for RQ3 to isolate
+the causal-session setting while holding majority read and write concerns.
+
+The registered topology conditions are:
+
+| ID | Condition | Expected topology |
+| --- | --- | --- |
+| F1 | Secondary crash | One secondary is stopped; the primary and other secondary remain available. |
+| F2 | Primary crash and election | The primary is stopped; the two remaining members elect a new primary. |
+| F3 | Primary-isolating network partition | The former primary is separated from the two-member majority side; the client path remains reachable. |
+
+Each core repetition is a grouped fault episode. For each of the three fault
+conditions, repetitions 1-8 each contain one history for every C1/C3/C4/C6 and
+RYW/MR/MW/WFR combination. Histories keep unique document keys and explicit
+client sessions. The fault is applied once at the episode barrier; the runner
+records the before-fault operations, applies the fault, runs registered
+during-fault operations, completes the post-failover operations, then heals or
+restarts the affected member and verifies convergence. This is 3 x 8 x 4 x 4 =
+384 histories in 24 core episodes.
+
+Four signature cells receive repetitions 9-20 under F3:
+
+```text
+C1 x NETWORK_PARTITION x RYW
+C6 x NETWORK_PARTITION x RYW
+C1 x NETWORK_PARTITION x MW
+C6 x NETWORK_PARTITION x MW
+```
+
+These add 4 x (20 - 8) = 48 histories in 12 episodes. The registered total is
+432 histories in 36 fault episodes. The four signature cells therefore have
+20 repetitions each; every other cell has eight.
+
+Fault-event intervals are measured with one monotonic clock in the runner
+process. The host coordinator's own action timestamps are retained as nested
+diagnostics and are not subtracted from runner timestamps. Recovery duration
+runs from the recover request through stable topology and final observation of
+all initialized histories. Report election attempts, successes, failures, and
+timing denominators separately.
+
+Each history places the related client operations around the fault transition:
+
+| Property | Client operations | Checker |
+| --- | --- | --- |
+| RYW | `W1(x,v1) -> fault transition -> R1(x)` | A read older than the acknowledged W1 is a violation. |
+| MR | `W1(x,v1) -> R1(x,v1) -> fault transition -> R2(x)` | A second read older than R1 is a violation. |
+| MW | `W1(x) -> fault transition -> W2(x,parent=W1)` | After convergence, W2 visible without W1 is a violation. |
+| WFR | `R1(x,vr) -> fault transition -> W2(x,depends_on=vr)` | After convergence, W2 visible without the version returned by R1 is a violation. |
+
+The schedules record unavailable and indeterminate operations as such; they do
+not turn them into consistency violations. MR first acknowledges W1 at version
+1, then requires R1 to return that write before the fault. This gives the two
+subject reads a concrete version that can regress; a missed write or read is a
+precondition miss. F3 also records the transition from the former primary to
+the majority-side primary. In the four C1/C6 RYW/MW signature cells, start F3
+first, launch the four independent W1 operations concurrently, and retain only
+operations routed to the former primary during its transient primary interval.
+Then wait for the majority-side election and issue R1 or W2 on that side. A C1
+`w:1` W1 may be acknowledged and later rolled back; C6 majority W1 may wait or
+be unavailable. Record every acknowledged write and retain a later rollback in
+the history. The final observer reads the complete logical document directly
+from all three members after topology recovery.
+
+The runner groups cases by fault condition and repetition to reduce repeated
+fault setup. A grouped episode shares one topology event, so the episode is the
+unit for election and recovery timing. Histories within an episode remain
+separate keyed workloads and are not treated as independent fault events.
+The coordinator persists an active-fault journal before changing topology. If
+the host process exits before cleanup, the next `make rq2` invocation must
+recover and verify that fault before starting another episode.
+
+RQ2 is a controlled behavior study, not an estimate of a universal violation
+probability. Report the observed count and denominator; for example, report
+"no violation was observed in 8 controlled repetitions." Do not report a zero
+observed count as a 0% true violation probability. Report p50/p95/p99 operation
+latency with the number of operations, and report election/recovery quantiles
+with the number of fault episodes behind them.
+
+Pre-registered hypotheses are:
+
+- H2.1: A secondary crash mainly reduces redundancy; operations that remain
+  routable should not create new consistency anomalies.
+- H2.2: A primary crash mainly appears as election delay and temporary
+  unavailability rather than completed but invalid histories.
+- H2.3: A primary-isolating partition is the clearest condition for exposing
+  differences between weak (`local`/`w:1`) and majority settings, including
+  stale state and acknowledged writes later rolled back.
+- H2.4: Majority read/write concerns with a causal session should shift
+  outcomes from successful but invalid histories toward waiting or temporary
+  unavailability.
+
+These are predictions to evaluate, not conclusions. The primary analysis uses
+durable client-centric semantics: an acknowledged write later rolled back
+after convergence remains part of the recorded history. Discuss MongoDB's
+weaker causal-consistency interpretation without durability separately.
+
+Node stop/start and partition operations are orchestrated outside the runner's
+container boundary. The runner itself receives no Docker socket. Record fault
+start, election, heal/restart, recovery, and cleanup times in the episode and
+its histories.
 
 ## Provenance and analysis
 
@@ -338,6 +445,7 @@ make smoke
 # freeze protocol and predictions after smoke passes
 make pilot
 make experiment
+# Requires a clean committed protocol and runner with frozen provenance.
 make rq2
 make analyse
 make submission
@@ -345,5 +453,11 @@ make submission
 
 `make test`, documentation/schema checks, analysis, and submission build are
 offline. Setup, smoke, pilot, RQ1, and RQ2 require Docker Desktop and the pinned
-runtime. The report describes only the final frozen protocol and completed
+runtime. RQ2 reuses the RQ1 normal baseline and runs no additional normal
+histories. The report describes only the final frozen protocol and completed
 campaign; development attempts are not scientific results.
+
+The grouped `make rq2` runner is implemented but has not yet been executed. A
+host-side coordinator applies node faults and partition rules through a
+temporary, narrowly mounted IPC directory; the runner container receives no
+Docker socket and runs as a non-root user matching the host-owned IPC path.

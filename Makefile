@@ -38,5 +38,9 @@ experiment-fresh: setup
 rerun-mr: setup
 	docker compose -f compose.yaml run --rm runner scripts/run_campaign.py --campaign experiment --property MR --output-root /workspace/results/raw/mr-rerun --resume
 
+RQ2_ARGS ?=
+rq2: setup
+	$(PYTHON) scripts/run_rq2_coordinator.py $(RQ2_ARGS)
+
 analyse:
 	PYTHONPATH=src $(PYTHON) scripts/analyse_results.py
