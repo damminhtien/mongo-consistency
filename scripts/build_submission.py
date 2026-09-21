@@ -96,7 +96,12 @@ EXCLUDED_PARTS = frozenset(
         ".venv",
     }
 )
-EXCLUDED_RELATIVE_PATHS = (Path("results/smoke"),)
+EXCLUDED_RELATIVE_PATHS = (
+    Path("results/archive"),
+    Path("results/smoke"),
+    Path("results/smoke-dport"),
+    Path("results/smoke-verified"),
+)
 
 
 class BuildError(RuntimeError):

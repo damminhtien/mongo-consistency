@@ -423,7 +423,13 @@ class SubmissionLayoutTests(unittest.TestCase):
 
     def test_smoke_histories_are_not_packaged_as_submission_evidence(self) -> None:
         source = (ROOT / "scripts/build_submission.py").read_text(encoding="utf-8")
-        self.assertIn('Path("results/smoke")', source)
+        for path in (
+            "results/archive",
+            "results/smoke",
+            "results/smoke-dport",
+            "results/smoke-verified",
+        ):
+            self.assertIn(f'Path("{path}")', source)
 
     def test_release_workflow_publishes_all_submission_outputs(self) -> None:
         workflow = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
@@ -452,15 +458,23 @@ class SubmissionLayoutTests(unittest.TestCase):
         with TemporaryDirectory() as directory:
             root = Path(directory)
             history = root / "results/raw/experiment/history.json"
-            smoke = root / "results/smoke/history.json"
             history.parent.mkdir(parents=True)
-            smoke.parent.mkdir(parents=True)
             history.write_text("{}", encoding="utf-8")
-            smoke.write_text("{}", encoding="utf-8")
+            excluded_results = (
+                "results/archive/attempt/history.json",
+                "results/smoke/history.json",
+                "results/smoke-dport/smoke/history.json",
+                "results/smoke-verified/smoke/history.json",
+            )
+            for relative in excluded_results:
+                path = root / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("{}", encoding="utf-8")
             copied = copy_source_tree(root, root / "package")
         copied_paths = {path.as_posix() for path in copied}
         self.assertIn("results/raw/experiment/history.json", copied_paths)
-        self.assertNotIn("results/smoke/history.json", copied_paths)
+        for relative in excluded_results:
+            self.assertNotIn(relative, copied_paths)
 
 
 if __name__ == "__main__":
