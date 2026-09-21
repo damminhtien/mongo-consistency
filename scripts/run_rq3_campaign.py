@@ -531,6 +531,7 @@ def run_campaign(
                 controller=controller,
                 output_root=output_root,
                 runtime_metadata=runtime_metadata,
+                seed_override=case.pair_seed,
             )
             record_path = Path(record["path"])
             if record_path.is_relative_to(ROOT):

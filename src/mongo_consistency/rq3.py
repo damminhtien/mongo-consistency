@@ -63,6 +63,7 @@ EXPECTED_ROUTES = {
 
 TOPOLOGY_BARRIER_SECONDS = 45.0
 ELECTION_FREEZE_SECONDS = 120
+NORMALIZATION_STEP_DOWN_SECONDS = 15
 
 
 def normalize_topology(
@@ -89,6 +90,7 @@ def normalize_topology(
 
     frozen: list[str] = []
     step_down_error: dict[str, str] | None = None
+    step_down_member: str | None = None
     if state.primary != plan.initial_primary:
         if plan.initial_primary not in state.secondaries:
             raise RuntimeError(
@@ -99,8 +101,12 @@ def normalize_topology(
                 continue
             oracle.freeze_member(member, ELECTION_FREEZE_SECONDS)
             frozen.append(member)
+        step_down_member = state.primary
         try:
-            oracle.step_down_primary(state.primary)
+            oracle.step_down_primary(
+                state.primary,
+                seconds=NORMALIZATION_STEP_DOWN_SECONDS,
+            )
         except Exception as error:  # noqa: BLE001 - direct-role barrier confirms completion.
             # The command commonly loses its connection after the old primary steps down.
             step_down_error = {"type": type(error).__name__, "message": str(error)}
@@ -116,6 +122,10 @@ def normalize_topology(
     convergence = oracle.wait_for_data_convergence(timeout_seconds)
     return {
         **state.to_dict(),
+        "step_down_member": step_down_member,
+        "step_down_command_seconds": (
+            NORMALIZATION_STEP_DOWN_SECONDS if step_down_member is not None else None
+        ),
         "step_down_command_error": step_down_error,
         "initial_data_convergence": initial_convergence,
         "data_convergence": convergence,

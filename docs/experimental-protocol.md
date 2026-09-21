@@ -542,7 +542,9 @@ steps down the current primary, waits until direct `hello` observations show
 fixed sleep as a topology barrier. It then creates version 0 with majority
 write concern and waits until all three members independently report only
 `init` at version 0. Normalization and the initial-state setup happen before
-subject operations and are excluded from their latency.
+subject operations and are excluded from their latency. The normalization
+step-down command uses a 15-second ineligibility period, which leaves room for
+the next arm's bounded election observation when it needs that member to win.
 
 For M2 and M3, `mongo1` is frozen before partitioning `mongo3`. It remains a
 voting member but cannot win the election. The runner waits for three
@@ -566,12 +568,13 @@ per-arm observed roles, isolation target, election winner, actual routes,
 initial and semantic pre-state, pair seed, and a strict `control_valid` boolean
 with machine-readable failure reasons. Validity requires both histories to
 share the preregistered pair seed, schedule, topology plan, and semantic
-pre-state; each required direct role and operation route must match its named
-member. The two configurations must still differ only in their registered
-setting. The analyzer derives validity again from raw histories instead of
-trusting the manifest flag. A control-invalid pair is diagnostic data only: it
-is not classified as PASS, VIOLATION, UNAVAILABLE, or INDETERMINATE and does
-not enter a mechanism outcome denominator.
+pre-state; the pair seed is the actual random seed passed to both arms, while
+the ordinal identifies each history. Each required direct role and operation
+route must match its named member. The two configurations must still differ
+only in their registered setting. The analyzer derives validity again from raw
+histories instead of trusting the manifest flag. A control-invalid pair is
+diagnostic data only: it is not classified as PASS, VIOLATION, UNAVAILABLE, or
+INDETERMINATE and does not enter a mechanism outcome denominator.
 
 For M2, setup W1 is sent through the command-monitored direct-member path in
 both arms. Its diagnostic records `operation_id: setup_write`, the actual

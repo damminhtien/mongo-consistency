@@ -332,9 +332,14 @@ def run_case(
     controller: FaultControllerClient | None,
     output_root: Path,
     runtime_metadata: dict[str, Any] | None = None,
+    seed_override: int | None = None,
 ) -> dict[str, Any]:
     metadata = dict(runtime_metadata or campaign_runtime_metadata(output_root))
-    seed = int(metadata["seed_base"]) + ordinal
+    seed = (
+        int(seed_override)
+        if seed_override is not None
+        else int(metadata["seed_base"]) + ordinal
+    )
     trial_id = trial_id_for(campaign, ordinal, configuration["id"], property_name)
     schedule_id = schedule_id_for(property_name)
     history: History

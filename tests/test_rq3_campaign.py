@@ -5,6 +5,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -21,8 +22,10 @@ from run_rq3_campaign import (
 )
 
 from mongo_consistency.config import load_configurations
+from mongo_consistency.models import History
 from mongo_consistency.rq3 import TOPOLOGY_PLANS, normalize_topology, pair_control
 from mongo_consistency.topology import TopologyState
+from run_campaign import run_case
 
 
 def _state(primary: str) -> TopologyState:
@@ -63,7 +66,7 @@ class FakeOracle:
         self.primary = primary
         self.frozen: set[str] = set()
         self.freeze_calls: list[tuple[str, int]] = []
-        self.step_down_calls: list[str] = []
+        self.step_down_calls: list[tuple[str, int]] = []
 
     def wait_for_stable(self, _timeout: float) -> TopologyState:
         return _state(self.primary)
@@ -84,8 +87,8 @@ class FakeOracle:
             self.frozen.discard(member)
         return {"ok": 1}
 
-    def step_down_primary(self, member: str) -> dict[str, int]:
-        self.step_down_calls.append(member)
+    def step_down_primary(self, member: str, *, seconds: int = 60) -> dict[str, int]:
+        self.step_down_calls.append((member, seconds))
         if member != self.primary:
             raise RuntimeError("stepdown target is not primary")
         candidates = sorted(set(self.members) - {member} - self.frozen)
@@ -129,6 +132,41 @@ class RQ3CampaignTests(unittest.TestCase):
                 )
                 self.assertEqual(f"{contrast_id.lower()}-r{replicate:02d}", pair[0].pair_id)
 
+    def test_run_case_uses_the_registered_pair_seed_when_overridden(self) -> None:
+        pair_seed = 20361016
+        history = History(
+            manifest={"seed": pair_seed},
+            operations=[],
+            precondition={"status": "SATISFIED", "checks": []},
+        )
+        checked = SimpleNamespace(outcome=SimpleNamespace(value="PASS"))
+        with tempfile.TemporaryDirectory() as directory:
+            with (
+                patch("run_campaign.MongoTrial") as trial_constructor,
+                patch("run_campaign.run_property"),
+                patch("run_campaign.write_history", return_value="history-hash"),
+                patch("run_campaign.check_history", return_value=checked),
+            ):
+                trial = trial_constructor.return_value
+                trial.history.return_value = history
+                trial.__enter__.return_value = trial
+
+                record = run_case(
+                    campaign="rq3-m2",
+                    ordinal=1,
+                    configuration={"id": "C8"},
+                    property_name="WFR",
+                    adversarial=True,
+                    seed_uris=(),
+                    controller=None,
+                    output_root=Path(directory),
+                    runtime_metadata={"seed_base": 100},
+                    seed_override=pair_seed,
+                )
+
+        self.assertEqual(pair_seed, trial_constructor.call_args.kwargs["seed"])
+        self.assertEqual(pair_seed, record["seed"])
+
     def test_topology_plan_serializes_member_roles_and_routes(self) -> None:
         self.assertEqual(
             {
@@ -166,7 +204,9 @@ class RQ3CampaignTests(unittest.TestCase):
         )
 
         self.assertEqual("mongo3", state["primary"])
-        self.assertEqual("mongo1", oracle.step_down_calls[0])
+        self.assertEqual(("mongo1", 15), oracle.step_down_calls[0])
+        self.assertEqual("mongo1", state["step_down_member"])
+        self.assertEqual(15, state["step_down_command_seconds"])
         self.assertIn(("mongo2", 120), oracle.freeze_calls)
         self.assertIn(("mongo2", 0), oracle.freeze_calls)
         self.assertEqual(
