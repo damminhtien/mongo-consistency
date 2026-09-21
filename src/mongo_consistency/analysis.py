@@ -18,10 +18,6 @@ from .config import CONFIG_ROOT, load_configurations, load_predictions
 from .history import read_history
 from .models import History, Outcome
 
-MR_RERUN_RELATIVE_PATH = Path("mr-rerun/experiment")
-MR_RERUN_HISTORY_COUNT = 320
-
-
 def quantile(values: Iterable[float], probability: float) -> float | None:
     """Return a linear-interpolated quantile with stable empty handling."""
 
@@ -271,78 +267,6 @@ def _history_row(path: Path, raw_root: Path) -> dict[str, Any]:
     }
 
 
-def _merge_mr_rerun_rows(
-    base_rows: list[dict[str, Any]],
-    replacement_rows: list[dict[str, Any]],
-    manifest: dict[str, Any],
-    *,
-    expected_count: int = MR_RERUN_HISTORY_COUNT,
-) -> list[dict[str, Any]]:
-    """Replace the original MR slice only after a complete identity-checked rerun."""
-
-    if (
-        manifest.get("campaign") != "experiment"
-        or manifest.get("status") != "COMPLETE"
-        or manifest.get("expected_case_count") != expected_count
-        or manifest.get("case_count") != expected_count
-        or manifest.get("completed_case_count") != expected_count
-    ):
-        raise ValueError("MR rerun manifest is incomplete or does not match the registered plan")
-
-    planned_ordinals = manifest.get("planned_ordinals")
-    if (
-        not isinstance(planned_ordinals, list)
-        or len(planned_ordinals) != expected_count
-        or any(not isinstance(value, int) or isinstance(value, bool) for value in planned_ordinals)
-        or len(set(planned_ordinals)) != expected_count
-    ):
-        raise ValueError("MR rerun manifest has an invalid ordinal plan")
-    records = manifest.get("records")
-    if (
-        not isinstance(records, list)
-        or len(records) != expected_count
-        or any(not isinstance(record, dict) for record in records)
-    ):
-        raise ValueError("MR rerun manifest does not contain all completed records")
-
-    base_mr_rows = {
-        row.get("trial_id"): row
-        for row in base_rows
-        if row.get("campaign_id") == "experiment" and row.get("property") == "MR"
-    }
-    replacement_by_id = {row.get("trial_id"): row for row in replacement_rows}
-    records_by_id = {record.get("trial_id"): record for record in records}
-    expected_ids = set(base_mr_rows)
-    if (
-        len(base_mr_rows) != expected_count
-        or len(replacement_by_id) != expected_count
-        or len(records_by_id) != expected_count
-        or set(replacement_by_id) != expected_ids
-        or set(records_by_id) != expected_ids
-    ):
-        raise ValueError("MR rerun cases do not exactly match the original MR histories")
-
-    for trial_id, replacement in replacement_by_id.items():
-        original = base_mr_rows[trial_id]
-        record = records_by_id[trial_id]
-        if replacement.get("campaign_id") != "experiment" or replacement.get("property") != "MR":
-            raise ValueError(f"MR rerun contains a non-MR history: {trial_id}")
-        for field in ("configuration_id", "property", "adversarial", "seed"):
-            if replacement.get(field) != original.get(field):
-                raise ValueError(f"MR rerun changed {field} for {trial_id}")
-            if record.get(field) != replacement.get(field):
-                raise ValueError(f"MR rerun manifest disagrees on {field} for {trial_id}")
-        if record.get("history_hash") != replacement.get("history_hash"):
-            raise ValueError(f"MR rerun manifest hash does not match history {trial_id}")
-
-    return [
-        replacement_by_id.get(row.get("trial_id"), row)
-        if row.get("campaign_id") == "experiment" and row.get("property") == "MR"
-        else row
-        for row in base_rows
-    ]
-
-
 def load_rows(raw_root: Path) -> list[dict[str, Any]]:
     """Load all canonical trial JSON files below a raw-results root."""
 
@@ -354,29 +278,7 @@ def load_rows(raw_root: Path) -> list[dict[str, Any]]:
         if path.name != "campaign-manifest.json"
         and ".rq2-staging" not in path.relative_to(raw_root).parts
     )
-    rerun_root = raw_root / MR_RERUN_RELATIVE_PATH
-    rerun_paths = [path for path in paths if path.is_relative_to(rerun_root)]
-    base_paths = [path for path in paths if not path.is_relative_to(rerun_root)]
-    base_rows = [_history_row(path, raw_root) for path in base_paths]
-    if not rerun_root.exists():
-        return base_rows
-
-    manifest_path = rerun_root / "campaign-manifest.json"
-    if not manifest_path.is_file():
-        raise ValueError(f"MR rerun directory has no campaign manifest: {manifest_path}")
-    try:
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as error:
-        raise ValueError(f"cannot read MR rerun manifest {manifest_path}: {error}") from error
-    if not isinstance(manifest, dict):
-        raise ValueError(f"MR rerun manifest is not an object: {manifest_path}")
-    replacement_rows = [_history_row(path, raw_root) for path in rerun_paths]
-    if len(replacement_rows) != MR_RERUN_HISTORY_COUNT:
-        raise ValueError(
-            f"MR rerun contains {len(replacement_rows)} histories; "
-            f"expected {MR_RERUN_HISTORY_COUNT}"
-        )
-    return _merge_mr_rerun_rows(base_rows, replacement_rows, manifest)
+    return [_history_row(path, raw_root) for path in paths]
 
 
 def _counts(rows: Iterable[dict[str, Any]]) -> dict[str, int]:

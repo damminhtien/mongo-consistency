@@ -186,6 +186,7 @@ def write_generated_analysis(path: Path, root: Path) -> None:
     fault_episode_summaries: list[dict[str, Any]] = []
     normal: dict[str, Any] = {}
     adversarial: dict[str, Any] = {}
+    prediction_manifest: dict[str, dict[str, Any]] = {}
     if summary_path.is_file():
         try:
             summary = json.loads(summary_path.read_text(encoding="utf-8"))
@@ -213,6 +214,13 @@ def write_generated_analysis(path: Path, root: Path) -> None:
             groups = summary.get("groups", [])
             if isinstance(groups, list):
                 summary_groups = [row for row in groups if isinstance(row, dict)]
+            predictions = summary.get("predictions", {})
+            if isinstance(predictions, dict):
+                prediction_manifest = {
+                    str(configuration_id): prediction
+                    for configuration_id, prediction in predictions.items()
+                    if isinstance(prediction, dict)
+                }
             episodes = summary.get("fault_episode_summaries", [])
             if isinstance(episodes, list):
                 fault_episode_summaries = [
@@ -253,6 +261,44 @@ def write_generated_analysis(path: Path, root: Path) -> None:
             rq2_manifest = {}
     rq2_manifest_status = str(rq2_manifest.get("status", "NO_DATA"))
     rq2_groups = [row for row in summary_groups if row.get("campaign_id") == "rq2"]
+    rq1_adversarial_groups = {
+        (str(row.get("configuration_id")), str(row.get("property"))): row
+        for row in summary_groups
+        if row.get("campaign_id") == "experiment" and row.get("adversarial") is True
+    }
+    rq1_observation_codes = (
+        ("P", "PASS"),
+        ("V", "VIOLATION"),
+        ("U", "UNAVAILABLE"),
+        ("I", "INDETERMINATE"),
+        ("PM", "PRECONDITION_MISS"),
+        ("HE", "HARNESS_ERROR"),
+    )
+
+    def rq1_prediction_observation_rows() -> str:
+        rows: list[str] = []
+        for configuration_id in (f"C{number}" for number in range(1, 9)):
+            prediction = prediction_manifest.get(configuration_id, {})
+            targets = prediction.get("guarantee_targets", [])
+            targets = set(targets) if isinstance(targets, list) else set()
+            cells: list[str] = []
+            for property_name in ("RYW", "MR", "MW", "WFR"):
+                group = rq1_adversarial_groups.get((configuration_id, property_name))
+                if not group:
+                    cells.append("--")
+                    continue
+                counts = group.get("outcomes", {})
+                counts = counts if isinstance(counts, dict) else {}
+                observed = [
+                    f"{code}={int(counts.get(outcome, 0) or 0)}"
+                    for code, outcome in rq1_observation_codes
+                    if int(counts.get(outcome, 0) or 0) > 0
+                ]
+                prediction_code = "G" if property_name in targets else "N"
+                cells.append(f"{prediction_code}; " + (" ".join(observed) or "no classified outcome"))
+            rows.append(configuration_id + " & " + " & ".join(cells) + r" \\")
+        return "\n".join(rows)
+
     rq2_group_by_key = {
         (
             str(row.get("topology_condition")),
@@ -386,6 +432,7 @@ def write_generated_analysis(path: Path, root: Path) -> None:
                     int(property_counts.get(outcome, 0) or 0)
                 ) if has_property_histories else "--"
     rq2_raw_macros = {
+        "RQOnePredictionObservationRows": rq1_prediction_observation_rows(),
         "RQTwoOutcomeRows": "",
         "RQTwoMetricRows": "",
         "RQTwoEpisodeRows": "",

@@ -64,6 +64,17 @@ class SubmissionLayoutTests(unittest.TestCase):
             "status": "DATA",
             "history_count": 1472,
             "overall": {"consistency_violation_rate": 0.99},
+            "predictions": {"C1": {"guarantee_targets": ["RYW"]}},
+            "groups": [
+                {
+                    "campaign_id": "experiment",
+                    "adversarial": True,
+                    "configuration_id": "C1",
+                    "property": "RYW",
+                    "history_count": 30,
+                    "outcomes": {"PASS": 4, "VIOLATION": 20, "UNAVAILABLE": 6},
+                }
+            ],
             "campaign_summaries": {
                 "pilot": {"history_count": 192},
                 "experiment": {
@@ -139,6 +150,7 @@ class SubmissionLayoutTests(unittest.TestCase):
         self.assertIn(r"\newcommand{\RYWPreconditionMissCount}{111}", content)
         self.assertIn(r"\newcommand{\MRViolationCount}{0}", content)
         self.assertIn(r"\newcommand{\MRDecidableCount}{97}", content)
+        self.assertIn(r"\newcommand{\RQOnePredictionObservationRows}{C1 & G; P=4 V=20 U=6", content)
         self.assertNotIn(r"\newcommand{\ConsistencyViolationRate}{0.9900}", content)
 
     def test_schema_contracts_are_packaged(self) -> None:

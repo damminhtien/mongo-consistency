@@ -47,6 +47,27 @@ Recovery p50 (ms) & \ControlRecoveryMedian & \RecoveryMedian \\
 \end{tabular}
 \end{table}
 
+\begin{table}[ht]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\caption{Registered prediction targets and observed outcomes in the RQ1 adversarial histories.}
+\label{tab:rq1-prediction-observation}
+\begin{tabular}{@{}l*{4}{p{0.19\textwidth}}@{}}
+\toprule
+Config & RYW & MR & MW & WFR \\
+\midrule
+\RQOnePredictionObservationRows
+\bottomrule
+\end{tabular}
+\end{table}
+
+Each cell starts with G when the prediction manifest targets that property, or
+N when it makes no guarantee claim. The following counts use P for PASS, V for
+VIOLATION, U for UNAVAILABLE, I for INDETERMINATE, PM for PRECONDITION\_MISS,
+and HE for HARNESS\_ERROR. Normal controls are summarized separately above;
+these cells contain the adversarial histories only.
+
 \clearpage
 \subsection{RQ2 fault campaign}
 
@@ -175,7 +196,6 @@ and violations.
 
 \maybefigure{submission/figures/outcome-heatmap.pdf}{Outcome heatmap by configuration and property.}
 \maybefigure{submission/figures/latency.pdf}{Operation latency quantiles by RQ1 condition; pilot excluded.}
-\maybefigure{submission/figures/prediction-observation.pdf}{Prediction targets compared with checked histories.}
 
 One C6 RYW history illustrates a protective outcome as unavailability rather
 than a stale value. In \texttt{experiment-00018-C6-ryw}, W1 with majority write
@@ -185,34 +205,3 @@ The command carried the same \texttt{afterClusterTime} as W1 and timed out after
 seconds with \texttt{NetworkTimeout}; it returned no document. The checker labels the
 history \texttt{UNAVAILABLE}, not a stale-read violation. This trace records the
 client-visible result and does not expose MongoDB's internal causal counter.
-
-The dedicated MR rerun replaces the original MR slice by \texttt{trial\_id}
-in analysis; the earlier raw files remain in the package for audit and are not
-counted twice. The rerun yielded 80/80 PASS normal controls and, among the
-240 adversarial histories, 120 VIOLATION and 120 UNAVAILABLE; none were
-PRECONDITION\_MISS or HARNESS\_ERROR. It contains a direct counterexample in
-\texttt{experiment-00286-C7-mr}. C7 used a non-causal session, majority reads,
-and a \texttt{w:1} preparation write. Both reads succeeded: the first returned
-version 1 from \texttt{mongo3}, then the second returned version 0 from
-\texttt{mongo2}. Once the fault was cleared, all three members converged at
-version 1. The preconditions were satisfied and the checker classified this
-history as \texttt{VIOLATION}.
-
-Raw record: \url{results/raw/mr-rerun/experiment/experiment-00286-C7-mr.json}.
-Recorded history hash: \texttt{46d06f2f20fbde1a\allowbreak{}621b9efaee372894\allowbreak{}b1c5e8f35a7f8a64\allowbreak{}8be41d22f3ef3078}.
-
-\begin{table}[ht]
-\centering
-\small
-\caption{Raw MR trace excerpt from the dedicated 320-history rerun.}
-\label{tab:mr-raw-trace}
-\begin{tabular}{@{}p{0.20\textwidth}p{0.70\textwidth}@{}}
-\toprule
-Operation & Raw observation \\
-\midrule
-\texttt{first\_read} & \texttt{mongo3:27017} (SECONDARY); SUCCESS, version 1; write IDs \texttt{init, prep} \\
-\texttt{second\_read} & \texttt{mongo2:27017} (SECONDARY); SUCCESS, version 0; write ID \texttt{init} \\
-After fault cleanup & \texttt{mongo1/mongo2/mongo3} converged; version 1; write IDs \texttt{init, prep} \\
-\bottomrule
-\end{tabular}
-\end{table}

@@ -43,10 +43,8 @@ and checksummed reproduction archive.
 make smoke runs 32 histories and is a machinery check, not scientific
 evidence. make pilot runs 192 separate histories. RQ1 is a sequential
 1,280-history campaign: 320 normal controls and 960 adversarial histories.
-After the diagnostic-timeout correction, make smoke-mr exercises all eight MR
-configuration cells, and make rerun-mr reruns the 320 MR cases into a separate
-raw-results folder. Analysis substitutes the rerun only after validating its
-complete manifest and case identities; original histories remain available.
+The complete campaign is stored under the single canonical
+`results/raw/experiment/` directory.
 RQ2 is registered for C1/C3/C4/C6, three fault conditions, and all four
 properties. Its 384-history core is extended by 48 histories in four partition
 signature cells, for 432 histories total. RQ2 reuses the RQ1 normal histories

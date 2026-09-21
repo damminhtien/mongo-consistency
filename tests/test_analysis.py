@@ -9,60 +9,37 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from mongo_consistency.analysis import _merge_mr_rerun_rows, _trace_body, analyse
+from mongo_consistency.analysis import _trace_body, analyse, load_rows
 from mongo_consistency.history import write_history
 from mongo_consistency.models import History, OperationRecord
 
 
 class AnalysisTests(unittest.TestCase):
-    def test_complete_mr_rerun_replaces_only_matching_history(self) -> None:
-        original = {
-            "trial_id": "experiment-00018-C6-mr",
-            "campaign_id": "experiment",
-            "configuration_id": "C6",
-            "property": "MR",
-            "adversarial": True,
-            "seed": 20260933,
-            "history_hash": "old-hash",
-            "path": "experiment/experiment-00018-C6-mr.json",
-        }
-        replacement = {
-            **original,
-            "history_hash": "new-hash",
-            "path": "mr-rerun/experiment/experiment-00018-C6-mr.json",
-        }
-        manifest = {
-            "campaign": "experiment",
-            "status": "COMPLETE",
-            "expected_case_count": 1,
-            "case_count": 1,
-            "completed_case_count": 1,
-            "planned_ordinals": [18],
-            "records": [
-                {
-                    "trial_id": replacement["trial_id"],
-                    "configuration_id": "C6",
-                    "property": "MR",
-                    "adversarial": True,
-                    "seed": 20260933,
-                    "history_hash": "new-hash",
-                }
-            ],
-        }
-
-        rows = _merge_mr_rerun_rows(
-            [original],
-            [replacement],
-            manifest,
-            expected_count=1,
+    def test_raw_loader_reads_histories_from_one_tree_without_overlay_rules(self) -> None:
+        history = History(
+            manifest={
+                "trial_id": "experiment-00001-C1-ryw",
+                "campaign_id": "experiment",
+                "configuration_id": "C1",
+                "property": "RYW",
+                "adversarial": True,
+            },
+            operations=[],
+            precondition={
+                "status": "PRECONDITION_MISS",
+                "checks": [{"name": "fixture", "status": "PRECONDITION_MISS"}],
+            },
         )
+        with tempfile.TemporaryDirectory() as directory:
+            raw_root = Path(directory) / "raw"
+            write_history(raw_root / "experiment/experiment-00001-C1-ryw.json", history)
+            (raw_root / "experiment/campaign-manifest.json").write_text("{}", encoding="utf-8")
 
-        self.assertEqual(["new-hash"], [row["history_hash"] for row in rows])
-        self.assertEqual("mr-rerun/experiment/experiment-00018-C6-mr.json", rows[0]["path"])
+            rows = load_rows(raw_root)
 
-    def test_mr_rerun_rejects_incomplete_manifest(self) -> None:
-        with self.assertRaisesRegex(ValueError, "manifest is incomplete"):
-            _merge_mr_rerun_rows([], [], {"campaign": "experiment", "status": "RUNNING"})
+        self.assertEqual(1, len(rows))
+        self.assertEqual("experiment/experiment-00001-C1-ryw.json", rows[0]["path"])
+        self.assertEqual("experiment", rows[0]["campaign_id"])
 
     def test_representative_trace_renders_c6_causal_read_timeout(self) -> None:
         row = {
