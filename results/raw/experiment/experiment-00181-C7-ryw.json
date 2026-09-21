@@ -2,23 +2,23 @@
   "diagnostics": [
     {
       "data": {
-        "election_id": "7fffffff0000000000000247",
+        "election_id": "7fffffff00000000000003d1",
         "last_committed_op_time": {
           "increment": 2,
-          "seconds": 1789886965
+          "seconds": 1789965646
         },
         "members": {
           "mongo1": {
-            "election_id": "7fffffff0000000000000247",
+            "election_id": null,
             "last_write_op_time": {
               "increment": 2,
-              "seconds": 1789886965
+              "seconds": 1789965646
             },
             "me": "mongo1:27017",
             "member": "mongo1",
-            "observed_at_ns": 6152107327852,
+            "observed_at_ns": 1606158646570,
             "reachable": true,
-            "role": "PRIMARY",
+            "role": "SECONDARY",
             "set_name": "rs0",
             "set_version": 1
           },
@@ -26,53 +26,53 @@
             "election_id": null,
             "last_write_op_time": {
               "increment": 2,
-              "seconds": 1789886965
+              "seconds": 1789965646
             },
             "me": "mongo2:27017",
             "member": "mongo2",
-            "observed_at_ns": 6152127112953,
+            "observed_at_ns": 1606175518359,
             "reachable": true,
             "role": "SECONDARY",
             "set_name": "rs0",
             "set_version": 1
           },
           "mongo3": {
-            "election_id": null,
+            "election_id": "7fffffff00000000000003d1",
             "last_write_op_time": {
               "increment": 2,
-              "seconds": 1789886965
+              "seconds": 1789965646
             },
             "me": "mongo3:27017",
             "member": "mongo3",
-            "observed_at_ns": 6152134084767,
+            "observed_at_ns": 1606184319114,
             "reachable": true,
-            "role": "SECONDARY",
+            "role": "PRIMARY",
             "set_name": "rs0",
             "set_version": 1
           }
         },
-        "observed_at_ns": 6152107325455,
-        "primary": "mongo1",
+        "observed_at_ns": 1606158645449,
+        "primary": "mongo3",
         "secondaries": [
-          "mongo2",
-          "mongo3"
+          "mongo1",
+          "mongo2"
         ],
         "set_name": "rs0",
         "set_version": 1,
         "stable": true
       },
       "name": "stable-topology",
-      "observed_at_ns": 6152142746697
+      "observed_at_ns": 1606194961425
     },
     {
       "data": {
-        "end_ns": 6152152033674,
-        "member": "mongo1",
-        "start_ns": 6152142767509,
+        "end_ns": 1606215865015,
+        "member": "mongo3",
+        "start_ns": 1606194995315,
         "status": "SUCCESS"
       },
       "name": "initialize-logical-document",
-      "observed_at_ns": 6152152034595
+      "observed_at_ns": 1606215866384
     },
     {
       "data": {
@@ -82,7 +82,7 @@
             "exists": true,
             "member": "mongo1",
             "observation_valid": true,
-            "observed_at_ns": 6152152042091,
+            "observed_at_ns": 1606215877176,
             "observed_version": 0,
             "observed_versions": [
               0
@@ -106,7 +106,7 @@
             "exists": true,
             "member": "mongo2",
             "observation_valid": true,
-            "observed_at_ns": 6152153415665,
+            "observed_at_ns": 1606217400917,
             "observed_version": 0,
             "observed_versions": [
               0
@@ -130,7 +130,7 @@
             "exists": true,
             "member": "mongo3",
             "observation_valid": true,
-            "observed_at_ns": 6152155010017,
+            "observed_at_ns": 1606219082975,
             "observed_version": 0,
             "observed_versions": [
               0
@@ -151,35 +151,35 @@
             ]
           }
         },
-        "observed_at_ns": 6152156843848
+        "observed_at_ns": 1606220072891
       },
       "name": "initial-v0-observation",
-      "observed_at_ns": 6152156846925
+      "observed_at_ns": 1606220075025
     },
     {
       "data": {
         "election_id": null,
         "last_write_op_time": {
           "increment": 1,
-          "seconds": 1789886966
+          "seconds": 1789965647
         },
-        "me": "mongo2:27017",
-        "member": "mongo2",
-        "observed_at_ns": 6152224755305,
+        "me": "mongo1:27017",
+        "member": "mongo1",
+        "observed_at_ns": 1606280566125,
         "reachable": true,
         "role": "SECONDARY",
         "set_name": "rs0",
         "set_version": 1
       },
       "name": "direct-member-access",
-      "observed_at_ns": 6152225956844
+      "observed_at_ns": 1606282438149
     },
     {
       "data": {
         "exists": true,
-        "member": "mongo2",
+        "member": "mongo1",
         "observation_valid": true,
-        "observed_at_ns": 6152225968160,
+        "observed_at_ns": 1606282447543,
         "observed_version": 0,
         "observed_versions": [
           0
@@ -199,39 +199,39 @@
           }
         ]
       },
-      "name": "document-state-mongo2",
-      "observed_at_ns": 6152227825450
+      "name": "document-state-mongo1",
+      "observed_at_ns": 1606283503521
     },
     {
       "data": {
         "direct_role_observation": {
-          "election_id": "7fffffff0000000000000247",
+          "election_id": "7fffffff00000000000003d1",
           "last_write_op_time": {
             "increment": 2,
-            "seconds": 1789886966
+            "seconds": 1789965647
           },
-          "me": "mongo1:27017",
-          "member": "mongo1",
-          "observed_at_ns": 6152232657958,
+          "me": "mongo3:27017",
+          "member": "mongo3",
+          "observed_at_ns": 1606287738061,
           "reachable": true,
           "role": "PRIMARY",
           "set_name": "rs0",
           "set_version": 1
         },
         "driver_reported_role": "PRIMARY",
-        "member": "mongo1",
+        "member": "mongo3",
         "operation_id": "write",
-        "server_address": "mongo1:27017"
+        "server_address": "mongo3:27017"
       },
       "name": "subject-route-role",
-      "observed_at_ns": 6152233722350
+      "observed_at_ns": 1606288455420
     },
     {
       "data": {
         "exists": true,
-        "member": "mongo3",
+        "member": "mongo2",
         "observation_valid": true,
-        "observed_at_ns": 6152233761207,
+        "observed_at_ns": 1606288562391,
         "observed_version": 1,
         "observed_versions": [
           0,
@@ -261,15 +261,15 @@
           }
         ]
       },
-      "name": "document-state-mongo3",
-      "observed_at_ns": 6152235770161
+      "name": "document-state-mongo2",
+      "observed_at_ns": 1606289408639
     },
     {
       "data": {
         "exists": true,
-        "member": "mongo2",
+        "member": "mongo1",
         "observation_valid": true,
-        "observed_at_ns": 6152235777665,
+        "observed_at_ns": 1606289414803,
         "observed_version": 0,
         "observed_versions": [
           0
@@ -289,8 +289,8 @@
           }
         ]
       },
-      "name": "document-state-mongo2",
-      "observed_at_ns": 6152237072800
+      "name": "document-state-mongo1",
+      "observed_at_ns": 1606290548327
     },
     {
       "data": {
@@ -298,23 +298,23 @@
           "election_id": null,
           "last_write_op_time": {
             "increment": 1,
-            "seconds": 1789886966
+            "seconds": 1789965647
           },
-          "me": "mongo2:27017",
-          "member": "mongo2",
-          "observed_at_ns": 6152240367457,
+          "me": "mongo1:27017",
+          "member": "mongo1",
+          "observed_at_ns": 1606294002765,
           "reachable": true,
           "role": "SECONDARY",
           "set_name": "rs0",
           "set_version": 1
         },
         "driver_reported_role": "SECONDARY",
-        "member": "mongo2",
+        "member": "mongo1",
         "operation_id": "read",
-        "server_address": "mongo2:27017"
+        "server_address": "mongo1:27017"
       },
       "name": "subject-route-role",
-      "observed_at_ns": 6152240909004
+      "observed_at_ns": 1606295542048
     },
     {
       "data": {
@@ -324,7 +324,7 @@
             "exists": true,
             "member": "mongo1",
             "observation_valid": true,
-            "observed_at_ns": 6152514322641,
+            "observed_at_ns": 1606362624630,
             "observed_version": 1,
             "observed_versions": [
               0,
@@ -358,7 +358,7 @@
             "exists": true,
             "member": "mongo2",
             "observation_valid": true,
-            "observed_at_ns": 6152515583813,
+            "observed_at_ns": 1606363898598,
             "observed_version": 1,
             "observed_versions": [
               0,
@@ -392,7 +392,7 @@
             "exists": true,
             "member": "mongo3",
             "observation_valid": true,
-            "observed_at_ns": 6152516391618,
+            "observed_at_ns": 1606365139098,
             "observed_version": 1,
             "observed_versions": [
               0,
@@ -423,62 +423,62 @@
             ]
           }
         },
-        "observed_at_ns": 6152517856921,
+        "observed_at_ns": 1606366397133,
         "topology": {
-          "election_id": "7fffffff0000000000000247",
+          "election_id": "7fffffff00000000000003d1",
           "last_committed_op_time": {
             "increment": 2,
-            "seconds": 1789886966
+            "seconds": 1789965647
           },
           "members": {
             "mongo1": {
-              "election_id": "7fffffff0000000000000247",
+              "election_id": null,
               "last_write_op_time": {
                 "increment": 2,
-                "seconds": 1789886966
+                "seconds": 1789965647
               },
               "me": "mongo1:27017",
               "member": "mongo1",
-              "observed_at_ns": 6152307016954,
+              "observed_at_ns": 1606359075223,
               "reachable": true,
-              "role": "PRIMARY",
+              "role": "SECONDARY",
               "set_name": "rs0",
               "set_version": 1
             },
             "mongo2": {
               "election_id": null,
               "last_write_op_time": {
-                "increment": 1,
-                "seconds": 1789886966
+                "increment": 2,
+                "seconds": 1789965647
               },
               "me": "mongo2:27017",
               "member": "mongo2",
-              "observed_at_ns": 6152308097380,
+              "observed_at_ns": 1606360243139,
               "reachable": true,
               "role": "SECONDARY",
               "set_name": "rs0",
               "set_version": 1
             },
             "mongo3": {
-              "election_id": null,
+              "election_id": "7fffffff00000000000003d1",
               "last_write_op_time": {
                 "increment": 2,
-                "seconds": 1789886966
+                "seconds": 1789965647
               },
               "me": "mongo3:27017",
               "member": "mongo3",
-              "observed_at_ns": 6152308956632,
+              "observed_at_ns": 1606361002997,
               "reachable": true,
-              "role": "SECONDARY",
+              "role": "PRIMARY",
               "set_name": "rs0",
               "set_version": 1
             }
           },
-          "observed_at_ns": 6152307015732,
-          "primary": "mongo1",
+          "observed_at_ns": 1606359074701,
+          "primary": "mongo3",
           "secondaries": [
-            "mongo2",
-            "mongo3"
+            "mongo1",
+            "mongo2"
           ],
           "set_name": "rs0",
           "set_version": 1,
@@ -486,28 +486,28 @@
         }
       },
       "name": "post-heal-final-observation",
-      "observed_at_ns": 6152517861099
+      "observed_at_ns": 1606366400033
     }
   ],
   "fault_events": [
     {
       "action": "isolate",
-      "applied_ns": 6152224743131,
+      "applied_ns": 1606280558827,
       "control_path_reachable": true,
-      "end_ns": 6152224743378,
+      "end_ns": 1606280559029,
       "event_id": "experiment-00181-C7-ryw-ryw-fault",
       "health": {
         "mongo1": {
           "interface": "eth1",
           "member": "mongo1",
           "ok": true,
-          "replication_isolated": false
+          "replication_isolated": true
         },
         "mongo2": {
           "interface": "eth1",
           "member": "mongo2",
           "ok": true,
-          "replication_isolated": true
+          "replication_isolated": false
         },
         "mongo3": {
           "interface": "eth1",
@@ -517,27 +517,27 @@
         }
       },
       "members": [
-        "mongo2"
+        "mongo1"
       ],
       "responses": [
         {
           "action": "isolate",
           "event_id": "experiment-00181-C7-ryw-ryw-fault",
-          "member": "mongo2",
+          "member": "mongo1",
           "ok": true,
           "replication_isolated": true,
           "verified": true
         }
       ],
       "rules_verified": true,
-      "start_ns": 6152160727931,
+      "start_ns": 1606222515643,
       "status": "APPLIED"
     },
     {
       "action": "heal",
-      "applied_ns": 6152303280618,
+      "applied_ns": 1606354406910,
       "control_path_reachable": true,
-      "end_ns": 6152303280882,
+      "end_ns": 1606354407136,
       "event_id": "experiment-00181-C7-ryw-ryw-fault-heal",
       "health": {
         "mongo1": {
@@ -560,15 +560,15 @@
         }
       },
       "members": [
-        "mongo2"
+        "mongo1"
       ],
-      "recovery_end_ns": 6152307001590,
-      "recovery_start_ns": 6152303291910,
+      "recovery_end_ns": 1606359065291,
+      "recovery_start_ns": 1606354413619,
       "responses": [
         {
           "action": "heal",
           "event_id": "experiment-00181-C7-ryw-ryw-fault-heal",
-          "member": "mongo2",
+          "member": "mongo1",
           "ok": true,
           "replication_isolated": false,
           "verified": true
@@ -576,66 +576,66 @@
       ],
       "rules_verified": true,
       "stable_topology": {
-        "election_id": "7fffffff0000000000000247",
+        "election_id": "7fffffff00000000000003d1",
         "last_committed_op_time": {
           "increment": 2,
-          "seconds": 1789886966
+          "seconds": 1789965647
         },
         "members": {
           "mongo1": {
-            "election_id": "7fffffff0000000000000247",
+            "election_id": null,
             "last_write_op_time": {
               "increment": 2,
-              "seconds": 1789886966
+              "seconds": 1789965647
             },
             "me": "mongo1:27017",
             "member": "mongo1",
-            "observed_at_ns": 6152303298569,
+            "observed_at_ns": 1606354417221,
             "reachable": true,
-            "role": "PRIMARY",
+            "role": "SECONDARY",
             "set_name": "rs0",
             "set_version": 1
           },
           "mongo2": {
             "election_id": null,
             "last_write_op_time": {
-              "increment": 1,
-              "seconds": 1789886966
+              "increment": 2,
+              "seconds": 1789965647
             },
             "me": "mongo2:27017",
             "member": "mongo2",
-            "observed_at_ns": 6152304391972,
+            "observed_at_ns": 1606355264866,
             "reachable": true,
             "role": "SECONDARY",
             "set_name": "rs0",
             "set_version": 1
           },
           "mongo3": {
-            "election_id": null,
+            "election_id": "7fffffff00000000000003d1",
             "last_write_op_time": {
               "increment": 2,
-              "seconds": 1789886966
+              "seconds": 1789965647
             },
             "me": "mongo3:27017",
             "member": "mongo3",
-            "observed_at_ns": 6152305109246,
+            "observed_at_ns": 1606356368526,
             "reachable": true,
-            "role": "SECONDARY",
+            "role": "PRIMARY",
             "set_name": "rs0",
             "set_version": 1
           }
         },
-        "observed_at_ns": 6152303296955,
-        "primary": "mongo1",
+        "observed_at_ns": 1606354416421,
+        "primary": "mongo3",
         "secondaries": [
-          "mongo2",
-          "mongo3"
+          "mongo1",
+          "mongo2"
         ],
         "set_name": "rs0",
         "set_version": 1,
         "stable": true
       },
-      "start_ns": 6152240933148,
+      "start_ns": 1606295572617,
       "status": "APPLIED"
     }
   ],
@@ -646,7 +646,7 @@
         "exists": true,
         "member": "mongo1",
         "observation_valid": true,
-        "observed_at_ns": 6152514322641,
+        "observed_at_ns": 1606362624630,
         "observed_version": 1,
         "observed_versions": [
           0,
@@ -680,7 +680,7 @@
         "exists": true,
         "member": "mongo2",
         "observation_valid": true,
-        "observed_at_ns": 6152515583813,
+        "observed_at_ns": 1606363898598,
         "observed_version": 1,
         "observed_versions": [
           0,
@@ -714,7 +714,7 @@
         "exists": true,
         "member": "mongo3",
         "observation_valid": true,
-        "observed_at_ns": 6152516391618,
+        "observed_at_ns": 1606365139098,
         "observed_version": 1,
         "observed_versions": [
           0,
@@ -745,69 +745,69 @@
         ]
       }
     },
-    "observed_at_ns": 6152517856921,
+    "observed_at_ns": 1606366397133,
     "topology": {
-      "election_id": "7fffffff0000000000000247",
+      "election_id": "7fffffff00000000000003d1",
       "last_committed_op_time": {
         "increment": 2,
-        "seconds": 1789886966
+        "seconds": 1789965647
       },
       "members": {
         "mongo1": {
-          "election_id": "7fffffff0000000000000247",
+          "election_id": null,
           "last_write_op_time": {
             "increment": 2,
-            "seconds": 1789886966
+            "seconds": 1789965647
           },
           "me": "mongo1:27017",
           "member": "mongo1",
-          "observed_at_ns": 6152307016954,
+          "observed_at_ns": 1606359075223,
           "reachable": true,
-          "role": "PRIMARY",
+          "role": "SECONDARY",
           "set_name": "rs0",
           "set_version": 1
         },
         "mongo2": {
           "election_id": null,
           "last_write_op_time": {
-            "increment": 1,
-            "seconds": 1789886966
+            "increment": 2,
+            "seconds": 1789965647
           },
           "me": "mongo2:27017",
           "member": "mongo2",
-          "observed_at_ns": 6152308097380,
+          "observed_at_ns": 1606360243139,
           "reachable": true,
           "role": "SECONDARY",
           "set_name": "rs0",
           "set_version": 1
         },
         "mongo3": {
-          "election_id": null,
+          "election_id": "7fffffff00000000000003d1",
           "last_write_op_time": {
             "increment": 2,
-            "seconds": 1789886966
+            "seconds": 1789965647
           },
           "me": "mongo3:27017",
           "member": "mongo3",
-          "observed_at_ns": 6152308956632,
+          "observed_at_ns": 1606361002997,
           "reachable": true,
-          "role": "SECONDARY",
+          "role": "PRIMARY",
           "set_name": "rs0",
           "set_version": 1
         }
       },
-      "observed_at_ns": 6152307015732,
-      "primary": "mongo1",
+      "observed_at_ns": 1606359074701,
+      "primary": "mongo3",
       "secondaries": [
-        "mongo2",
-        "mongo3"
+        "mongo1",
+        "mongo2"
       ],
       "set_name": "rs0",
       "set_version": 1,
       "stable": true
     }
   },
-  "history_hash": "e9e9c4fc892bd299760d42c93ef92fe899e701777e8ce754ae2ff77fee8df6ab",
+  "history_hash": "52737e43b51579466ccb849e872aa6bdbbeca55a4b564ef79454e2655b21b2ac",
   "manifest": {
     "adversarial": true,
     "campaign_id": "experiment",
@@ -819,7 +819,7 @@
     "driver_topology_cache": [
       {
         "address": "mongo1:27017",
-        "role": "PRIMARY"
+        "role": "SECONDARY"
       },
       {
         "address": "mongo2:27017",
@@ -827,7 +827,7 @@
       },
       {
         "address": "mongo3:27017",
-        "role": "SECONDARY"
+        "role": "PRIMARY"
       }
     ],
     "driver_version": "4.18.1",
@@ -846,17 +846,17 @@
       "read": "read",
       "write": "write"
     },
-    "protocol_commit": "03f8c3e98247616762954ea286e18be318241ba5",
-    "protocol_hash": "59accf56cfb7e1f731c980f7ae1d02a53f32b10c1840746029fad0d9ad16506f",
+    "protocol_commit": "c7e3cf9e578704faf4265c7ab98bc607ff06e7b4",
+    "protocol_hash": "d2d9244e6d89a9cb2e0e44c05f4edc1cdd11f6f7adcf4c97cb13bf76e52f7444",
     "read_concern": "majority",
     "retry_reads": false,
     "retry_writes": false,
-    "runner_commit": "942914dd872df922603e06738d601632222d69fe",
+    "runner_commit": "cc702ab8efda5ebf701ff5274eb438025af732a1",
     "runner_dirty": false,
     "schedule_id": "ryw-stale-secondary",
     "schema_version": "manifest.v1",
     "seed": 20261096,
-    "session_id": "dad335309c3a4bf19a82386e5c54a8e3",
+    "session_id": "0dd43e894756481187504a1291249d9f",
     "software_versions": {
       "docker_compose": "5.5.1",
       "docker_engine": "29.8.0",
@@ -864,8 +864,8 @@
       "pymongo": "4.18.1",
       "python": "3.14.7"
     },
-    "subtrial_finished_ns": 6152517871534,
-    "subtrial_started_ns": 6152096408350,
+    "subtrial_finished_ns": 1606366405725,
+    "subtrial_started_ns": 1606150881557,
     "timeout_policy": {
       "connect_ms": 2000,
       "election_barrier_ms": 30000,
@@ -881,44 +881,44 @@
   "operations": [
     {
       "actual_role": "PRIMARY",
-      "actual_role_observed_at_ns": 6152232657958,
-      "actual_server_address": "mongo1:27017",
+      "actual_role_observed_at_ns": 1606287738061,
+      "actual_server_address": "mongo3:27017",
       "after_cluster_time": null,
       "causal_session": false,
       "cluster_time_after": {
         "cluster_time": {
           "increment": 2,
-          "seconds": 1789886966
+          "seconds": 1789965647
         },
         "signature_key_id": 0
       },
       "cluster_time_before": null,
       "command_events": [
         {
-          "actual_server_address": "mongo1:27017",
+          "actual_server_address": "mongo3:27017",
           "after_cluster_time": null,
           "cluster_time_received": {
             "increment": 2,
-            "seconds": 1789886966
+            "seconds": 1789965647
           },
           "cluster_time_sent": {
             "increment": 1,
-            "seconds": 1789886966
+            "seconds": 1789965647
           },
           "command_name": "update",
           "command_started": true,
           "driver_reported_role": "PRIMARY",
-          "end_ns": 6152232567065,
+          "end_ns": 1606287658544,
           "error_message": null,
           "operation_id": "write",
           "operation_time_received": {
             "increment": 2,
-            "seconds": 1789886966
+            "seconds": 1789965647
           },
           "operation_time_sent": null,
           "read_concern": null,
-          "request_id": 944614558,
-          "started_ns": 6152231246449,
+          "request_id": 1557743796,
+          "started_ns": 1606286493729,
           "status": "SUCCESS",
           "write_concern": {
             "w": 1
@@ -935,14 +935,14 @@
       "depends_on_read_id": null,
       "depends_on_version": null,
       "driver_reported_role": "PRIMARY",
-      "end_ns": 6152232567065,
+      "end_ns": 1606287658544,
       "error_code": null,
       "error_message": null,
       "fault_event_id": "experiment-00181-C7-ryw-ryw-fault",
       "fault_state": {
         "event_id": "experiment-00181-C7-ryw-ryw-fault",
         "isolated_members": [
-          "mongo2"
+          "mongo1"
         ]
       },
       "intended_version": 1,
@@ -957,7 +957,7 @@
       "operation_status": "SUCCESS",
       "operation_time_after": {
         "increment": 2,
-        "seconds": 1789886966
+        "seconds": 1789965647
       },
       "operation_time_before": null,
       "parent_write_id": null,
@@ -965,8 +965,8 @@
       "read_concern": null,
       "requested_member": "primary",
       "response_received": true,
-      "session_id": "dad335309c3a4bf19a82386e5c54a8e3",
-      "start_ns": 6152231246449,
+      "session_id": "0dd43e894756481187504a1291249d9f",
+      "start_ns": 1606286493729,
       "timeout_category": null,
       "trial_id": "experiment-00181-C7-ryw",
       "write_concern": "1",
@@ -974,52 +974,52 @@
     },
     {
       "actual_role": "SECONDARY",
-      "actual_role_observed_at_ns": 6152240367457,
-      "actual_server_address": "mongo2:27017",
+      "actual_role_observed_at_ns": 1606294002765,
+      "actual_server_address": "mongo1:27017",
       "after_cluster_time": null,
       "causal_session": false,
       "cluster_time_after": {
         "cluster_time": {
           "increment": 2,
-          "seconds": 1789886966
+          "seconds": 1789965647
         },
         "signature_key_id": 0
       },
       "cluster_time_before": {
         "cluster_time": {
           "increment": 2,
-          "seconds": 1789886966
+          "seconds": 1789965647
         },
         "signature_key_id": 0
       },
       "command_events": [
         {
-          "actual_server_address": "mongo2:27017",
+          "actual_server_address": "mongo1:27017",
           "after_cluster_time": null,
           "cluster_time_received": {
             "increment": 2,
-            "seconds": 1789886966
+            "seconds": 1789965647
           },
           "cluster_time_sent": {
             "increment": 2,
-            "seconds": 1789886966
+            "seconds": 1789965647
           },
           "command_name": "find",
           "command_started": true,
           "driver_reported_role": "SECONDARY",
-          "end_ns": 6152240251012,
+          "end_ns": 1606293793906,
           "error_message": null,
           "operation_id": "read",
           "operation_time_received": {
             "increment": 1,
-            "seconds": 1789886966
+            "seconds": 1789965647
           },
           "operation_time_sent": null,
           "read_concern": {
             "level": "majority"
           },
-          "request_id": 1272703730,
-          "started_ns": 6152239605123,
+          "request_id": 1273817740,
+          "started_ns": 1606292802426,
           "status": "SUCCESS",
           "write_concern": null
         }
@@ -1030,14 +1030,14 @@
       "depends_on_read_id": null,
       "depends_on_version": null,
       "driver_reported_role": "SECONDARY",
-      "end_ns": 6152240251012,
+      "end_ns": 1606293793906,
       "error_code": null,
       "error_message": null,
       "fault_event_id": "experiment-00181-C7-ryw-ryw-fault",
       "fault_state": {
         "event_id": "experiment-00181-C7-ryw-ryw-fault",
         "isolated_members": [
-          "mongo2"
+          "mongo1"
         ]
       },
       "intended_version": null,
@@ -1065,19 +1065,19 @@
       "operation_status": "SUCCESS",
       "operation_time_after": {
         "increment": 2,
-        "seconds": 1789886966
+        "seconds": 1789965647
       },
       "operation_time_before": {
         "increment": 2,
-        "seconds": 1789886966
+        "seconds": 1789965647
       },
       "parent_write_id": null,
       "property": "RYW",
       "read_concern": "majority",
-      "requested_member": "mongo2",
+      "requested_member": "mongo1",
       "response_received": true,
-      "session_id": "dad335309c3a4bf19a82386e5c54a8e3",
-      "start_ns": 6152239605123,
+      "session_id": "0dd43e894756481187504a1291249d9f",
+      "start_ns": 1606292802426,
       "timeout_category": null,
       "trial_id": "experiment-00181-C7-ryw",
       "write_concern": null,
@@ -1088,15 +1088,15 @@
     "checks": [
       {
         "actual": {
-          "primary": "mongo1",
+          "primary": "mongo3",
           "secondaries": [
-            "mongo2",
-            "mongo3"
+            "mongo1",
+            "mongo2"
           ]
         },
         "expected": "one primary and two secondaries",
         "name": "initial-stable-topology",
-        "observed_at_ns": 6152142765279,
+        "observed_at_ns": 1606194992385,
         "status": "SATISFIED"
       },
       {
@@ -1138,20 +1138,20 @@
           ]
         },
         "name": "all-members-at-v0",
-        "observed_at_ns": 6152156859480,
+        "observed_at_ns": 1606220082190,
         "status": "SATISFIED"
       },
       {
         "actual": {
-          "primary": "mongo1",
+          "primary": "mongo3",
           "secondaries": [
-            "mongo2",
-            "mongo3"
+            "mongo1",
+            "mongo2"
           ]
         },
         "expected": "1 PRIMARY + 2 SECONDARY",
         "name": "one-primary-two-secondary-topology",
-        "observed_at_ns": 6152160725033,
+        "observed_at_ns": 1606222512774,
         "status": "SATISFIED"
       },
       {
@@ -1160,15 +1160,15 @@
           "reachable": true
         },
         "expected": "reachable over the client network",
-        "name": "client-path-mongo2",
-        "observed_at_ns": 6152225962183,
+        "name": "client-path-mongo1",
+        "observed_at_ns": 1606282441964,
         "status": "SATISFIED"
       },
       {
         "actual": "SECONDARY",
         "expected": "SECONDARY",
-        "name": "role-mongo2",
-        "observed_at_ns": 6152225964878,
+        "name": "role-mongo1",
+        "observed_at_ns": 1606282444855,
         "status": "SATISFIED"
       },
       {
@@ -1186,68 +1186,68 @@
           ],
           "reachable": true
         },
-        "name": "document-state-mongo2-v0",
-        "observed_at_ns": 6152227838892,
+        "name": "document-state-mongo1-v0",
+        "observed_at_ns": 1606283507859,
+        "status": "SATISFIED"
+      },
+      {
+        "actual": {
+          "member": "mongo3",
+          "role": "PRIMARY",
+          "server_address": "mongo3:27017"
+        },
+        "expected": "mongo3",
+        "name": "actual-route-write",
+        "observed_at_ns": 1606288479537,
+        "status": "SATISFIED"
+      },
+      {
+        "actual": {
+          "observed_version": 1,
+          "observed_write_ids": [
+            "init",
+            "w1"
+          ]
+        },
+        "expected": {
+          "observed_version": 1,
+          "observed_write_ids": [
+            "init",
+            "w1"
+          ]
+        },
+        "name": "document-state-mongo2-v1",
+        "observed_at_ns": 1606289411957,
+        "status": "SATISFIED"
+      },
+      {
+        "actual": {
+          "observed_version": 0,
+          "observed_write_ids": [
+            "init"
+          ],
+          "reachable": true
+        },
+        "expected": {
+          "observed_version": 0,
+          "observed_write_ids": [
+            "init"
+          ],
+          "reachable": true
+        },
+        "name": "document-state-mongo1-v0",
+        "observed_at_ns": 1606290552458,
         "status": "SATISFIED"
       },
       {
         "actual": {
           "member": "mongo1",
-          "role": "PRIMARY",
+          "role": "SECONDARY",
           "server_address": "mongo1:27017"
         },
         "expected": "mongo1",
-        "name": "actual-route-write",
-        "observed_at_ns": 6152233752995,
-        "status": "SATISFIED"
-      },
-      {
-        "actual": {
-          "observed_version": 1,
-          "observed_write_ids": [
-            "init",
-            "w1"
-          ]
-        },
-        "expected": {
-          "observed_version": 1,
-          "observed_write_ids": [
-            "init",
-            "w1"
-          ]
-        },
-        "name": "document-state-mongo3-v1",
-        "observed_at_ns": 6152235773678,
-        "status": "SATISFIED"
-      },
-      {
-        "actual": {
-          "observed_version": 0,
-          "observed_write_ids": [
-            "init"
-          ],
-          "reachable": true
-        },
-        "expected": {
-          "observed_version": 0,
-          "observed_write_ids": [
-            "init"
-          ],
-          "reachable": true
-        },
-        "name": "document-state-mongo2-v0",
-        "observed_at_ns": 6152237076830,
-        "status": "SATISFIED"
-      },
-      {
-        "actual": {
-          "member": "mongo2",
-          "role": "SECONDARY",
-          "server_address": "mongo2:27017"
-        },
-        "expected": "mongo2",
         "name": "actual-route-read",
-        "observed_at_ns": 6152240926233,
+        "observed_at_ns": 1606295564339,
         "status": "SATISFIED"
       }
     ],
