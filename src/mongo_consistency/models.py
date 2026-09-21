@@ -77,6 +77,8 @@ class OperationRecord:
     cluster_time_after: dict[str, Any] | None = None
     operation_time_after: dict[str, Any] | None = None
     after_cluster_time: dict[str, Any] | None = None
+    topology_before: dict[str, Any] | None = None
+    topology_after: dict[str, Any] | None = None
     response_received: bool = True
 
     def to_dict(self) -> dict[str, Any]:
@@ -85,6 +87,10 @@ class OperationRecord:
         payload["observed_versions"] = list(self.observed_versions)
         payload["observed_write_ids"] = list(self.observed_write_ids)
         payload["observed_updates"] = [dict(update) for update in self.observed_updates]
+        if self.topology_before is None:
+            payload.pop("topology_before")
+        if self.topology_after is None:
+            payload.pop("topology_after")
         return payload
 
     @classmethod

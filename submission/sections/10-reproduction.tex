@@ -22,12 +22,18 @@ make smoke
 make pilot
 make experiment
 make rq2
+make rq3
+# If interrupted, resume without changing the frozen inputs.
+make rq3 RQ3_ARGS=--resume
+make rq3-analyse
 \end{verbatim}
 
 Smoke validates machinery and is not scientific evidence. Pilot histories are
 kept separate from RQ1. RQ1 runs sequentially; RQ2 uses its own campaign
-manifest and grouped fault coordinator. Main campaigns require frozen,
-matching prediction, protocol, and runner provenance in a clean checkout.
+manifest and grouped fault coordinator. RQ3 replays eight matched-seed pairs
+for each preregistered contrast and writes separate fault episodes. Main
+campaigns require frozen, matching prediction, protocol, and runner provenance
+in a clean checkout.
 
 Analysis and report generation use the saved campaign artifacts and do not
 require a live database:
@@ -36,6 +42,7 @@ require a live database:
 make test
 make check-docs
 make check-schemas
+make rq3-analyse
 make analyse
 make submission
 \end{verbatim}

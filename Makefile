@@ -1,6 +1,6 @@
 PYTHON ?= python3
 MC_SMOKE_MOUNT ?= ./results/smoke
-.PHONY: check-docs check-schemas check-release-ready submission test setup smoke pilot experiment experiment-fresh rq2 analyse
+.PHONY: check-docs check-schemas check-release-ready submission test setup smoke pilot experiment experiment-fresh rq2 rq3 rq3-analyse analyse
 
 check-docs:
 	$(PYTHON) scripts/check_documentation.py
@@ -35,6 +35,13 @@ experiment-fresh: setup
 RQ2_ARGS ?=
 rq2: setup
 	$(PYTHON) scripts/run_rq2_coordinator.py $(RQ2_ARGS)
+
+RQ3_ARGS ?=
+rq3: setup
+	docker compose -f compose.yaml run --rm runner scripts/run_rq3_campaign.py $(RQ3_ARGS)
+
+rq3-analyse:
+	PYTHONPATH=src $(PYTHON) scripts/analyse_rq3.py
 
 analyse:
 	PYTHONPATH=src $(PYTHON) scripts/analyse_results.py

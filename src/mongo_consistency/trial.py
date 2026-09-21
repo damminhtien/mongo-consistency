@@ -464,6 +464,12 @@ class MongoTrial:
             "isolated_members": sorted(self.active_fault_members),
             "event_id": self.active_fault_event_id,
         }
+        topology_capture_operations = self.runtime_metadata.get(
+            "topology_capture_operations", []
+        )
+        capture_topology = operation.operation_id in topology_capture_operations
+        if capture_topology:
+            operation.topology_before = self.oracle.snapshot().to_dict()
         result: Any | None = None
         caught_error: Exception | None = None
         self.monitor.attach(operation.operation_id)
@@ -477,6 +483,8 @@ class MongoTrial:
             self.monitor.detach()
         events = self.monitor.events_for(operation.operation_id)
         operation_record_from_events(operation, events)
+        if capture_topology:
+            operation.topology_after = self.oracle.snapshot().to_dict()
         member = _member_from_address(operation.actual_server_address)
         if member is not None:
             role_observation = self.oracle.member_state(member)

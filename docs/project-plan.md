@@ -54,6 +54,12 @@ crash, primary crash/election, and primary-isolating network partition. It
 reuses the matching RQ1 normal histories as its descriptive baseline and adds
 no normal histories of its own. C5 versus C6 is reserved for RQ3.
 
+RQ3 uses only the preregistered M1-M3 contrasts in
+[`experimental-protocol.md`](experimental-protocol.md#rq3-mechanism-study).
+Each contrast changes one setting and replays eight matched-seed pairs by
+default. The paired histories have separate fault episodes and are not treated
+as one shared event.
+
 ## Configuration and predictions
 
 | ID | RC | WC | Causal | Guarantee target |

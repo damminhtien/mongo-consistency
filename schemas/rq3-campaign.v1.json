@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/mongo-consistency/rq3-campaign.v1.json",
+  "title": "RQ3 matched mechanism campaign manifest",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "campaign",
+    "status",
+    "repetitions_per_contrast",
+    "seed_base",
+    "planned_case_count",
+    "completed_case_count",
+    "runner_commit",
+    "runner_script_sha256",
+    "configuration_sha256",
+    "protocol_sha256",
+    "runtime_provenance",
+    "contrasts",
+    "records",
+    "started_ns",
+    "last_updated_ns"
+  ],
+  "properties": {
+    "schema_version": {"const": "rq3-campaign.v1"},
+    "campaign": {"const": "rq3"},
+    "status": {"enum": ["RUNNING", "COMPLETE", "INTERRUPTED", "FAILED"]},
+    "repetitions_per_contrast": {"type": "integer", "minimum": 5, "maximum": 10},
+    "seed_base": {"type": "integer", "minimum": 0},
+    "planned_case_count": {"type": "integer", "minimum": 30, "maximum": 60},
+    "completed_case_count": {"type": "integer", "minimum": 0, "maximum": 60},
+    "runner_commit": {"type": ["string", "null"]},
+    "runner_script_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "configuration_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "protocol_sha256": {"type": ["string", "null"]},
+    "runtime_provenance": {"type": "object"},
+    "contrasts": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "required": ["contrast_id", "mechanism", "left_configuration", "right_configuration", "property", "changed_factor", "capture_operations", "pair_ids"],
+        "properties": {
+          "contrast_id": {"enum": ["M1", "M2", "M3"]},
+          "mechanism": {"type": "string", "minLength": 1},
+          "left_configuration": {"pattern": "^C[1-8]$"},
+          "right_configuration": {"pattern": "^C[1-8]$"},
+          "property": {"enum": ["RYW", "MR", "MW", "WFR"]},
+          "changed_factor": {"type": "string", "minLength": 1},
+          "capture_operations": {"type": "array", "items": {"type": "string", "minLength": 1}},
+          "pair_ids": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true}
+        },
+        "additionalProperties": false
+      }
+    },
+    "records": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["trial_id", "ordinal", "campaign", "configuration_id", "property", "seed", "path", "history_hash", "outcome", "precondition_status", "runner_commit", "runner_error", "contrast_id", "pair_id", "replicate", "pair_seed"],
+        "properties": {
+          "trial_id": {"type": "string", "minLength": 1},
+          "ordinal": {"type": "integer", "minimum": 1},
+          "campaign": {"enum": ["rq3-m1", "rq3-m2", "rq3-m3"]},
+          "configuration_id": {"pattern": "^C[1-8]$"},
+          "property": {"enum": ["RYW", "MR", "MW", "WFR"]},
+          "seed": {"type": "integer", "minimum": 0},
+          "path": {"type": "string", "minLength": 1},
+          "history_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "outcome": {"enum": ["PASS", "VIOLATION", "UNAVAILABLE", "INDETERMINATE", "PRECONDITION_MISS", "HARNESS_ERROR"]},
+          "precondition_status": {"enum": ["SATISFIED", "PRECONDITION_MISS"]},
+          "runner_commit": {"type": ["string", "null"]},
+          "runner_error": {"type": ["string", "null"]},
+          "contrast_id": {"enum": ["M1", "M2", "M3"]},
+          "pair_id": {"type": "string", "minLength": 1},
+          "replicate": {"type": "integer", "minimum": 1},
+          "pair_seed": {"type": "integer", "minimum": 0}
+        },
+        "additionalProperties": true
+      }
+    },
+    "started_ns": {"type": "integer", "minimum": 0},
+    "last_updated_ns": {"type": "integer", "minimum": 0},
+    "finished_ns": {"type": "integer", "minimum": 0}
+  },
+  "additionalProperties": false
+}

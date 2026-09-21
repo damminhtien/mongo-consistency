@@ -472,15 +472,20 @@ make pilot
 make experiment
 # Requires a clean committed protocol and runner with frozen provenance.
 make rq2
+make rq3
+# If interrupted, resume with the same repetitions, seed base, and provenance.
+make rq3 RQ3_ARGS=--resume
+make rq3-analyse
 make analyse
 make submission
 ```
 
 `make test`, documentation/schema checks, analysis, and submission build are
-offline. Setup, smoke, pilot, RQ1, and RQ2 require Docker Desktop and the pinned
-runtime. RQ2 reuses the RQ1 normal baseline and runs no additional normal
-histories. The report describes only the final frozen protocol and completed
-campaign; development attempts are not scientific results.
+offline. Setup, smoke, pilot, RQ1, RQ2, and RQ3 require Docker Desktop and the
+pinned runtime. RQ2 reuses the RQ1 normal baseline and runs no additional
+normal histories. RQ3 performs only the three registered mechanism contrasts.
+The report describes only the frozen protocol and completed campaigns;
+development attempts are not scientific results.
 
 The grouped `make rq2` runner completed on 20 September 2026 with 432 histories
 in 36 verified fault episodes. All fault actions were applied and all recovery
@@ -488,3 +493,52 @@ checks converged. The host-side coordinator applies node faults and partition
 rules through a temporary, narrowly mounted IPC directory; the runner container
 receives no Docker socket and runs as a non-root user matching the host-owned
 IPC path. See [rq2-results.md](rq2-results.md) for the observed outcomes.
+
+## RQ3 mechanism study
+
+RQ3 explains selected client-visible results through three preregistered,
+single-factor contrasts. It is a focused mechanism study, not another full
+configuration matrix. `scripts/run_rq3_campaign.py` replays eight matched-seed
+pairs per contrast by default; each arm is a separate history and fault
+episode, not a shared physical event. Pairing holds the registered property
+schedule and seed fixed, alternates arm order, and records the exact
+configuration, route, outcome, and final observation. The raw history hash is
+retained in the RQ3 campaign manifest.
+
+The existing RQ1/RQ2 histories informed which contrasts to examine. The
+hypotheses below are fixed for the new RQ3 replays before those replay outcomes
+are inspected; historical examples are not counted among the RQ3 repetitions.
+
+| Contrast | Schedule and configurations | Changed setting | Preregistered observation |
+| --- | --- | --- | --- |
+| M1 | RYW, C5 vs C6 | Causal session off vs on | With the same majority read/write concerns, an isolated stale secondary may return an older version without a causal time bound; the causal arm should carry `afterClusterTime` and must not return a causally older successful value. A timeout is recorded as unavailable, not as proof of a server-side wait. |
+| M2 | WFR, C8 vs C5 | Read concern local vs majority | With majority write concern configured and causal sessions off, a local read on the isolated former primary may return its `w:1` write; a majority read must not return a value that lacks majority acknowledgement. The WFR setup write is explicitly issued with `w:1` in both arms. |
+| M3 | MW, C3 vs C6 | Write concern `w:1` vs majority | With majority read concern and causal sessions on, an isolated former primary can acknowledge a `w:1` write before that write is replicated to a majority; the write may later be absent after healing. A majority write cannot be counted as acknowledged unless the required acknowledgements arrive. A timeout leaves its effect unresolved until independent post-heal observation. |
+
+The runner adds direct-member topology snapshots before and after selected
+subject operations: M1 captures `write` and `read`, M2 captures `read` and
+`write`, and M3 captures `first_write` and `second_write`. Snapshots include
+member roles, election ID, set version, the observed replica-set term when
+available, and the majority-commit optime. Existing command events record the
+actual address, role, command metadata (including `afterClusterTime`), concern,
+session times, invocation/response timing, and exact errors. The snapshots are
+diagnostic observations and add polling overhead; they are not direct access to
+MongoDB's internal causal state.
+
+The report selects one pair per contrast using a fixed signature score. Every
+contrast starts at 2 points when the initial primary and successfully applied
+isolation target match across arms. M1 adds one point each for a successful C5
+v0 read, no C5 `afterClusterTime`, a C6 causal time bound, a C6 read that either
+fails with an unavailable/indeterminate outcome or succeeds at v1 or later,
+and matching actual read routes. M2 adds one point each for C8 local v1, C5
+majority v0, and matching actual read routes. M3 adds one point each for an
+acknowledged C3 W1, a failed/unavailable C6 majority W1, converged C3 final
+state without W1, and converged C6 final state with W1. The highest score wins;
+ties use the lowest pair ID. This selects an illustrative trace only: every
+planned pair for the configured repetition count remains in the analysis
+denominator, and no pair is silently dropped
+when its precondition, route, or outcome differs. The selection manifest
+identifies each displayed history by path and content hash. Mechanism language
+is limited to explanations consistent with documented MongoDB semantics and
+the observed trace. A timeout alone never establishes that an internal causal
+wait occurred.

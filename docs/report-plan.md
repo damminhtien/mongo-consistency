@@ -10,7 +10,7 @@ The front matter places a short acknowledgements section after the abstract.
 ## Report structure
 
 1. Abstract: scope, campaigns, classification rules, and generated outcomes.
-2. Introduction: objective, scope, four client-centric properties, and RQ1/RQ2.
+2. Introduction: objective, scope, four client-centric properties, and RQ1-RQ3.
 3. Database System and Deployment: MongoDB, topology, recorded versions,
    installation, and deployment verification.
 4. Consistency Configurations: read/write concerns, causal sessions, C1-C8,
@@ -20,7 +20,7 @@ The front matter places a short acknowledgements section after the abstract.
    metrics, and outcome classes.
 6. Experiments and Results: RYW, MR, MW, and WFR, each with prediction,
    experiment/rationale, results, and explanation; then cross-configuration and
-   cross-scenario tables.
+   cross-scenario tables and the three matched RQ3 mechanism contrasts.
 7. Discussion: predictions versus observations, configuration and fault
    effects, consistency/availability distinctions, and behavior needing
    interpretation.
@@ -44,6 +44,7 @@ The front matter places a short acknowledgements section after the abstract.
 | Normal operation, node failures, and partition | Sections 4.3-4.5 |
 | Reported and explained observations | Section 5 |
 | Agreement between expectation and observation | Section 6.1 |
+| Mechanism explanation from matched, instrumented histories | RQ3 results subsection after the RQ2 tables |
 | Limitations | Section 7 |
 | Sources and AI-use disclosure | References and AI Usage Statement |
 | Code and reproduction instructions | Section 8, Appendix B, and archive |
@@ -68,6 +69,8 @@ The front matter places a short acknowledgements section after the abstract.
   schedule, not proof of a universal guarantee or a zero true probability.
 - Explain internal database behavior only when the recorded trace supports it;
   otherwise describe the observation and mark the mechanism as unobserved.
+- For RQ3, distinguish matched seeds from shared fault episodes, and describe a
+  timeout as no observed response rather than proof of server-side waiting.
 - Identify the host operating-system release as not recorded when describing
   campaign provenance. Do not replace historical provenance with the current
   machine's state.

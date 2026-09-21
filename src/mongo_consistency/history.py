@@ -188,6 +188,8 @@ def validate_history(history: History | dict[str, Any]) -> list[str]:
             "cluster_time_after",
             "operation_time_after",
             "after_cluster_time",
+            "topology_before",
+            "topology_after",
         ):
             time_value = getattr(operation, time_field)
             if time_value is not None and not isinstance(time_value, dict):

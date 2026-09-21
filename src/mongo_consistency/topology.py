@@ -34,6 +34,7 @@ class TopologyState:
     election_id: str | None = None
     set_version: int | None = None
     last_committed_op_time: dict[str, int] | None = None
+    term: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -50,6 +51,7 @@ class TopologyState:
                 if self.last_committed_op_time is not None
                 else None
             ),
+            "term": self.term,
         }
 
 
@@ -207,11 +209,15 @@ class TopologyOracle:
             if isinstance(value.get("set_version"), int)
         }
         last_committed = None
+        term = None
         if primary is not None and states[primary]["reachable"]:
             try:
                 status = self._client(primary).admin.command({"replSetGetStatus": 1})
                 optimes = status.get("optimes", {})
                 last_committed = self._op_time(optimes.get("lastCommittedOpTime"))
+                raw_term = status.get("term")
+                if isinstance(raw_term, int) and not isinstance(raw_term, bool):
+                    term = raw_term
             except Exception:  # noqa: BLE001 - this field is optional diagnostic data.
                 pass
         return TopologyState(
@@ -224,6 +230,7 @@ class TopologyOracle:
             election_id=next(iter(election_ids)) if len(election_ids) == 1 else None,
             set_version=next(iter(set_versions)) if len(set_versions) == 1 else None,
             last_committed_op_time=last_committed,
+            term=term,
         )
 
     def wait_for_stable(self, timeout_seconds: float = 30.0) -> TopologyState:
