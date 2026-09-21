@@ -10,16 +10,16 @@ guarantees \cite[slides 49 to 53]{cai-lecture-3}
 \cite{mongodb-read-concern,mongodb-write-concern,mongodb-read-preference,mongodb-causal-consistency,pymongo-sessions}.
 
 Both causal-session conditions use an explicit PyMongo session. The OFF
-condition sets causal consistency to false; it does not omit the session. The
-read preference and requested member are selected by each registered schedule
-to construct a stale or current observation. They are recorded per operation
-but are not independent factors in C1-C8.
+condition sets causal consistency to false; it does not omit the session. Each
+test schedule selects a read preference and member to create the required
+observation. The runner records the requested member and the server that
+actually handled each operation; routing is not an independent factor in C1-C8.
 
 \subsection{Parameters explored}
 
 \begin{table}[ht]
 \centering
-\caption{Parameters varied or controlled by the registered schedules.}
+\caption{Parameters varied or controlled by the test schedules.}
 \label{tab:parameters}
 \begin{tabular}{@{}p{0.21\textwidth}p{0.31\textwidth}p{0.36\textwidth}@{}}
 \toprule
@@ -28,7 +28,7 @@ Parameter & Values & Role in the experiment \\
 Read concern & \texttt{local}, \texttt{majority} & Selects the read visibility condition in C1-C8. \\
 Write concern & \texttt{w:1}, \texttt{majority} & Selects the write acknowledgement condition in C1-C8. \\
 Causal session & off, on & Controls session dependency propagation; both conditions use one explicit session. \\
-Read preference / member & Schedule-directed primary or secondary & Constructs a registered route; the actual server and role are recorded. \\
+Read preference / member & Schedule-directed primary or secondary & Reaches the intended member; the actual server and role are recorded. \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -37,7 +37,7 @@ Read preference / member & Schedule-directed primary or secondary & Constructs a
 
 \begin{table}[ht]
 \centering
-\caption{C1-C8 settings and registered guarantee targets.}
+\caption{C1-C8 settings and predicted guarantees.}
 \label{tab:configurations}
 \begin{tabular}{@{}lllll@{}}
 \toprule
@@ -55,23 +55,29 @@ C8 & local & majority & off & none \\
 \end{tabular}
 \end{table}
 
-\subsection{Expected behaviour and predictions}
+\subsection{RQ1 predictions}
 
-The prediction manifest assigns durability-aware targets to successful
-histories under the registered schedules. C3 targets MR and WFR, C4 targets MW,
-and C6 targets all four properties. C1, C2, C5, C7, and C8 have no registered
-target. No target means that the project does not predict a counterexample on
-every run. C5 separates majority concerns from causal-session setting; its
-concerns alone are not treated as the project's registered causal guarantee.
+Before the campaign, we predicted which configurations should provide each
+client-centric property. C3 targets MR and WFR, C4 targets MW, and C6 targets
+all four. We assigned no guarantee target to C1, C2, C5, C7, or C8. A target is
+a prediction for histories that complete under the test schedule; it does not
+mean every repetition must pass. For configurations without a target, we ask
+whether the schedule produces a counterexample, not whether every run violates
+the property. C5 separates majority concerns from causal-session setting, so
+its concerns alone are not taken as a causal-session guarantee.
 
-These targets are committed in \texttt{configs/predictions.json} before the
-campaign. A history classified UNAVAILABLE or INDETERMINATE does not establish
-whether its consistency predicate held. The official MongoDB documentation
-also distinguishes causal sessions and concern combinations, including the
-durability condition on majority reads and writes
+We fixed these predictions before running the campaign. An acknowledgement
+does not prove that a write survives recovery:
+the independent observer checks the converged state, while the history retains
+the acknowledged operation and records any later rollback. The MongoDB
+documentation also distinguishes causal sessions and concern combinations,
+including the durability condition on majority reads and writes
 \cite{mongodb-causal-consistency}.
 
-The four pre-registered hypotheses for RQ2, labelled H2.1 through H2.4, are:
+\subsection{RQ2 fault predictions}
+
+Before the fault campaign, we made four predictions, labelled H2.1 through
+H2.4:
 
 \begin{description}
 \item[H2.1] A secondary crash should reduce redundancy; operations that remain
@@ -85,6 +91,3 @@ write on the isolated branch.
 counterexample into a wait or an unresolved operation instead of a returned
 stale value.
 \end{description}
-
-The comparison in Sections~5 and 6 keeps predictions separate from measured
-outcomes. A pass in a finite campaign is not proof of a universal guarantee.
