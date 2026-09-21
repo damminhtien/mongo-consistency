@@ -24,9 +24,17 @@ from mongo_consistency.checkers import check_history
 from mongo_consistency.config import load_configurations
 from mongo_consistency.faults import FaultControllerClient
 from mongo_consistency.history import read_history
+from mongo_consistency.rq3 import (
+    TOPOLOGY_PLANS,
+    arm_control_errors,
+    normalize_topology,
+    pair_control,
+)
+from mongo_consistency.rq3_anchors import verify_anchor_manifest
+from mongo_consistency.topology import TopologyOracle
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_REPETITIONS = 8
+DEFAULT_REPETITIONS = 5
 MIN_REPETITIONS = 5
 MAX_REPETITIONS = 10
 
@@ -198,6 +206,8 @@ def _record_for_history(
         "software_versions": metadata.get("software_versions"),
         "image_digest": metadata.get("image_digest"),
         "checker_version": metadata.get("checker_version"),
+        "rq3_protocol_id": "rq3-protocol.v2",
+        "rq3_topology_plan": TOPOLOGY_PLANS[case.contrast.contrast_id].to_dict(),
     }
     mismatches = [
         f"{key}={history.manifest.get(key)!r}, expected {value!r}"
@@ -256,11 +266,16 @@ def _manifest_payload(
     metadata: dict[str, Any],
     cases: list[Case],
     records: dict[str, dict[str, Any]],
+    configurations: dict[str, dict[str, Any]],
     started_ns: int,
+    preflight_sha256: str,
+    anchor_manifest_sha256: str,
     finished_ns: int | None = None,
 ) -> dict[str, Any]:
+    pair_controls = _pair_control_rows(cases, records, configurations)
     payload: dict[str, Any] = {
-        "schema_version": "rq3-campaign.v1",
+        "schema_version": "rq3-campaign.v2",
+        "protocol_id": "rq3-protocol.v2",
         "campaign": "rq3",
         "status": status,
         "repetitions_per_contrast": repetitions,
@@ -271,8 +286,12 @@ def _manifest_payload(
         "runner_script_sha256": _sha256(Path(__file__)),
         "configuration_sha256": _sha256(ROOT / "configs/configurations.json"),
         "protocol_sha256": metadata.get("protocol_hash"),
+        "topology_plan_sha256": _sha256(ROOT / "src/mongo_consistency/rq3.py"),
+        "preflight_sha256": preflight_sha256,
+        "anchor_manifest_sha256": anchor_manifest_sha256,
         "runtime_provenance": _runtime_provenance(metadata),
         "contrasts": _contrast_rows(repetitions),
+        "pair_controls": pair_controls,
         "records": sorted(records.values(), key=lambda item: (item["contrast_id"], item["ordinal"])),
         "started_ns": started_ns,
         "last_updated_ns": time.monotonic_ns(),
@@ -280,6 +299,57 @@ def _manifest_payload(
     if finished_ns is not None:
         payload["finished_ns"] = finished_ns
     return payload
+
+
+def _pair_control_rows(
+    cases: list[Case],
+    records: dict[str, dict[str, Any]],
+    configurations: dict[str, dict[str, Any]],
+) -> list[dict[str, Any]]:
+    by_pair: dict[tuple[str, str], dict[str, dict[str, Any]]] = {}
+    for case in cases:
+        record = records.get(case.trial_id)
+        history: dict[str, Any] | None = None
+        if record is not None:
+            path = Path(str(record["path"]))
+            if not path.is_absolute():
+                path = ROOT / path
+            if path.is_file():
+                history = read_history(path).to_dict()
+        arms = by_pair.setdefault((case.contrast.contrast_id, case.pair_id), {})
+        if history is not None:
+            arms[case.configuration_id] = history
+    return [
+        pair_control(contrast_id, pair_id, arms, configurations=configurations)
+        for (contrast_id, pair_id), arms in sorted(by_pair.items())
+    ]
+
+
+def _pair_is_complete(pair_control_record: dict[str, Any]) -> bool:
+    observed = pair_control_record.get("observed")
+    return (
+        isinstance(observed, dict)
+        and len(observed) == 2
+        and all(
+            isinstance(arm, dict) and arm.get("present") is True
+            for arm in observed.values()
+        )
+    )
+
+
+def _preflight_digest(path: Path) -> str:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if (
+        payload.get("schema_version") != "rq3-preflight.v2"
+        or payload.get("protocol_id") != "rq3-protocol.v2"
+        or payload.get("status") != "PASS"
+        or payload.get("planned_cycle_count") != 1
+        or payload.get("completed_cycle_count") != 1
+        or payload.get("passed_cycle_count") != 1
+        or payload.get("topology_plan") != TOPOLOGY_PLANS["M3"].to_dict()
+    ):
+        raise ValueError(f"RQ3 topology preflight must pass its single topology rehearsal: {path}")
+    return _sha256(path)
 
 
 def _runtime_provenance(metadata: dict[str, Any]) -> dict[str, Any]:
@@ -301,6 +371,9 @@ def run_campaign(
     _validate_configuration_contrasts(configurations)
     metadata = campaign_runtime_metadata(output_root)
     _require_frozen_provenance("rq3", metadata)
+    _, anchor_manifest_sha256 = verify_anchor_manifest(ROOT)
+    preflight_path = ROOT / "results/raw/rq3-preflight.json"
+    preflight_sha256 = _preflight_digest(preflight_path)
     actual_seed_base = seed_base if seed_base is not None else int(metadata["seed_base"]) + 100_000
     if actual_seed_base < 0:
         raise ValueError("seed base must be non-negative")
@@ -315,12 +388,17 @@ def run_campaign(
             raise ValueError(f"{manifest_path} already exists; pass --resume to continue")
         previous = json.loads(manifest_path.read_text(encoding="utf-8"))
         if (
-            previous.get("schema_version") != "rq3-campaign.v1"
+            previous.get("schema_version") != "rq3-campaign.v2"
+            or previous.get("protocol_id") != "rq3-protocol.v2"
             or previous.get("repetitions_per_contrast") != repetitions
             or previous.get("seed_base") != actual_seed_base
             or previous.get("runner_script_sha256") != _sha256(Path(__file__))
             or previous.get("configuration_sha256") != _sha256(ROOT / "configs/configurations.json")
             or previous.get("protocol_sha256") != metadata.get("protocol_hash")
+            or previous.get("preflight_sha256") != preflight_sha256
+            or previous.get("anchor_manifest_sha256") != anchor_manifest_sha256
+            or previous.get("topology_plan_sha256")
+            != _sha256(ROOT / "src/mongo_consistency/rq3.py")
             or previous.get("runner_commit") != metadata.get("runner_commit")
             or previous.get("runtime_provenance") != _runtime_provenance(metadata)
             or previous.get("contrasts") != _contrast_rows(repetitions)
@@ -365,6 +443,32 @@ def run_campaign(
         elif case.trial_id in records:
             raise ValueError(f"RQ3 manifest points to a missing history: {path}")
 
+    for case in cases:
+        record = records.get(case.trial_id)
+        if record is None:
+            continue
+        path = Path(str(record["path"]))
+        if not path.is_absolute():
+            path = ROOT / path
+        history = read_history(path).to_dict()
+        errors = arm_control_errors(
+            history,
+            case.contrast.contrast_id,
+            case.configuration_id,
+            configurations,
+        )
+        if errors:
+            raise ValueError(
+                f"cannot resume control-invalid history {case.trial_id}: "
+                + "; ".join(errors)
+            )
+    for pair_entry in _pair_control_rows(cases, records, configurations):
+        if _pair_is_complete(pair_entry) and pair_entry["control_valid"] is not True:
+            raise ValueError(
+                f"cannot resume control-invalid pair {pair_entry['pair_id']}: "
+                + "; ".join(pair_entry["invalid_reasons"])
+            )
+
     _write_json_atomic(
         manifest_path,
         _manifest_payload(
@@ -374,7 +478,10 @@ def run_campaign(
             metadata=metadata,
             cases=cases,
             records=records,
+            configurations=configurations,
             started_ns=started_ns,
+            preflight_sha256=preflight_sha256,
+            anchor_manifest_sha256=anchor_manifest_sha256,
         ),
     )
     seed_uris = tuple(
@@ -387,55 +494,107 @@ def run_campaign(
     )
     controller: FaultControllerClient = controller_from_environment()
 
-    for case in cases:
-        if case.trial_id in records:
-            continue
-        runtime_metadata = {
-            **metadata,
-            "seed_base": case.pair_seed - case.ordinal,
-            "rq3_contrast_id": case.contrast.contrast_id,
-            "rq3_mechanism": case.contrast.mechanism,
-            "rq3_changed_factor": case.contrast.changed_factor,
-            "rq3_pair_id": case.pair_id,
-            "rq3_pair_seed": case.pair_seed,
-            "rq3_replicate": case.replicate,
-            "topology_capture_operations": list(case.contrast.capture_operations),
-            "topology_capture_policy": "direct-member-snapshots-before-and-after-selected-subject-operations.v1",
-        }
-        record = run_case(
-            campaign=case.campaign,
-            ordinal=case.ordinal,
-            configuration=configurations[case.configuration_id],
-            property_name=case.contrast.property_name,
-            adversarial=True,
-            seed_uris=seed_uris,
-            controller=controller,
-            output_root=output_root,
-            runtime_metadata=runtime_metadata,
-        )
-        record_path = Path(record["path"])
-        if record_path.is_relative_to(ROOT):
-            record["path"] = record_path.relative_to(ROOT).as_posix()
-        records[case.trial_id] = {
-            **record,
-            "contrast_id": case.contrast.contrast_id,
-            "pair_id": case.pair_id,
-            "replicate": case.replicate,
-            "pair_seed": case.pair_seed,
-        }
-        print(json.dumps(records[case.trial_id], sort_keys=True), flush=True)
-        _write_json_atomic(
-            manifest_path,
-            _manifest_payload(
+    try:
+        for case in cases:
+            if case.trial_id in records:
+                continue
+            plan = TOPOLOGY_PLANS[case.contrast.contrast_id]
+            with TopologyOracle() as oracle:
+                normalization_state = normalize_topology(
+                    oracle,
+                    controller,
+                    plan,
+                    event_id=f"{case.trial_id}-normalize",
+                )
+            runtime_metadata = {
+                **metadata,
+                "seed_base": actual_seed_base,
+                "rq3_protocol_id": "rq3-protocol.v2",
+                "rq3_contrast_id": case.contrast.contrast_id,
+                "rq3_mechanism": case.contrast.mechanism,
+                "rq3_changed_factor": case.contrast.changed_factor,
+                "rq3_pair_id": case.pair_id,
+                "rq3_pair_seed": case.pair_seed,
+                "rq3_replicate": case.replicate,
+                "rq3_topology_plan": plan.to_dict(),
+                "rq3_normalization": normalization_state,
+                "topology_capture_operations": list(case.contrast.capture_operations),
+                "topology_capture_policy": "direct-member-snapshots-before-and-after-selected-subject-operations.v2",
+            }
+            record = run_case(
+                campaign=case.campaign,
+                ordinal=case.ordinal,
+                configuration=configurations[case.configuration_id],
+                property_name=case.contrast.property_name,
+                adversarial=True,
+                seed_uris=seed_uris,
+                controller=controller,
+                output_root=output_root,
+                runtime_metadata=runtime_metadata,
+            )
+            record_path = Path(record["path"])
+            if record_path.is_relative_to(ROOT):
+                record["path"] = record_path.relative_to(ROOT).as_posix()
+            records[case.trial_id] = {
+                **record,
+                "contrast_id": case.contrast.contrast_id,
+                "pair_id": case.pair_id,
+                "replicate": case.replicate,
+                "pair_seed": case.pair_seed,
+            }
+            print(json.dumps(records[case.trial_id], sort_keys=True), flush=True)
+            running = _manifest_payload(
                 status="RUNNING",
                 repetitions=repetitions,
                 seed_base=actual_seed_base,
                 metadata=metadata,
                 cases=cases,
                 records=records,
+                configurations=configurations,
                 started_ns=started_ns,
+                preflight_sha256=preflight_sha256,
+                anchor_manifest_sha256=anchor_manifest_sha256,
+            )
+            _write_json_atomic(manifest_path, running)
+            history = read_history(Path(record["path"]) if Path(record["path"]).is_absolute() else ROOT / record["path"])
+            arm_errors = arm_control_errors(
+                history.to_dict(),
+                case.contrast.contrast_id,
+                case.configuration_id,
+                configurations,
+            )
+            pair_entry = next(
+                item
+                for item in running["pair_controls"]
+                if item["contrast_id"] == case.contrast.contrast_id
+                and item["pair_id"] == case.pair_id
+            )
+            if arm_errors or (
+                _pair_is_complete(pair_entry) and pair_entry["control_valid"] is not True
+            ):
+                reasons = arm_errors or pair_entry["invalid_reasons"]
+                raise RuntimeError(
+                    f"RQ3 control validation failed for {case.pair_id}/{case.configuration_id}: "
+                    + "; ".join(reasons)
+                )
+    except Exception:
+        _write_json_atomic(
+            manifest_path,
+            _manifest_payload(
+                status="FAILED",
+                repetitions=repetitions,
+                seed_base=actual_seed_base,
+                metadata=metadata,
+                cases=cases,
+                records=records,
+                configurations=configurations,
+                started_ns=started_ns,
+                preflight_sha256=preflight_sha256,
+                anchor_manifest_sha256=anchor_manifest_sha256,
+                finished_ns=time.monotonic_ns(),
             ),
         )
+        raise
 
     final = _manifest_payload(
         status="COMPLETE",
@@ -444,7 +603,10 @@ def run_campaign(
         metadata=metadata,
         cases=cases,
         records=records,
+        configurations=configurations,
         started_ns=started_ns,
+        preflight_sha256=preflight_sha256,
+        anchor_manifest_sha256=anchor_manifest_sha256,
         finished_ns=time.monotonic_ns(),
     )
     _write_json_atomic(manifest_path, final)
@@ -456,7 +618,7 @@ def main() -> int:
     parser.add_argument("--repetitions", type=int, default=DEFAULT_REPETITIONS)
     parser.add_argument("--seed-base", type=int)
     parser.add_argument("--resume", action="store_true")
-    parser.add_argument("--output-root", type=Path, default=ROOT / "results/raw/rq3")
+    parser.add_argument("--output-root", type=Path, default=ROOT / "results/raw/rq3-v2")
     args = parser.parse_args()
     manifest = run_campaign(
         output_root=args.output_root,

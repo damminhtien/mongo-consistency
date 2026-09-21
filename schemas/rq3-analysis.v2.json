@@ -1,0 +1,138 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/mongo-consistency/rq3-analysis.v2.json",
+  "title": "RQ3 protocol-v2 derived analysis",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "protocol_id",
+    "campaign_manifest",
+    "campaign_manifest_sha256",
+    "preflight_sha256",
+    "anchor_manifest_sha256",
+    "historical_anchors",
+    "repetitions_per_contrast",
+    "contrast_summaries",
+    "selection_manifest",
+    "generated_artifacts"
+  ],
+  "properties": {
+    "schema_version": {"const": "rq3-analysis.v2"},
+    "protocol_id": {"const": "rq3-protocol.v2"},
+    "campaign_manifest": {"type": "string"},
+    "campaign_manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "preflight_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "anchor_manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "historical_anchors": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "required": ["contrast_id", "property", "interpretation", "limitation", "histories"],
+        "properties": {
+          "contrast_id": {"enum": ["M1", "M2", "M3"]},
+          "property": {"enum": ["RYW", "WFR", "MW"]},
+          "interpretation": {"type": "string", "minLength": 1},
+          "limitation": {"type": "string", "minLength": 1},
+          "histories": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "object", "required": ["trial_id", "configuration_id", "seed", "path", "raw_sha256", "history_hash", "outcome", "operations", "final_observation"], "properties": {"trial_id": {"type": "string"}, "configuration_id": {"pattern": "^C[1-8]$"}, "seed": {"type": "integer"}, "path": {"type": "string"}, "raw_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "history_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "outcome": {"type": "string"}, "operations": {"type": "object"}, "final_observation": {"type": "object"}}, "additionalProperties": true}}
+        },
+        "additionalProperties": false
+      }
+    },
+    "repetitions_per_contrast": {"type": "integer", "minimum": 5, "maximum": 10},
+    "contrast_summaries": {
+      "type": "object",
+      "required": ["M1", "M2", "M3"],
+      "properties": {
+        "M1": {"$ref": "#/$defs/contrast"},
+        "M2": {"$ref": "#/$defs/contrast"},
+        "M3": {"$ref": "#/$defs/contrast"}
+      },
+      "additionalProperties": false
+    },
+    "selection_manifest": {"type": "string"},
+    "generated_artifacts": {
+      "type": "object",
+      "required": ["report_tex"],
+      "properties": {
+        "report_tex": {"$ref": "#/$defs/artifact"},
+        "timeline_pdf": {"$ref": "#/$defs/artifact"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "contrast": {
+      "type": "object",
+      "required": [
+        "planned_pair_count",
+        "control_valid_pair_count",
+        "invalid_pair_count",
+        "invalid_pairs",
+        "signature_counts",
+        "selected_pair"
+      ],
+      "properties": {
+        "planned_pair_count": {"type": "integer", "minimum": 5, "maximum": 10},
+        "control_valid_pair_count": {"type": "integer", "minimum": 0, "maximum": 10},
+        "invalid_pair_count": {"type": "integer", "minimum": 0, "maximum": 10},
+        "invalid_pairs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["pair_id", "invalid_reasons"],
+            "properties": {
+              "pair_id": {"type": "string"},
+              "invalid_reasons": {"type": "array", "items": {"type": "string"}}
+            },
+            "additionalProperties": false
+          }
+        },
+        "signature_counts": {"type": "object"},
+        "selected_pair": {
+          "anyOf": [
+            {"$ref": "#/$defs/selection"},
+            {"type": "null"}
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "selection": {
+      "type": "object",
+      "required": ["pair_id", "control_valid", "histories"],
+      "properties": {
+        "pair_id": {"type": "string"},
+        "control_valid": {"const": true},
+        "histories": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "object",
+            "required": ["trial_id", "path", "sha256", "configuration_id"],
+            "properties": {
+              "trial_id": {"type": "string"},
+              "path": {"type": "string"},
+              "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "configuration_id": {"type": "string"}
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "artifact": {
+      "type": "object",
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": {"type": "string"},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

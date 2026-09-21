@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -14,6 +15,7 @@ from scripts.run_campaign import _campaign_manifest
 from scripts.validate_records import (
     SCHEMA_NAMES,
     _check_schema_instance,
+    _check_rq3_campaign_manifest_v2,
     _load_validators,
 )
 
@@ -184,6 +186,55 @@ class SchemaValidationTests(unittest.TestCase):
             errors,
         )
         self.assertEqual([], errors)
+
+    def test_rq3_v2_manifest_validator_handles_repository_anchor_lookup(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "configs").mkdir()
+            (root / "configs/configurations.json").write_text(
+                (ROOT / "configs/configurations.json").read_text(encoding="utf-8"),
+                encoding="utf-8",
+            )
+            manifest_path = root / "results/raw/rq3-v2/campaign-manifest.json"
+            manifest_path.parent.mkdir(parents=True)
+            manifest_path.write_text("{}", encoding="utf-8")
+
+            errors: list[str] = []
+            _check_rq3_campaign_manifest_v2(
+                {
+                    "protocol_id": "rq3-protocol.v2",
+                    "repetitions_per_contrast": 5,
+                    "records": [],
+                },
+                manifest_path,
+                errors,
+            )
+            forged_control_errors: list[str] = []
+            _check_rq3_campaign_manifest_v2(
+                {
+                    "protocol_id": "rq3-protocol.v2",
+                    "repetitions_per_contrast": 5,
+                    "records": [],
+                    "pair_controls": [
+                        {
+                            "contrast_id": "M1",
+                            "pair_id": "m1-r01",
+                            "pair_seed": 701,
+                            "control_valid": True,
+                            "invalid_reasons": [],
+                        }
+                    ],
+                },
+                manifest_path,
+                forged_control_errors,
+            )
+
+        self.assertTrue(any("cannot verify RQ3 historical anchors" in error for error in errors), errors)
+        self.assertTrue(
+            any("pair control m1-r01 differs from raw-history recomputation" in error
+                for error in forged_control_errors),
+            forged_control_errors,
+        )
 
 
 if __name__ == "__main__":

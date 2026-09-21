@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/mongo-consistency/rq3-preflight.v2.json",
+  "title": "RQ3 protocol-v2 topology preflight",
+  "type": "object",
+  "required": ["schema_version", "protocol_id", "status", "topology_plan", "planned_cycle_count", "completed_cycle_count", "passed_cycle_count", "cycles", "runtime_provenance", "started_ns", "last_updated_ns"],
+  "properties": {
+    "schema_version": {"const": "rq3-preflight.v2"},
+    "protocol_id": {"const": "rq3-protocol.v2"},
+    "status": {"enum": ["PASS", "FAIL"]},
+    "topology_plan": {"type": "object"},
+    "planned_cycle_count": {"const": 1},
+    "completed_cycle_count": {"type": "integer", "minimum": 0, "maximum": 1},
+    "passed_cycle_count": {"type": "integer", "minimum": 0, "maximum": 1},
+    "cycles": {"type": "array", "maxItems": 1, "items": {"type": "object", "required": ["cycle", "cycle_id", "status"], "properties": {"cycle": {"type": "integer", "minimum": 1, "maximum": 1}, "cycle_id": {"type": "string", "minLength": 1}, "status": {"enum": ["PASS", "FAIL"]}, "error": {"type": "string"}}, "additionalProperties": true}},
+    "runtime_provenance": {"type": "object"},
+    "started_ns": {"type": "integer", "minimum": 0},
+    "last_updated_ns": {"type": "integer", "minimum": 0},
+    "finished_ns": {"type": "integer", "minimum": 0},
+    "error": {"type": "string"}
+  },
+  "additionalProperties": false
+}

@@ -27,6 +27,9 @@ make pilot
 make experiment
 # Requires a clean checkout with frozen provenance and a running Docker daemon.
 make rq2
+make rq3-preflight
+make rq3
+make rq3-analyse
 make analyse
 make submission
 ~~~
@@ -66,6 +69,19 @@ consistency passes or violations. The C1 partition RYW and MW violations were
 reproduced in all 20 signature repetitions. See [RQ2 results](docs/rq2-results.md).
 The host coordinator controls faults through a temporary, narrowly mounted IPC
 directory; the runner receives no Docker socket.
+
+RQ3 explains three mechanisms using six selected RQ1 anchor histories and five
+matched-seed replay pairs per contrast (30 new histories). The anchors are
+registered in `configs/rq3-anchors.json`; they provide context, not replay
+outcomes or probability estimates. Each replay pair checks its named topology
+and actual routes, and the analyzer derives control validity from raw histories
+separately from consistency outcomes. The v2 preflight and replay campaign
+have not yet been run. The preflight records one topology rehearsal in
+`results/raw/rq3-preflight.json`; the campaign lives under `results/raw/rq3-v2/`
+with an `rq3-campaign.v2` manifest. Analysis writes
+`results/analysis/rq3-v2/summary.json` (`rq3-analysis.v2`) and
+`results/analysis/rq3-v2/selection-manifest.json` (`rq3-selection.v2`). The
+previous 48-history v1 campaign remains intact under `results/raw/rq3/`.
 
 ## Release package
 

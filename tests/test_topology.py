@@ -16,6 +16,7 @@ class FakeAdmin:
         self.client = client
 
     def command(self, command: dict[str, Any]) -> dict[str, Any]:
+        self.client.commands.append(dict(command))
         if "hello" in command:
             self.client.hello_count += 1
             state = self.client.oracle_test_state
@@ -27,7 +28,13 @@ class FakeAdmin:
                 "secondary": state["role"] == "SECONDARY",
                 "electionId": state.get("election_id", "election-1"),
                 "setVersion": state.get("set_version", 4),
-                "lastWrite": {"opTime": {"ts": {"t": 20, "i": 7}}},
+                "lastWrite": {
+                    "opTime": {
+                        "ts": state.get(
+                            "last_write_op_time", {"t": 20, "i": 7}
+                        )
+                    }
+                },
             }
         if "replSetGetStatus" in command:
             return {
@@ -35,6 +42,8 @@ class FakeAdmin:
                     "lastCommittedOpTime": {"ts": {"t": 20, "i": 9}}
                 }
             }
+        if "replSetFreeze" in command or "replSetStepDown" in command:
+            return {"ok": 1}
         raise AssertionError(f"unexpected admin command: {command}")
 
 
@@ -76,6 +85,7 @@ class FakeClient:
         self.documents = documents
         self.options = options
         self.database_options: dict[str, Any] = {}
+        self.commands: list[dict[str, Any]] = []
         self.admin = FakeAdmin(self)
         self.hello_count = 0
         self.closed = False
@@ -146,10 +156,50 @@ class TopologyOracleTests(unittest.TestCase):
         self.states["mongo1"]["unreachable"] = True
         self.states["mongo2"]["role"] = "PRIMARY"
 
-        new_primary = self.oracle.wait_for_majority_primary("mongo1", timeout_seconds=0.01)
+        new_primary = self.oracle.wait_for_majority_primary(
+            "mongo1",
+            timeout_seconds=0.1,
+            stable_samples=1,
+        )
 
         self.assertEqual("mongo2", new_primary)
         self.assertEqual(0, self.clients.get("mongo1", FakeClient("x", {}, {}, {})).hello_count)
+
+    def test_data_convergence_requires_equal_optimes_across_all_members(self) -> None:
+        result = self.oracle.wait_for_data_convergence(
+            timeout_seconds=0.1,
+            stable_samples=1,
+        )
+
+        self.assertTrue(result["stable"])
+        self.assertEqual(1, result["stable_samples"])
+        self.states["mongo3"]["last_write_op_time"] = {"t": 30, "i": 1}
+        with self.assertRaisesRegex(TopologyError, "did not converge"):
+            self.oracle.wait_for_data_convergence(
+                timeout_seconds=0.1,
+                stable_samples=1,
+            )
+
+    def test_election_controls_use_direct_admin_commands(self) -> None:
+        self.oracle.freeze_member("mongo2", 120)
+        self.oracle.freeze_member("mongo2", 0)
+        self.oracle.step_down_primary("mongo1")
+
+        self.assertEqual(
+            [
+                {"replSetFreeze": 120},
+                {"replSetFreeze": 0},
+            ],
+            self.clients["mongo2"].commands,
+        )
+        self.assertEqual(
+            {
+                "replSetStepDown": 60,
+                "secondaryCatchUpPeriodSecs": 10,
+                "force": False,
+            },
+            self.clients["mongo1"].commands[-1],
+        )
 
     def test_independent_observer_waits_for_all_three_document_copies(self) -> None:
         pymongo_stub = SimpleNamespace(

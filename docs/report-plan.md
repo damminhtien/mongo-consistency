@@ -20,7 +20,8 @@ The front matter places a short acknowledgements section after the abstract.
    metrics, and outcome classes.
 6. Experiments and Results: RYW, MR, MW, and WFR, each with prediction,
    experiment/rationale, results, and explanation; then cross-configuration and
-   cross-scenario tables and the three matched RQ3 mechanism contrasts.
+   cross-scenario tables and one RQ3 mechanism subsection with a timeline and
+   evidence table.
 7. Discussion: predictions versus observations, configuration and fault
    effects, consistency/availability distinctions, and behavior needing
    interpretation.
@@ -44,7 +45,7 @@ The front matter places a short acknowledgements section after the abstract.
 | Normal operation, node failures, and partition | Sections 4.3-4.5 |
 | Reported and explained observations | Section 5 |
 | Agreement between expectation and observation | Section 6.1 |
-| Mechanism explanation from matched, instrumented histories | RQ3 results subsection after the RQ2 tables |
+| Mechanism explanation from matched, instrumented histories | RQ3 subsection after the RQ2 tables, linked to selected RQ1 anchor histories |
 | Limitations | Section 7 |
 | Sources and AI-use disclosure | References and AI Usage Statement |
 | Code and reproduction instructions | Section 8, Appendix B, and archive |
@@ -71,6 +72,20 @@ The front matter places a short acknowledgements section after the abstract.
   otherwise describe the observation and mark the mechanism as unobserved.
 - For RQ3, distinguish matched seeds from shared fault episodes, and describe a
   timeout as no observed response rather than proof of server-side waiting.
+- Report the six registered historical RQ1 anchors separately from the
+  matched RQ3 replays. Verify their raw and canonical history hashes. The anchor
+  pairs have different seeds; the M3 pair also has different election paths.
+- For RQ3 replays, report control validity separately from consistency
+  outcomes. Re-derive validity from raw histories; invalid pairs are diagnostic
+  and do not enter signature counts. Select the first preregistered valid pair
+  for trace display rather than selecting by outcome. Retain anchor, protocol,
+  campaign, and topology-plan hashes with the analysis artifacts.
+- Read the replay manifest from `results/raw/rq3-v2/campaign-manifest.json` and the
+  topology rehearsal from `results/raw/rq3-preflight.json`. Record the
+  `rq3-anchor-selection.v1`, `rq3-campaign.v2`, `rq3-preflight.v2`,
+  `rq3-analysis.v2`, and `rq3-selection.v2` schema versions. Until the six
+  anchors verify and the five-pair-per-contrast replay passes its controls,
+  report RQ3 as pending and make no mechanism-result claims.
 - Identify the host operating-system release as not recorded when describing
   campaign provenance. Do not replace historical provenance with the current
   machine's state.

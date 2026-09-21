@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/mongo-consistency/rq3-selection.v2.json",
+  "title": "RQ3 protocol-v2 deterministic trace selection",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "protocol_id",
+    "campaign_manifest",
+    "campaign_manifest_sha256",
+    "preflight_sha256",
+    "anchor_manifest_sha256",
+    "anchor_history_ids",
+    "selected_pairs"
+  ],
+  "properties": {
+    "schema_version": {"const": "rq3-selection.v2"},
+    "protocol_id": {"const": "rq3-protocol.v2"},
+    "campaign_manifest": {"type": "string"},
+    "campaign_manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "preflight_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "anchor_manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "anchor_history_ids": {"type": "array", "minItems": 6, "maxItems": 6, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "selected_pairs": {
+      "type": "object",
+      "required": ["M1", "M2", "M3"],
+      "properties": {
+        "M1": {"$ref": "#/$defs/nullable_selection"},
+        "M2": {"$ref": "#/$defs/nullable_selection"},
+        "M3": {"$ref": "#/$defs/nullable_selection"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "nullable_selection": {
+      "anyOf": [
+        {"$ref": "#/$defs/selection"},
+        {"type": "null"}
+      ]
+    },
+    "selection": {
+      "type": "object",
+      "required": ["pair_id", "control_valid", "histories"],
+      "properties": {
+        "pair_id": {"type": "string"},
+        "control_valid": {"const": true},
+        "histories": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "object",
+            "required": ["trial_id", "path", "sha256", "configuration_id"],
+            "properties": {
+              "trial_id": {"type": "string"},
+              "path": {"type": "string"},
+              "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+              "configuration_id": {"type": "string"}
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

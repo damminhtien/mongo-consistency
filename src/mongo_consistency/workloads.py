@@ -8,7 +8,7 @@ from typing import Any
 from .faults import FaultControllerClient, FaultControllerError
 from .models import OperationRecord
 from .topology import TopologyError, TopologyState
-from .trial import MongoTrial, _member_from_address
+from .trial import MongoTrial
 
 ELECTION_BARRIER_SECONDS = 30.0
 
@@ -22,16 +22,89 @@ class PreconditionMiss(RuntimeError):
 
 
 def _record_topology_precondition(trial: MongoTrial, state: TopologyState) -> str:
-    satisfied = state.stable and state.primary is not None and len(state.secondaries) == 2
+    runtime_metadata = getattr(trial, "runtime_metadata", {})
+    plan = runtime_metadata.get("rq3_topology_plan")
+    expected_primary = plan.get("initial_primary") if isinstance(plan, dict) else None
+    satisfied = (
+        state.stable
+        and state.primary is not None
+        and len(state.secondaries) == 2
+        and (expected_primary is None or state.primary == expected_primary)
+    )
     trial.record_precondition(
         "one-primary-two-secondary-topology",
         satisfied=satisfied,
-        expected="1 PRIMARY + 2 SECONDARY",
+        expected={"roles": "1 PRIMARY + 2 SECONDARY", "primary": expected_primary},
         actual={"primary": state.primary, "secondaries": list(state.secondaries)},
     )
     if not satisfied or state.primary is None:
         raise PreconditionMiss("topology oracle did not observe one primary and two secondaries")
     return state.primary
+
+
+def _rq3_plan(trial: MongoTrial) -> dict[str, Any] | None:
+    runtime_metadata = getattr(trial, "runtime_metadata", {})
+    value = runtime_metadata.get("rq3_topology_plan")
+    return value if isinstance(value, dict) else None
+
+
+def _record_rq3_prestate(trial: MongoTrial, stage: str) -> None:
+    if _rq3_plan(trial) is None:
+        return
+    trial.record_diagnostic(
+        "rq3-prestate",
+        {
+            "stage": stage,
+            "members": trial.oracle.observe_all(
+                trial.database_name,
+                trial.collection_name,
+                trial.document_id,
+            ),
+        },
+    )
+
+
+def _freeze_election_guard(trial: MongoTrial, event_id: str) -> str | None:
+    plan = _rq3_plan(trial)
+    guard = plan.get("election_guard_member") if plan else None
+    if not isinstance(guard, str):
+        return None
+    state = trial.oracle.member_state(guard)
+    satisfied = state.get("reachable") is True and state.get("role") == "SECONDARY"
+    trial.record_diagnostic("rq3-election-guard-before", state)
+    trial.record_precondition(
+        "rq3-election-guard-secondary",
+        satisfied=satisfied,
+        expected="SECONDARY",
+        actual=state.get("role"),
+    )
+    if not satisfied:
+        raise PreconditionMiss(f"election guard {guard} is not a reachable secondary")
+    trial.oracle.freeze_member(guard, 120)
+    trial.manifest.setdefault("rq3_election_guards", []).append(
+        {"member": guard, "action": "freeze", "event_id": event_id}
+    )
+    return guard
+
+
+def _unfreeze_election_guard(trial: MongoTrial, guard: str | None, event_id: str) -> None:
+    if guard is None:
+        return
+    trial.oracle.freeze_member(guard, 0)
+    state = trial.oracle.member_state(guard)
+    satisfied = state.get("reachable") is True and state.get("role") == "SECONDARY"
+    trial.record_diagnostic("rq3-election-guard-after", state)
+    trial.record_precondition(
+        "rq3-election-guard-unfrozen",
+        satisfied=satisfied,
+        expected="reachable SECONDARY after election",
+        actual=state.get("role"),
+    )
+    if not satisfied:
+        raise PreconditionMiss(f"election guard {guard} did not remain a secondary")
+    trial.manifest.setdefault("rq3_election_guards", []).append(
+        {"member": guard, "action": "unfreeze", "event_id": event_id}
+    )
 
 
 def _fault_event(
@@ -96,14 +169,21 @@ def _fault_event(
         raise
 
 
-def _wait_for_majority_primary(trial: MongoTrial, old_primary: str, event_id: str) -> str:
+def _wait_for_majority_primary(
+    trial: MongoTrial,
+    old_primary: str,
+    event_id: str,
+    expected_primary: str | None = None,
+) -> str:
     start_ns = time.monotonic_ns()
     trial.update_fault_event(event_id, {"election_start_ns": start_ns})
     try:
-        new_primary = trial.oracle.wait_for_majority_primary(
-            old_primary,
-            timeout_seconds=min(ELECTION_BARRIER_SECONDS, trial.remaining_seconds()),
-        )
+        wait_kwargs = {
+            "timeout_seconds": min(ELECTION_BARRIER_SECONDS, trial.remaining_seconds())
+        }
+        if expected_primary is not None:
+            wait_kwargs["expected_primary"] = expected_primary
+        new_primary = trial.oracle.wait_for_majority_primary(old_primary, **wait_kwargs)
     except TopologyError as error:
         trial.manifest["schedule_outcome"] = {
             "outcome": "UNAVAILABLE",
@@ -124,7 +204,11 @@ def _wait_for_majority_primary(trial: MongoTrial, old_primary: str, event_id: st
     )
     trial.record_diagnostic(
         "majority-side-election",
-        {"old_primary": old_primary, "new_primary": new_primary},
+        {
+            "old_primary": old_primary,
+            "new_primary": new_primary,
+            "expected_primary": expected_primary,
+        },
     )
     return new_primary
 
@@ -278,6 +362,10 @@ def _rw_schedule(
     initial = trial.oracle.wait_for_stable(ELECTION_BARRIER_SECONDS)
     primary = _record_topology_precondition(trial, initial)
     stale, fresh = initial.secondaries
+    plan = _rq3_plan(trial)
+    if plan is not None:
+        stale = str(plan["subject_read_member"])
+        fresh = next(member for member in initial.secondaries if member != stale)
     if adversarial:
         active_controller = _require_controller(controller, "RYW")
         _fault_event(
@@ -304,6 +392,7 @@ def _rw_schedule(
                 expected_version=1,
                 expected_write_ids=["init", "w1"],
             )
+    _record_rq3_prestate(trial, "before-read")
     read = trial.read(
         "read",
         requested_member=stale,
@@ -383,6 +472,9 @@ def _mw_schedule(
     trial.set_steps({"first_write": "first_write", "second_write": "second_write"})
     initial = trial.oracle.wait_for_stable(ELECTION_BARRIER_SECONDS)
     old_primary = _record_topology_precondition(trial, initial)
+    plan = _rq3_plan(trial)
+    if plan is not None:
+        _record_rq3_prestate(trial, "before-first-write")
     if not adversarial:
         first = trial.write("first_write", write_id="w1", intended_version=1)
         _record_route_if_started(trial, first, old_primary)
@@ -397,29 +489,38 @@ def _mw_schedule(
         return
 
     active_controller = _require_controller(controller, "MW")
+    guard = _freeze_election_guard(trial, event_id)
     _fault_event(
         trial,
         active_controller,
         event_id=event_id,
         action="isolate",
-        members=[old_primary],
+        members=[str(plan["isolation_target"]) if plan is not None else old_primary],
     )
-    _check_member_access(trial, old_primary, expected_role="PRIMARY")
+    isolated_member = str(plan["isolation_target"]) if plan is not None else old_primary
+    _check_member_access(trial, isolated_member, expected_role="PRIMARY")
     first = trial.write(
         "first_write",
         write_id="w1",
         intended_version=1,
         fault_event_id=event_id,
     )
-    _record_route_if_started(trial, first, old_primary)
+    expected_first = str(plan["first_write_member"]) if plan is not None else old_primary
+    _record_route_if_started(trial, first, expected_first)
     if first.operation_status != "SUCCESS":
         trial.manifest["schedule_outcome"] = {
             "outcome": first.operation_status,
             "phase": "isolated-old-primary-write",
             "command_started": first.command_started,
         }
-        return
-    new_primary = _wait_for_majority_primary(trial, old_primary, event_id)
+    expected_new = (
+        str(plan["expected_new_primary"])
+        if plan is not None and plan.get("expected_new_primary") is not None
+        else None
+    )
+    new_primary = _wait_for_majority_primary(trial, isolated_member, event_id, expected_new)
+    _unfreeze_election_guard(trial, guard, event_id)
+    expected_second = str(plan["second_write_member"]) if plan is not None else new_primary
     second = trial.write(
         "second_write",
         write_id="w2",
@@ -427,7 +528,7 @@ def _mw_schedule(
         parent_write_id="w1",
         fault_event_id=event_id,
     )
-    _record_route_if_started(trial, second, new_primary)
+    _record_route_if_started(trial, second, expected_second)
 
 
 def _wfr_schedule(
@@ -440,9 +541,11 @@ def _wfr_schedule(
     trial.set_steps({"read": "read", "write": "write"})
     initial = trial.oracle.wait_for_stable(ELECTION_BARRIER_SECONDS)
     old_primary = _record_topology_precondition(trial, initial)
+    plan = _rq3_plan(trial)
     fresh_secondary = initial.secondaries[0]
     if adversarial:
         active_controller = _require_controller(controller, "WFR")
+        guard = _freeze_election_guard(trial, event_id)
         _fault_event(
             trial,
             active_controller,
@@ -457,6 +560,10 @@ def _wfr_schedule(
             version=1,
             write_concern="w:1",
         )
+        if plan is not None and not trial.verify_setup_route(
+            setup, str(plan["first_write_member"])
+        ):
+            raise PreconditionMiss("M2 setup W1 did not reach its planned member")
         if setup.get("status") != "SUCCESS":
             trial.mark_precondition_miss(
                 "wfr-old-branch-write",
@@ -467,13 +574,19 @@ def _wfr_schedule(
         _observe_member(trial, old_primary, expected_version=1, expected_write_ids=["init", "w1"])
         for member in initial.secondaries:
             _observe_member(trial, member, expected_version=0, expected_write_ids=["init"])
+        _record_rq3_prestate(trial, "before-read")
         read = trial.read(
             "read",
-            requested_member=old_primary,
+            requested_member=(
+                str(plan["subject_read_member"]) if plan is not None else old_primary
+            ),
             force_primary=True,
             fault_event_id=event_id,
         )
-        _record_route_if_started(trial, read, old_primary)
+        expected_read = (
+            str(plan["subject_read_member"]) if plan is not None else old_primary
+        )
+        _record_route_if_started(trial, read, expected_read)
         if read.operation_status != "SUCCESS":
             return
         read_version = read.observed_version
@@ -485,9 +598,17 @@ def _wfr_schedule(
             )
             return
         try:
-            new_primary = _wait_for_majority_primary(trial, old_primary, event_id)
+            expected_new = (
+                str(plan["expected_new_primary"])
+                if plan is not None and plan.get("expected_new_primary") is not None
+                else None
+            )
+            new_primary = _wait_for_majority_primary(
+                trial, old_primary, event_id, expected_new
+            )
         except TopologyError:
             return
+        _unfreeze_election_guard(trial, guard, event_id)
     else:
         setup = trial.setup_write(
             old_primary,
@@ -495,6 +616,8 @@ def _wfr_schedule(
             version=1,
             write_concern="majority",
         )
+        if plan is not None and not trial.verify_setup_route(setup, old_primary):
+            raise PreconditionMiss("M2 setup W1 did not reach its planned member")
         if setup.get("status") != "SUCCESS":
             trial.mark_precondition_miss(
                 "wfr-setup-write",

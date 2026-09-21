@@ -5,8 +5,9 @@ motivated the RQ3 mechanism questions. They are not preregistered repetitions
 and are not included in the RQ3 denominators. Each pair matches the named
 configuration contrast and several observed topology/route fields, but the
 seeds differ. The new, matched-seed RQ3 replays and their formal exemplars are
-recorded separately in `results/raw/rq3/campaign-manifest.json` and
-`results/analysis/rq3/selection-manifest.json`.
+recorded separately in `results/raw/rq3-v2/campaign-manifest.json` and
+`results/analysis/rq3-v2/selection-manifest.json`. The original 48-history v1
+campaign remains unchanged under `results/raw/rq3/`.
 
 `Raw-file SHA-256` is the digest of the JSON bytes. `history_hash` is the
 canonical history digest validated by the repository history reader.

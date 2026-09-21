@@ -145,9 +145,11 @@ class MongoTrial:
         self.database_name = f"mc_{trial_id.replace('-', '_')}"
         self.collection_name = "logical"
         self.document_id = f"{trial_id}/x"
-        self.oracle = oracle or TopologyOracle()
         self.roles: dict[str, str | None] = {}
         self.monitor = RoutingMonitor(lambda address: self._role_for_address(address))
+        self.oracle = oracle or TopologyOracle(command_monitor=self.monitor)
+        if oracle is not None and hasattr(self.oracle, "set_command_monitor"):
+            self.oracle.set_command_monitor(self.monitor)
         self.client = create_client(
             ClientSettings(seed_uris=seed_uris),
             monitor=self.monitor,
@@ -344,7 +346,9 @@ class MongoTrial:
         """Create v0 through an independent direct client and verify all three copies."""
 
         try:
-            state = self.wait_for_stable_topology(TIMEOUT_POLICY["election_barrier_ms"] / 1000)
+            state = self.wait_for_stable_topology(
+                TIMEOUT_POLICY["election_barrier_ms"] / 1000
+            )
         except Exception as error:  # noqa: BLE001 - failure to establish setup is explicit.
             self.mark_precondition_miss(
                 "initial-stable-topology",
@@ -352,44 +356,48 @@ class MongoTrial:
                 actual={"error": str(error)},
             )
             return False
+        if isinstance(self.runtime_metadata.get("rq3_topology_plan"), dict):
+            self.record_diagnostic("rq3-initial-topology", state.to_dict())
         self.record_precondition(
             "initial-stable-topology",
-            satisfied=state.stable,
-            expected="one primary and two secondaries",
+            satisfied=(
+                state.stable
+                and (
+                    not isinstance(self.runtime_metadata.get("rq3_topology_plan"), dict)
+                    or state.primary
+                    == self.runtime_metadata["rq3_topology_plan"].get("initial_primary")
+                )
+            ),
+            expected={
+                "topology": "one primary and two secondaries",
+                "primary": (
+                    self.runtime_metadata.get("rq3_topology_plan", {}).get("initial_primary")
+                    if isinstance(self.runtime_metadata.get("rq3_topology_plan"), dict)
+                    else None
+                ),
+            },
             actual={"primary": state.primary, "secondaries": list(state.secondaries)},
         )
-        if not state.stable or state.primary is None:
+        desired_plan = self.runtime_metadata.get("rq3_topology_plan")
+        desired_primary = (
+            desired_plan.get("initial_primary")
+            if isinstance(desired_plan, dict)
+            else None
+        )
+        if (
+            not state.stable
+            or state.primary is None
+            or (desired_primary is not None and state.primary != desired_primary)
+        ):
             return False
-        init_update = {
-            "write_id": "init",
-            "version": 0,
-            "effect": "initial",
-            "parent_write_id": None,
-            "depends_on_read_id": None,
-            "depends_on_version": None,
-        }
-        started_ns = time.monotonic_ns()
-        try:
-            self.oracle.setup_write(
-                state.primary,
-                self.database_name,
-                self.collection_name,
-                self.document_id,
-                init_update,
-                write_concern="majority",
-                replace=True,
-            )
-            setup_result = {"status": "SUCCESS", "member": state.primary}
-        except Exception as error:  # noqa: BLE001 - setup writes are not subject operations.
-            setup_result = {
-                "status": "UNAVAILABLE",
-                "member": state.primary,
-                "error_type": type(error).__name__,
-                "error": str(error),
-            }
-        setup_result["start_ns"] = started_ns
-        setup_result["end_ns"] = time.monotonic_ns()
-        self.record_diagnostic("initialize-logical-document", setup_result)
+        setup_result = self.setup_write(
+            state.primary,
+            write_id="init",
+            version=0,
+            write_concern="majority",
+            replace=True,
+            diagnostic_name="initialize-logical-document",
+        )
         if setup_result["status"] != "SUCCESS":
             self.mark_precondition_miss(
                 "initial-document-created",
@@ -560,18 +568,20 @@ class MongoTrial:
         depends_on_read_id: str | None = None,
         depends_on_version: int | None = None,
         replace: bool = False,
+        diagnostic_name: str | None = None,
     ) -> dict[str, Any]:
-        """Write a schedule-preparation version outside the subject session."""
+        """Write and command-monitor one setup version outside the subject session."""
 
         update = {
             "write_id": write_id,
             "version": version,
-            "effect": f"set-v{version}",
+            "effect": "initial" if write_id == "init" else f"set-v{version}",
             "parent_write_id": parent_write_id,
             "depends_on_read_id": depends_on_read_id,
             "depends_on_version": depends_on_version,
         }
         started_ns = time.monotonic_ns()
+        self.monitor.attach("setup_write")
         try:
             response = self.oracle.setup_write(
                 member,
@@ -582,17 +592,57 @@ class MongoTrial:
                 write_concern=write_concern,
                 replace=replace,
             )
-            result = {"status": "SUCCESS", "member": member, **response}
+            status = "SUCCESS"
+            error_details: dict[str, Any] = {}
         except Exception as error:  # noqa: BLE001 - setup failures are classified as preconditions.
-            result = {
-                "status": "UNAVAILABLE",
-                "member": member,
-                "error_type": type(error).__name__,
-                "error": str(error),
-            }
-        result.update({"start_ns": started_ns, "end_ns": time.monotonic_ns()})
-        self.record_diagnostic(f"setup-write-{write_id}", result)
+            response = {}
+            status = "UNAVAILABLE"
+            error_details = {"error_type": type(error).__name__, "error": str(error)}
+        finally:
+            self.monitor.detach()
+        events = self.monitor.events_for("setup_write")
+        command_event = next(
+            (
+                event
+                for event in reversed(events)
+                if event.get("actual_server_address") is not None
+            ),
+            {},
+        )
+        result: dict[str, Any] = {
+            "operation_id": "setup_write",
+            "status": status,
+            "member": member,
+            "command_started": any(event.get("command_started") is True for event in events),
+            "actual_server_address": command_event.get("actual_server_address"),
+            "write_concern": command_event.get("write_concern"),
+            "command_events": events,
+            "start_ns": started_ns,
+            "end_ns": time.monotonic_ns(),
+            **error_details,
+        }
+        for key, value in response.items():
+            result[key] = (
+                value
+                if isinstance(value, (str, int, float, bool)) or value is None
+                else str(value)
+            )
+        self.record_diagnostic(diagnostic_name or f"setup-write-{write_id}", result)
         return result
+
+    def verify_setup_route(self, setup: dict[str, Any], expected_member: str) -> bool:
+        """Record and verify the direct server address used by one setup write."""
+
+        address = setup.get("actual_server_address")
+        member = _member_from_address(address)
+        satisfied = setup.get("command_started") is True and member == expected_member
+        self.record_precondition(
+            "actual-route-setup-write",
+            satisfied=satisfied,
+            expected=expected_member,
+            actual={"member": member, "server_address": address},
+        )
+        return satisfied
 
     def write(
         self,

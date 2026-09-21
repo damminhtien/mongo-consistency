@@ -1,0 +1,82 @@
+{
+  "schema_version": "rq3-anchor-selection.v1",
+  "source": "results/raw/experiment",
+  "selection_document": "docs/rq3-historical-trace-selection.md",
+  "pairs": [
+    {
+      "contrast_id": "M1",
+      "property": "RYW",
+      "configurations": ["C5", "C6"],
+      "histories": [
+        {
+          "trial_id": "experiment-00089-C5-ryw",
+          "configuration_id": "C5",
+          "seed": 20261004,
+          "path": "results/raw/experiment/experiment-00089-C5-ryw.json",
+          "raw_sha256": "3772a533544c900965d37609bb1b5a5c50d1088be6087246a491ce1685b1b182",
+          "history_hash": "9498a573c8d93c771d2a299bd498e79507236d30ac2c6cb68dde1e6ba826bdd2"
+        },
+        {
+          "trial_id": "experiment-00335-C6-ryw",
+          "configuration_id": "C6",
+          "seed": 20261250,
+          "path": "results/raw/experiment/experiment-00335-C6-ryw.json",
+          "raw_sha256": "687660fee9e18a88f552c6c35e0ce1db2d1a1fffe49dff709ae0bb9356b72eb2",
+          "history_hash": "be06737266178e3b910dddddbe798104c5e5fb7fe4a817866796d109dccb934d"
+        }
+      ],
+      "interpretation": "C5 returned stale v0 without afterClusterTime. C6 sent W1's operation time as afterClusterTime but returned no value before NetworkTimeout. Both converged to v1 after healing.",
+      "limitation": "The seeds differ. A timeout is no observed response, not proof of an internal server wait."
+    },
+    {
+      "contrast_id": "M2",
+      "property": "WFR",
+      "configurations": ["C8", "C5"],
+      "histories": [
+        {
+          "trial_id": "experiment-00019-C8-wfr",
+          "configuration_id": "C8",
+          "seed": 20260934,
+          "path": "results/raw/experiment/experiment-00019-C8-wfr.json",
+          "raw_sha256": "2f8d05aa81b0362890265b6e522924c71a524633b8a0f14ef28910cb1e5f5a3c",
+          "history_hash": "f256d5534bdbb36b323ef86592b7af98cfc4af3e6c7526aa82fb739ec6c4a1fb"
+        },
+        {
+          "trial_id": "experiment-00144-C5-wfr",
+          "configuration_id": "C5",
+          "seed": 20261059,
+          "path": "results/raw/experiment/experiment-00144-C5-wfr.json",
+          "raw_sha256": "31339fd1ef0d453612dbc6e5ca5904d1d3d00025b15ba9fe21325ce5f00fb144",
+          "history_hash": "b3a069014fd7a4a6a2658a370333f0662d8460816729129e1bfca270552b7a4b"
+        }
+      ],
+      "interpretation": "C8 read v1 from the isolated former primary; C5 read v0. Both dependent writes and post-heal state converged to version 2.",
+      "limitation": "The setup write concern is protocol-defined as w:1 but was not captured in the old command log. The seeds differ."
+    },
+    {
+      "contrast_id": "M3",
+      "property": "MW",
+      "configurations": ["C3", "C6"],
+      "histories": [
+        {
+          "trial_id": "experiment-00001-C3-mw",
+          "configuration_id": "C3",
+          "seed": 20260916,
+          "path": "results/raw/experiment/experiment-00001-C3-mw.json",
+          "raw_sha256": "745187ceb120d2feb22165f38c79f240ebe03ec568b0d631ab902ac896c7bc51",
+          "history_hash": "003f01945e43225183664ebf00872ed9800bc0dd3f00b6e837bfd8f5f933c2da"
+        },
+        {
+          "trial_id": "experiment-00086-C6-mw",
+          "configuration_id": "C6",
+          "seed": 20261001,
+          "path": "results/raw/experiment/experiment-00086-C6-mw.json",
+          "raw_sha256": "f4ab238ace126d430f1ad2d8472db7f5c59374a33f6d7243a26e5b9a3bb658e7",
+          "history_hash": "82b972c46db9d934646385d2b359bc8df0c42fda07a3525d5f94ea55e68d5b62"
+        }
+      ],
+      "interpretation": "C3 acknowledged W1 at w:1 and W1 was absent after the elected branch converged. C6 timed out with no response but W1 was present on all members after healing.",
+      "limitation": "The seeds and realized election paths differ. The timeout does not mean the write failed; interpret this as a mechanism-consistent trace, not a controlled causal estimate."
+    }
+  ]
+}

@@ -67,6 +67,7 @@ class TopologyOracle:
         socket_timeout_ms: int = 2000,
         setup_write_socket_timeout_ms: int = SETUP_WRITE_SOCKET_TIMEOUT_MS,
         client_factory: Any | None = None,
+        command_monitor: Any | None = None,
     ) -> None:
         self.members = dict(members or DEFAULT_MEMBERS)
         if len(self.members) != 3:
@@ -76,25 +77,37 @@ class TopologyOracle:
         self.socket_timeout_ms = socket_timeout_ms
         self.setup_write_socket_timeout_ms = setup_write_socket_timeout_ms
         self._client_factory = client_factory
+        self._command_monitor = command_monitor
         self._clients: dict[str, Any] = {}
         self._setup_clients: dict[str, Any] = {}
 
-    def _new_client(self, member: str, *, socket_timeout_ms: int) -> Any:
+    def _new_client(
+        self,
+        member: str,
+        *,
+        socket_timeout_ms: int,
+        monitor_commands: bool = False,
+    ) -> Any:
         if member not in self.members:
             raise TopologyError(f"unknown replica-set member: {member}")
         factory = self._client_factory
         if factory is None:
             pymongo = require_pymongo()
             factory = pymongo.MongoClient
-        return factory(
-            self.members[member],
-            directConnection=True,
-            connectTimeoutMS=self.connect_timeout_ms,
-            serverSelectionTimeoutMS=self.server_selection_timeout_ms,
-            socketTimeoutMS=socket_timeout_ms,
-            retryReads=False,
-            retryWrites=False,
-        )
+        options: dict[str, Any] = {
+            "directConnection": True,
+            "connectTimeoutMS": self.connect_timeout_ms,
+            "serverSelectionTimeoutMS": self.server_selection_timeout_ms,
+            "socketTimeoutMS": socket_timeout_ms,
+            "retryReads": False,
+            "retryWrites": False,
+        }
+        if monitor_commands and self._command_monitor is not None:
+            pymongo = require_pymongo()
+            options["event_listeners"] = [
+                self._command_monitor.command_listener(pymongo.monitoring.CommandListener)
+            ]
+        return factory(self.members[member], **options)
 
     def _client(self, member: str) -> Any:
         if member not in self._clients:
@@ -109,8 +122,45 @@ class TopologyOracle:
             self._setup_clients[member] = self._new_client(
                 member,
                 socket_timeout_ms=self.setup_write_socket_timeout_ms,
+                monitor_commands=True,
             )
         return self._setup_clients[member]
+
+    def set_command_monitor(self, command_monitor: Any) -> None:
+        """Attach an operation-scoped listener to future direct setup clients."""
+
+        if self._setup_clients:
+            raise TopologyError("cannot attach the setup command monitor after clients are open")
+        self._command_monitor = command_monitor
+
+    def admin_command(self, member: str, command: dict[str, Any]) -> dict[str, Any]:
+        """Run one administrative command over a direct member connection."""
+
+        reply = self._client(member).admin.command(command)
+        if not isinstance(reply, dict):
+            raise TopologyError(f"{member} returned a non-object command response")
+        return reply
+
+    def freeze_member(self, member: str, seconds: int) -> dict[str, Any]:
+        """Freeze or unfreeze one member's candidacy for replica-set election."""
+
+        if seconds < 0:
+            raise ValueError("freeze duration must be non-negative")
+        return self.admin_command(member, {"replSetFreeze": seconds})
+
+    def step_down_primary(self, member: str, *, seconds: int = 60) -> dict[str, Any]:
+        """Step down the named current primary to trigger an election."""
+
+        if seconds <= 10:
+            raise ValueError("step-down duration must exceed the catch-up period")
+        return self.admin_command(
+            member,
+            {
+                "replSetStepDown": seconds,
+                "secondaryCatchUpPeriodSecs": 10,
+                "force": False,
+            },
+        )
 
     @staticmethod
     def _op_time(value: Any) -> dict[str, int] | None:
@@ -243,10 +293,84 @@ class TopologyOracle:
             time.sleep(0.2)
         raise TopologyError(f"expected one primary and two secondaries; last={last_state}")
 
+    def wait_for_data_convergence(
+        self,
+        timeout_seconds: float = 30.0,
+        *,
+        stable_samples: int = 3,
+    ) -> dict[str, Any]:
+        """Require equal direct-member last-write optimes across repeated polls."""
+
+        if stable_samples < 1:
+            raise ValueError("stable_samples must be positive")
+        deadline = time.monotonic() + timeout_seconds
+        consecutive = 0
+        last_members: dict[str, dict[str, Any]] = {}
+        while time.monotonic() < deadline:
+            last_members = {
+                member: self.member_state(member) for member in sorted(self.members)
+            }
+            optimes = {
+                member: state.get("last_write_op_time")
+                for member, state in last_members.items()
+            }
+            values = [tuple(sorted(value.items())) for value in optimes.values() if isinstance(value, dict)]
+            converged = (
+                len(last_members) == 3
+                and all(state.get("reachable") is True for state in last_members.values())
+                and all(isinstance(optimes[member], dict) for member in last_members)
+                and len(set(values)) == 1
+            )
+            consecutive = consecutive + 1 if converged else 0
+            if consecutive >= stable_samples:
+                return {
+                    "stable": True,
+                    "stable_samples": consecutive,
+                    "members": last_members,
+                }
+            time.sleep(0.2)
+        raise TopologyError(
+            "replica-set members did not converge to one last-write optime; "
+            f"last={last_members}"
+        )
+
+    def wait_for_primary(
+        self,
+        expected_primary: str,
+        timeout_seconds: float = 30.0,
+        *,
+        stable_samples: int = 3,
+    ) -> TopologyState:
+        """Require the same full-set primary observation across consecutive polls."""
+
+        if expected_primary not in self.members:
+            raise TopologyError(f"unknown expected primary: {expected_primary}")
+        if stable_samples < 1:
+            raise ValueError("stable_samples must be positive")
+        deadline = time.monotonic() + timeout_seconds
+        consecutive = 0
+        last_state: TopologyState | None = None
+        while time.monotonic() < deadline:
+            last_state = self.snapshot()
+            if last_state.stable and last_state.primary == expected_primary:
+                consecutive += 1
+                if consecutive >= stable_samples:
+                    return last_state
+            else:
+                consecutive = 0
+            time.sleep(0.2)
+        raise TopologyError(
+            f"expected {expected_primary} to remain primary for {stable_samples} polls; "
+            f"last={last_state}"
+        )
+
     def wait_for_majority_primary(
         self,
         isolated_member: str,
         timeout_seconds: float = 30.0,
+        *,
+        expected_primary: str | None = None,
+        stable_samples: int = 3,
     ) -> str:
         """Observe election on the two connected members, excluding the isolated node."""
 
@@ -255,17 +379,27 @@ class TopologyOracle:
         majority_members = [member for member in self.members if member != isolated_member]
         deadline = time.monotonic() + timeout_seconds
         last_roles: dict[str, str] = {}
+        consecutive = 0
         while time.monotonic() < deadline:
             last_roles = {
                 member: self.member_state(member)["role"] for member in majority_members
             }
             elected = [member for member, role in last_roles.items() if role == "PRIMARY"]
             secondary_count = sum(role == "SECONDARY" for role in last_roles.values())
-            if len(elected) == 1 and secondary_count == 1:
-                return elected[0]
+            if (
+                len(elected) == 1
+                and secondary_count == 1
+                and (expected_primary is None or elected[0] == expected_primary)
+            ):
+                consecutive += 1
+                if consecutive >= stable_samples:
+                    return elected[0]
+            else:
+                consecutive = 0
             time.sleep(0.2)
         raise TopologyError(
-            f"majority side did not elect one primary and one secondary: {last_roles}"
+            f"majority side did not hold the expected primary {expected_primary!r} "
+            f"and secondary: {last_roles}"
         )
 
     @staticmethod

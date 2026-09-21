@@ -494,51 +494,143 @@ rules through a temporary, narrowly mounted IPC directory; the runner container
 receives no Docker socket and runs as a non-root user matching the host-owned
 IPC path. See [rq2-results.md](rq2-results.md) for the observed outcomes.
 
-## RQ3 mechanism study
+## RQ3 mechanism study: protocol v2
 
-RQ3 explains selected client-visible results through three preregistered,
-single-factor contrasts. It is a focused mechanism study, not another full
-configuration matrix. `scripts/run_rq3_campaign.py` replays eight matched-seed
-pairs per contrast by default; each arm is a separate history and fault
-episode, not a shared physical event. Pairing holds the registered property
-schedule and seed fixed, alternates arm order, and records the exact
-configuration, route, outcome, and final observation. The raw history hash is
-retained in the RQ3 campaign manifest.
+Protocol `rq3-protocol.v2` explains selected RQ1 observations through three
+mechanism contrasts. It starts from the six histories in
+[`../configs/rq3-anchors.json`](../configs/rq3-anchors.json), then runs five
+matched-seed pairs per contrast (30 new histories total). Each arm has its own
+namespace, history, and fault episode. These replays explain selected traces;
+they are not a third probability-estimation campaign.
 
-The existing RQ1/RQ2 histories informed which contrasts to examine. The
-hypotheses below are fixed for the new RQ3 replays before those replay outcomes
-are inspected; historical examples are not counted among the RQ3 repetitions.
+The preregistered hypotheses remain outcome-neutral:
 
 | Contrast | Schedule and configurations | Changed setting | Preregistered observation |
 | --- | --- | --- | --- |
-| M1 | RYW, C5 vs C6 | Causal session off vs on | With the same majority read/write concerns, an isolated stale secondary may return an older version without a causal time bound; the causal arm should carry `afterClusterTime` and must not return a causally older successful value. A timeout is recorded as unavailable, not as proof of a server-side wait. |
-| M2 | WFR, C8 vs C5 | Read concern local vs majority | With majority write concern configured and causal sessions off, a local read on the isolated former primary may return its `w:1` write; a majority read must not return a value that lacks majority acknowledgement. The WFR setup write is explicitly issued with `w:1` in both arms. |
-| M3 | MW, C3 vs C6 | Write concern `w:1` vs majority | With majority read concern and causal sessions on, an isolated former primary can acknowledge a `w:1` write before that write is replicated to a majority; the write may later be absent after healing. A majority write cannot be counted as acknowledged unless the required acknowledgements arrive. A timeout leaves its effect unresolved until independent post-heal observation. |
+| M1 | RYW, C5 vs C6 | Causal session off vs on | An isolated stale secondary may return an older version without a causal time bound. The causal arm carries `afterClusterTime` and must not return a causally older successful value. A timeout is no observed response, not proof of an internal server wait. |
+| M2 | WFR, C8 vs C5 | Read concern local vs majority | With majority write concern configured and causal sessions off, a local read on the isolated former primary may return its `w:1` setup write; a majority read must not return a value lacking majority acknowledgement. The setup W1 with `w:1` is identical in both arms and is not the subject write. |
+| M3 | MW, C3 vs C6 | Write concern `w:1` vs majority | With majority read concern and causal sessions on, an isolated former primary can acknowledge W1 at `w:1` before majority replication. W1 may later be absent after healing. A majority timeout leaves the write effect unresolved until independent post-heal observation. |
 
-The runner adds direct-member topology snapshots before and after selected
-subject operations: M1 captures `write` and `read`, M2 captures `read` and
-`write`, and M3 captures `first_write` and `second_write`. Snapshots include
-member roles, election ID, set version, the observed replica-set term when
-available, and the majority-commit optime. Existing command events record the
-actual address, role, command metadata (including `afterClusterTime`), concern,
-session times, invocation/response timing, and exact errors. The snapshots are
-diagnostic observations and add polling overhead; they are not direct access to
-MongoDB's internal causal state.
+### Historical anchors
 
-The report selects one pair per contrast using a fixed signature score. Every
-contrast starts at 2 points when the initial primary and successfully applied
-isolation target match across arms. M1 adds one point each for a successful C5
-v0 read, no C5 `afterClusterTime`, a C6 causal time bound, a C6 read that either
-fails with an unavailable/indeterminate outcome or succeeds at v1 or later,
-and matching actual read routes. M2 adds one point each for C8 local v1, C5
-majority v0, and matching actual read routes. M3 adds one point each for an
-acknowledged C3 W1, a failed/unavailable C6 majority W1, converged C3 final
-state without W1, and converged C6 final state with W1. The highest score wins;
-ties use the lowest pair ID. This selects an illustrative trace only: every
-planned pair for the configured repetition count remains in the analysis
-denominator, and no pair is silently dropped
-when its precondition, route, or outcome differs. The selection manifest
-identifies each displayed history by path and content hash. Mechanism language
-is limited to explanations consistent with documented MongoDB semantics and
-the observed trace. A timeout alone never establishes that an internal causal
-wait occurred.
+The six RQ1 histories in `configs/rq3-anchors.json` were selected before the
+new replay. Each pair changes only the named configuration setting and records
+the relevant route and post-heal state. They are retrospective examples rather
+than randomized paired runs: the seeds differ. The M3 histories also follow
+different election paths. RQ2 trace candidates were reviewed, but their
+operation timing crossed the shared fault boundary differently and did not
+provide a better mechanism comparison. The report uses these six histories to
+motivate the questions, not as release controls or consistency-rate evidence.
+
+### Fixed topology and normalization
+
+Every contrast uses one named member plan. `P0` is `mongo3`, the initial
+primary; `P1` is `mongo2`, the required majority-side primary after a partition
+of `P0`; `S` is `mongo1`, the remaining secondary. M1 isolates `S` and routes
+its read to `mongo1`. M2 isolates `P0`, reads from `mongo3`, then routes its
+dependent write to `mongo2`. M3 routes W1 to `mongo3`, partitions it, then routes
+W2 to `mongo2`.
+
+Before each arm, the runner heals and verifies all replica-network partitions,
+unfreezes secondary members, waits for all three direct member connections, and
+requires three consecutive direct observations of one primary and two
+secondaries. It also waits for all three members to report the same last-write
+optime for three consecutive polls, both before and after choosing the initial
+primary. If `mongo3` is not primary, it freezes other eligible secondaries,
+steps down the current primary, waits until direct `hello` observations show
+`mongo3` as primary, then unfreezes the held secondaries. It does not use a
+fixed sleep as a topology barrier. It then creates version 0 with majority
+write concern and waits until all three members independently report only
+`init` at version 0. Normalization and the initial-state setup happen before
+subject operations and are excluded from their latency.
+
+For M2 and M3, `mongo1` is frozen before partitioning `mongo3`. It remains a
+voting member but cannot win the election. The runner waits for three
+consecutive direct observations of `mongo2` as the majority-side primary and
+`mongo1` as its secondary, then unfreezes `mongo1`. MongoDB documents
+`replSetFreeze` for controlling election candidacy and `replSetStepDown` for
+triggering an election; neither command names a future winner, so the runner
+checks the resulting member roles directly. [MongoDB `replSetFreeze`](https://www.mongodb.com/docs/manual/reference/command/replSetFreeze/),
+[MongoDB `replSetStepDown`](https://www.mongodb.com/docs/manual/reference/command/replSetStepDown/).
+
+The runner aborts the campaign on a normalization timeout, an unexpected
+primary, or an actual command route that differs from the plan. M1 requires
+write `mongo3` and read `mongo1`; M2 requires setup W1 and read on `mongo3` plus
+dependent write on `mongo2`; M3 requires W1 on `mongo3` and W2 on `mongo2`.
+These route checks are experimental controls, not consistency outcomes.
+
+### Pair validity and setup-write instrumentation
+
+Each pair record in `rq3-campaign.v2` includes the desired member and route plan,
+per-arm observed roles, isolation target, election winner, actual routes,
+initial and semantic pre-state, pair seed, and a strict `control_valid` boolean
+with machine-readable failure reasons. Validity requires both histories to
+share the preregistered pair seed, schedule, topology plan, and semantic
+pre-state; each required direct role and operation route must match its named
+member. The two configurations must still differ only in their registered
+setting. The analyzer derives validity again from raw histories instead of
+trusting the manifest flag. A control-invalid pair is diagnostic data only: it
+is not classified as PASS, VIOLATION, UNAVAILABLE, or INDETERMINATE and does
+not enter a mechanism outcome denominator.
+
+For M2, setup W1 is sent through the command-monitored direct-member path in
+both arms. Its diagnostic records `operation_id: setup_write`, the actual
+command's `writeConcern` (including `w: 1`), server address, command events,
+and outcome. The arm is invalid if the setup command or its route is missing.
+The setup write is a shared stimulus, not the read-concern setting under test.
+
+The report uses only control-valid pairs for mechanism counts and selects the
+first preregistered valid pair for its displayed trace; it does not rank pairs
+by observed outcomes. It shows planned, valid, and invalid pair counts and keeps
+consistency results separate from control failures. A timeout is never evidence
+of an internal wait by itself. `afterClusterTime`, command routing, direct role
+observations, final document presence, and the returned value remain distinct
+observations.
+
+### Preflight, campaign, and acceptance
+
+Unit tests exercise the contrast definitions, anchor hashes, pair identity,
+deterministic member plans, normalization failure behavior, resume hashes,
+synthetic M1-M3 histories, invalid-pair exclusion, ambiguous write outcomes,
+and deterministic analysis output. Before collecting replays,
+`make rq3-preflight` runs one topology rehearsal: normalize to `mongo3`,
+partition it while `mongo1` is frozen, verify `mongo2` as primary and `mongo1`
+as secondary through direct member connections, then heal and normalize again.
+The rehearsal is recorded separately and is not an RQ3 history. Every replay
+also normalizes and verifies its own planned topology.
+
+Run the v2 workflow from a clean committed checkout:
+
+```bash
+make test
+make check-docs
+make check-schemas
+make setup
+make rq3-preflight
+make rq3
+make rq3-analyse
+make analyse
+make submission
+make check-release-ready
+```
+
+RQ3 v2 acceptance concerns execution controls, not predicted results:
+
+| Gate | Required |
+| --- | ---: |
+| Planned and completed histories | 30 / 30 |
+| `HARNESS_ERROR` histories | 0 |
+| Verified historical anchor histories | 6 / 6 |
+| Control-valid pairs for M1, M2, and M3 | 5 / 5 each |
+| M1 actual write and read routes | 5 / 5 each |
+| M2 actual read and dependent-write routes | 5 / 5 each |
+| M3 actual W1 and W2 routes | 5 / 5 each |
+| M2 setup W1 command, `w:1`, and `mongo3` route | 10 / 10 arms |
+| Topology rehearsal | 1 / 1 |
+| Reanalysis of identical raw inputs | byte-identical outputs |
+| Report artifacts derived from raw histories | hash-verified |
+
+Consistency observations may take any value. A majority timeout can coexist
+with a write that is later observed on every member; the report preserves both
+facts. Reanalysis and resume are accepted only when protocol, runner, prediction,
+configuration, topology-plan, and preflight hashes match the recorded inputs.

@@ -73,6 +73,12 @@ RQ3_CONTRASTS = {
         "capture_operations": ["first_write", "second_write"],
     },
 }
+RQ3_REPETITIONS = 5
+RQ3_EXPECTED_ROUTES = {
+    "M1": {"write": "mongo3", "read": "mongo1"},
+    "M2": {"read": "mongo3", "write": "mongo2"},
+    "M3": {"first_write": "mongo3", "second_write": "mongo2"},
+}
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
@@ -416,23 +422,80 @@ def _check_rq3_operation_captures(
             )
 
 
-def _check_rq3(root: Path, errors: list[str]) -> None:
-    """Require complete, hash-linked RQ3 histories and report artifacts."""
+def _check_rq3_preflight(
+    root: Path,
+    *,
+    runtime_provenance: dict[str, Any],
+    topology_plan: dict[str, Any],
+    expected_digest: Any,
+    errors: list[str],
+) -> str | None:
+    path = root / "results/raw/rq3-preflight.json"
+    preflight = _read_object(path, errors)
+    if preflight is None:
+        return None
+    if (
+        preflight.get("schema_version") != "rq3-preflight.v2"
+        or preflight.get("protocol_id") != "rq3-protocol.v2"
+        or preflight.get("status") != "PASS"
+        or preflight.get("topology_plan") != topology_plan
+        or preflight.get("planned_cycle_count") != 1
+        or preflight.get("completed_cycle_count") != 1
+        or preflight.get("passed_cycle_count") != 1
+    ):
+        errors.append("rq3: topology rehearsal must pass its single cycle for the registered M3 plan")
+    cycles = preflight.get("cycles")
+    if not isinstance(cycles, list) or len(cycles) != 1:
+        errors.append("rq3: topology rehearsal must contain exactly one cycle record")
+    else:
+        for expected_cycle, cycle in enumerate(cycles, start=1):
+            if (
+                not isinstance(cycle, dict)
+                or type(cycle.get("cycle")) is not int
+                or cycle.get("cycle") != expected_cycle
+                or cycle.get("cycle_id") != f"rq3-preflight-v2-c{expected_cycle:02d}"
+                or cycle.get("status") != "PASS"
+            ):
+                errors.append(f"rq3: topology rehearsal cycle {expected_cycle} did not pass as planned")
+    if preflight.get("runtime_provenance") != runtime_provenance:
+        errors.append("rq3: topology preflight runtime provenance differs from the RQ3 campaign")
+    digest = _sha256(path)
+    if not _is_sha256(expected_digest) or digest != expected_digest:
+        errors.append("rq3: topology preflight digest differs from the campaign manifest")
+    return digest
 
-    raw_root = root / "results/raw/rq3"
+
+def _operation(history: dict[str, Any], operation_id: str) -> dict[str, Any] | None:
+    return next(
+        (
+            operation
+            for operation in history.get("operations", [])
+            if isinstance(operation, dict) and operation.get("operation_id") == operation_id
+        ),
+        None,
+    )
+
+
+def _check_rq3(root: Path, errors: list[str]) -> None:
+    """Require complete protocol-v2 RQ3 controls and raw-derived analysis."""
+
+    raw_root = root / "results/raw/rq3-v2"
     manifest_path = raw_root / "campaign-manifest.json"
     manifest = _read_object(manifest_path, errors)
     if manifest is None:
         return
-    if manifest.get("schema_version") != "rq3-campaign.v1" or manifest.get("campaign") != "rq3":
-        errors.append("rq3: campaign manifest schema or campaign identifier is invalid")
+    if (
+        manifest.get("schema_version") != "rq3-campaign.v2"
+        or manifest.get("protocol_id") != "rq3-protocol.v2"
+        or manifest.get("campaign") != "rq3"
+    ):
+        errors.append("rq3: campaign manifest schema or protocol identifier is invalid")
     if manifest.get("status") != "COMPLETE":
         errors.append("rq3: campaign status must be COMPLETE")
     repetitions = manifest.get("repetitions_per_contrast")
-    if type(repetitions) is not int or not 5 <= repetitions <= 10:
-        errors.append("rq3: repetitions_per_contrast must be between 5 and 10")
-        repetitions = 0
-    expected_count = repetitions * 6
+    if type(repetitions) is not int or repetitions != RQ3_REPETITIONS:
+        errors.append(f"rq3: repetitions_per_contrast must be {RQ3_REPETITIONS}")
+    expected_count = RQ3_REPETITIONS * 6
     for field in ("planned_case_count", "completed_case_count"):
         if manifest.get(field) != expected_count:
             errors.append(f"rq3: {field} must be {expected_count}")
@@ -472,13 +535,22 @@ def _check_rq3(root: Path, errors: list[str]) -> None:
         errors.append("rq3: MongoDB image digest provenance is incomplete")
     if provenance.get("checker_version") != "history.v1":
         errors.append("rq3: checker version must be history.v1")
-    for field in ("runner_script_sha256", "configuration_sha256", "protocol_sha256"):
+    for field in (
+        "runner_script_sha256",
+        "configuration_sha256",
+        "protocol_sha256",
+        "topology_plan_sha256",
+        "preflight_sha256",
+        "anchor_manifest_sha256",
+    ):
         if not _is_sha256(manifest.get(field)):
             errors.append(f"rq3: {field} must be a SHA-256 digest")
     expected_frozen_files = {
         "runner_script_sha256": root / "scripts/run_rq3_campaign.py",
         "configuration_sha256": root / "configs/configurations.json",
         "protocol_sha256": root / "docs/experimental-protocol.md",
+        "topology_plan_sha256": root / "src/mongo_consistency/rq3.py",
+        "anchor_manifest_sha256": root / "configs/rq3-anchors.json",
     }
     for field, path in expected_frozen_files.items():
         actual = _sha256(path)
@@ -486,6 +558,57 @@ def _check_rq3(root: Path, errors: list[str]) -> None:
             errors.append(f"rq3: {field} does not match {path.relative_to(root).as_posix()}")
     if provenance.get("protocol_hash") != manifest.get("protocol_sha256"):
         errors.append("rq3: protocol hash differs from the frozen protocol digest")
+
+    source_root = root / "src"
+    if source_root.is_dir() and str(source_root) not in sys.path:
+        sys.path.insert(0, str(source_root))
+    repository_root = str(root)
+    if repository_root not in sys.path:
+        sys.path.insert(0, repository_root)
+    try:
+        from mongo_consistency.config import load_configurations
+        from mongo_consistency.checkers import check_history
+        from mongo_consistency.history import read_history
+        from mongo_consistency.rq3 import (
+            EXPECTED_ROUTES,
+            TOPOLOGY_PLANS,
+            pair_control,
+        )
+        from mongo_consistency.rq3_anchors import verify_anchor_manifest
+        from scripts.analyse_rq3 import (
+            _counts,
+            _render_report_section,
+            _row_for_pair,
+            _summarize_historical_anchors,
+        )
+    except ImportError as error:
+        errors.append(f"rq3: cannot load protocol-v2 validators: {error}")
+        return
+    if EXPECTED_ROUTES != RQ3_EXPECTED_ROUTES:
+        errors.append("rq3: release guard routes differ from the protocol-v2 topology plan")
+    try:
+        configurations = load_configurations(root / "configs/configurations.json")
+    except (OSError, UnicodeError, json.JSONDecodeError, TypeError, ValueError) as error:
+        errors.append(f"rq3: cannot load configuration settings: {error}")
+        return
+
+    try:
+        anchor_manifest, anchor_digest = verify_anchor_manifest(root)
+    except (OSError, UnicodeError, json.JSONDecodeError, TypeError, KeyError, ValueError) as error:
+        errors.append(f"rq3: cannot verify selected RQ1 anchors: {error}")
+        anchor_manifest = {}
+        anchor_digest = None
+    if manifest.get("anchor_manifest_sha256") != anchor_digest:
+        errors.append("rq3: campaign anchor digest differs from the selected RQ1 histories")
+
+    m3_plan = TOPOLOGY_PLANS["M3"].to_dict()
+    _check_rq3_preflight(
+        root,
+        runtime_provenance=provenance,
+        topology_plan=m3_plan,
+        expected_digest=manifest.get("preflight_sha256"),
+        errors=errors,
+    )
 
     registered_contrasts = manifest.get("contrasts")
     contrast_rows = {
@@ -496,6 +619,7 @@ def _check_rq3(root: Path, errors: list[str]) -> None:
     contrast_count = len(registered_contrasts) if isinstance(registered_contrasts, list) else 0
     if set(contrast_rows) != set(RQ3_CONTRASTS) or contrast_count != len(RQ3_CONTRASTS):
         errors.append("rq3: campaign must register exactly M1, M2, and M3")
+    expected_pair_ids_by_contrast: dict[str, list[str]] = {}
     for contrast_id, spec in RQ3_CONTRASTS.items():
         row = contrast_rows.get(contrast_id, {})
         if (
@@ -506,9 +630,9 @@ def _check_rq3(root: Path, errors: list[str]) -> None:
             errors.append(f"rq3: {contrast_id} has an invalid configuration pair or property")
         if row.get("capture_operations") != spec["capture_operations"]:
             errors.append(f"rq3: {contrast_id} topology capture plan differs from the registered operations")
-        pair_ids = row.get("pair_ids")
-        expected_pair_ids = [f"{contrast_id.lower()}-r{rep:02d}" for rep in range(1, repetitions + 1)]
-        if pair_ids != expected_pair_ids:
+        pair_ids = [f"{contrast_id.lower()}-r{rep:02d}" for rep in range(1, RQ3_REPETITIONS + 1)]
+        expected_pair_ids_by_contrast[contrast_id] = pair_ids
+        if row.get("pair_ids") != pair_ids:
             errors.append(f"rq3: {contrast_id} pair_ids do not match the registered repetitions")
 
     records = manifest.get("records")
@@ -517,16 +641,9 @@ def _check_rq3(root: Path, errors: list[str]) -> None:
         return
     record_by_trial: dict[str, dict[str, Any]] = {}
     records_by_pair: dict[str, list[dict[str, Any]]] = {}
+    histories_by_pair: dict[str, dict[str, dict[str, Any]]] = {}
     paths: set[str] = set()
     ordinals: set[tuple[str, int]] = set()
-    source_root = Path(__file__).resolve().parents[1] / "src"
-    if source_root.is_dir() and str(source_root) not in sys.path:
-        sys.path.insert(0, str(source_root))
-    try:
-        from mongo_consistency.history import read_history
-    except ImportError as error:
-        errors.append(f"rq3: cannot load history validator: {error}")
-        return
 
     for record in records:
         if not isinstance(record, dict):
@@ -538,23 +655,30 @@ def _check_rq3(root: Path, errors: list[str]) -> None:
         spec = RQ3_CONTRASTS.get(contrast_id) if isinstance(contrast_id, str) else None
         if not isinstance(trial_id, str) or not trial_id or trial_id in record_by_trial:
             errors.append("rq3: trial IDs must be nonempty and unique")
-        elif isinstance(record, dict):
+        else:
             record_by_trial[trial_id] = record
         if not spec:
             errors.append(f"rq3: history {trial_id} has an unknown contrast")
             continue
         if record.get("campaign") != spec["campaign"] or record.get("property") != spec["property"]:
             errors.append(f"rq3: history {trial_id} has a mismatched campaign or property")
+        replicate = record.get("replicate")
         if (
             not isinstance(pair_id, str)
             or re.fullmatch(r"m[123]-r\d{2}", pair_id) is None
             or pair_id.split("-", maxsplit=1)[0] != contrast_id.lower()
-            or type(record.get("replicate")) is not int
-            or not 1 <= record["replicate"] <= repetitions
-            or pair_id != f"{contrast_id.lower()}-r{record.get('replicate', 0):02d}"
+            or type(replicate) is not int
+            or not 1 <= replicate <= RQ3_REPETITIONS
+            or pair_id != f"{contrast_id.lower()}-r{replicate:02d}"
         ):
             errors.append(f"rq3: history {trial_id} has an invalid matched-pair identity")
+        configuration_id = record.get("configuration_id")
         ordinal = record.get("ordinal")
+        expected_arm_order = (
+            [spec["left_configuration"], spec["right_configuration"]]
+            if type(replicate) is int and replicate % 2 == 1
+            else [spec["right_configuration"], spec["left_configuration"]]
+        )
         if type(ordinal) is not int or ordinal < 1:
             errors.append(f"rq3: history {trial_id} has an invalid ordinal")
         else:
@@ -562,10 +686,19 @@ def _check_rq3(root: Path, errors: list[str]) -> None:
             if ordinal_key in ordinals:
                 errors.append(f"rq3: {contrast_id} has a duplicated history ordinal")
             ordinals.add(ordinal_key)
-        if (
-            not isinstance(record.get("configuration_id"), str)
-            or record.get("configuration_id") not in spec["configurations"]
-        ):
+            configuration_position = (
+                expected_arm_order.index(configuration_id)
+                if configuration_id in expected_arm_order
+                else None
+            )
+            expected_ordinal = (
+                (replicate - 1) * 2 + configuration_position + 1
+                if type(replicate) is int and configuration_position is not None
+                else None
+            )
+            if expected_ordinal is None or ordinal != expected_ordinal:
+                errors.append(f"rq3: history {trial_id} does not follow the preregistered arm order")
+        if not isinstance(configuration_id, str) or configuration_id not in spec["configurations"]:
             errors.append(f"rq3: history {trial_id} has an unexpected configuration")
         if record.get("outcome") == "HARNESS_ERROR" or record.get("runner_error") is not None:
             errors.append(f"rq3: history {trial_id} contains a harness or runner error")
@@ -590,14 +723,15 @@ def _check_rq3(root: Path, errors: list[str]) -> None:
         try:
             resolved_path.relative_to(raw_root.resolve())
         except ValueError:
-            errors.append(f"rq3: history path escapes results/raw/rq3: {relative_path}")
+            errors.append(f"rq3: history path escapes results/raw/rq3-v2: {relative_path}")
             continue
         if not resolved_path.is_file():
             errors.append(f"rq3: history file is missing: {relative_path}")
             continue
         try:
-            history = read_history(resolved_path)
-            payload = history.to_dict()
+            history_object = read_history(resolved_path)
+            payload = history_object.to_dict()
+            recomputed_outcome = check_history(history_object).outcome.value
         except (OSError, UnicodeError, json.JSONDecodeError, ValueError, TypeError) as error:
             errors.append(f"rq3: invalid history {relative_path}: {error}")
             continue
@@ -605,6 +739,8 @@ def _check_rq3(root: Path, errors: list[str]) -> None:
             errors.append(f"rq3: history {relative_path} has an unsupported schema")
         if payload.get("history_hash") != record.get("history_hash"):
             errors.append(f"rq3: history hash differs from campaign record: {relative_path}")
+        if recomputed_outcome != record.get("outcome"):
+            errors.append(f"rq3: history outcome differs from raw-derived checker result: {relative_path}")
         history_manifest = payload.get("manifest", {})
         if not isinstance(history_manifest, dict):
             errors.append(f"rq3: history {relative_path} manifest is invalid")
@@ -612,13 +748,15 @@ def _check_rq3(root: Path, errors: list[str]) -> None:
         expected_history_fields = {
             "trial_id": trial_id,
             "campaign_id": spec["campaign"],
-            "configuration_id": record.get("configuration_id"),
+            "configuration_id": configuration_id,
             "property": spec["property"],
             "seed": record.get("pair_seed"),
             "rq3_contrast_id": contrast_id,
             "rq3_pair_id": pair_id,
             "rq3_pair_seed": record.get("pair_seed"),
-            "rq3_replicate": record.get("replicate"),
+            "rq3_replicate": replicate,
+            "rq3_protocol_id": "rq3-protocol.v2",
+            "rq3_topology_plan": TOPOLOGY_PLANS[contrast_id].to_dict(),
         }
         for field, expected in expected_history_fields.items():
             if history_manifest.get(field) != expected:
@@ -642,24 +780,29 @@ def _check_rq3(root: Path, errors: list[str]) -> None:
             if history_manifest.get(field) != provenance.get(field):
                 errors.append(f"rq3: history {relative_path} has mismatched {field}")
         contrast_row = contrast_rows.get(contrast_id, {})
-        capture_operations = contrast_row.get("capture_operations", [])
         _check_rq3_operation_captures(
             payload,
             history_path=history_path,
             contrast_id=contrast_id,
-            capture_operations=capture_operations,
+            capture_operations=contrast_row.get("capture_operations", []),
             errors=errors,
         )
         if isinstance(pair_id, str):
             records_by_pair.setdefault(pair_id, []).append(record)
+            histories_by_pair.setdefault(pair_id, {})[str(configuration_id)] = payload
 
     expected_pairs = {
         f"{contrast_id.lower()}-r{replicate:02d}"
         for contrast_id in RQ3_CONTRASTS
-        for replicate in range(1, repetitions + 1)
+        for replicate in range(1, RQ3_REPETITIONS + 1)
     }
     if set(records_by_pair) != expected_pairs:
         errors.append("rq3: pair IDs are incomplete or unexpected")
+    expected_ordinals = set(range(1, RQ3_REPETITIONS * 2 + 1))
+    for contrast_id in RQ3_CONTRASTS:
+        actual_ordinals = {ordinal for contrast, ordinal in ordinals if contrast == contrast_id}
+        if actual_ordinals != expected_ordinals:
+            errors.append(f"rq3: {contrast_id} history ordinals are incomplete or unexpected")
     for pair_id, pair_records in records_by_pair.items():
         match = re.fullmatch(r"(m[123])-r(\d{2})", pair_id)
         if match is None:
@@ -683,22 +826,169 @@ def _check_rq3(root: Path, errors: list[str]) -> None:
             if item.get("seed") != item.get("pair_seed") or item.get("replicate") != int(match.group(2)):
                 errors.append(f"rq3: {pair_id} arms have mismatched seed or repetition metadata")
 
-    analysis_root = root / "results/analysis/rq3"
+    pair_controls = manifest.get("pair_controls")
+    declared_controls: dict[tuple[str, str], dict[str, Any]] = {}
+    if not isinstance(pair_controls, list):
+        errors.append("rq3: pair_controls must be a list")
+    else:
+        for control in pair_controls:
+            if not isinstance(control, dict):
+                errors.append("rq3: pair_controls contain a non-object entry")
+                continue
+            key = (str(control.get("contrast_id")), str(control.get("pair_id")))
+            if key in declared_controls:
+                errors.append(f"rq3: duplicate control record for {key[1]}")
+            declared_controls[key] = control
+    expected_control_keys = {
+        (contrast_id, pair_id)
+        for contrast_id in RQ3_CONTRASTS
+        for pair_id in expected_pair_ids_by_contrast.get(contrast_id, [])
+    }
+    if set(declared_controls) != expected_control_keys:
+        errors.append(
+            f"rq3: pair_controls do not cover the {len(expected_control_keys)} preregistered pairs exactly"
+        )
+
+    recomputed_controls: dict[tuple[str, str], dict[str, Any]] = {}
+    valid_pair_rows: dict[str, list[dict[str, Any]]] = {contrast_id: [] for contrast_id in RQ3_CONTRASTS}
+    valid_pair_ids: dict[str, list[str]] = {contrast_id: [] for contrast_id in RQ3_CONTRASTS}
+    route_matches: Counter[tuple[str, str]] = Counter()
+    m2_setup_evidence_count = 0
+    for contrast_id in RQ3_CONTRASTS:
+        for pair_id in expected_pair_ids_by_contrast[contrast_id]:
+            arms = histories_by_pair.get(pair_id, {})
+            observed_control = pair_control(
+                contrast_id,
+                pair_id,
+                arms,
+                configurations=configurations,
+            )
+            key = (contrast_id, pair_id)
+            recomputed_controls[key] = observed_control
+            if declared_controls.get(key) != observed_control:
+                errors.append(f"rq3: {pair_id} pair-control manifest differs from raw-history recomputation")
+            if observed_control.get("control_valid") is not True:
+                errors.append(f"rq3: {pair_id} is not control-valid: {observed_control.get('invalid_reasons')}")
+                continue
+            valid_pair_ids[contrast_id].append(pair_id)
+            arm_payloads = {
+                configuration_id: dict(history)
+                for configuration_id, history in arms.items()
+            }
+            for configuration_id, history in arm_payloads.items():
+                record = next(
+                    (
+                        item
+                        for item in records_by_pair.get(pair_id, [])
+                        if item.get("configuration_id") == configuration_id
+                    ),
+                    {},
+                )
+                history["result"] = record.get("outcome")
+                history["source_path"] = record.get("path")
+            valid_pair_rows[contrast_id].append(
+                _row_for_pair(contrast_id, pair_id, arm_payloads, configurations)
+            )
+
+            for operation_id, expected_member in RQ3_EXPECTED_ROUTES[contrast_id].items():
+                operation_by_arm = {
+                    configuration_id: _operation(history, operation_id)
+                    for configuration_id, history in arms.items()
+                }
+                addresses = {
+                    configuration_id: (
+                        operation.get("actual_server_address")
+                        if isinstance(operation, dict)
+                        else None
+                    )
+                    for configuration_id, operation in operation_by_arm.items()
+                }
+                observed_routes = observed_control.get("observed", {})
+                member_routes = {
+                    configuration_id: (
+                        arm.get("observed", {}).get("routes", {}).get(operation_id)
+                        if isinstance(arm, dict)
+                        else None
+                    )
+                    for configuration_id, arm in observed_routes.items()
+                }
+                if (
+                    set(addresses) != RQ3_CONTRASTS[contrast_id]["configurations"]
+                    or any(not isinstance(address, str) or not address for address in addresses.values())
+                    or len(set(addresses.values())) != 1
+                    or set(member_routes.values()) != {expected_member}
+                ):
+                    errors.append(
+                        f"rq3: {pair_id} {operation_id} routes do not match {expected_member} on both arms"
+                    )
+                else:
+                    route_matches[(contrast_id, operation_id)] += 1
+
+            if contrast_id == "M2":
+                for arm in observed_control.get("observed", {}).values():
+                    setup = arm.get("observed", {}).get("setup_write") if isinstance(arm, dict) else None
+                    concern = setup.get("write_concern") if isinstance(setup, dict) else None
+                    if (
+                        isinstance(setup, dict)
+                        and setup.get("command_started") is True
+                        and setup.get("member") == "mongo3"
+                        and isinstance(concern, dict)
+                        and concern.get("w") == 1
+                    ):
+                        m2_setup_evidence_count += 1
+                    else:
+                        errors.append(f"rq3: {pair_id} is missing M2 setup W1 command evidence on mongo3")
+
+    for contrast_id, expected_routes in RQ3_EXPECTED_ROUTES.items():
+        for operation_id in expected_routes:
+            if route_matches[(contrast_id, operation_id)] != RQ3_REPETITIONS:
+                errors.append(
+                    f"rq3: {contrast_id} {operation_id} route match must be "
+                    f"{RQ3_REPETITIONS}/{RQ3_REPETITIONS} pairs"
+                )
+    if m2_setup_evidence_count != 10:
+        errors.append("rq3: M2 setup W1 command evidence must cover 10/10 arms")
+    for contrast_id, pair_ids in valid_pair_ids.items():
+        if len(pair_ids) != RQ3_REPETITIONS:
+            errors.append(
+                f"rq3: {contrast_id} control-valid pairs must be "
+                f"{RQ3_REPETITIONS}/{RQ3_REPETITIONS}"
+            )
+
+    analysis_root = root / "results/analysis/rq3-v2"
     summary_path = analysis_root / "summary.json"
     selection_path = analysis_root / "selection-manifest.json"
     summary = _read_object(summary_path, errors)
     selection = _read_object(selection_path, errors)
     campaign_digest = _sha256(manifest_path)
+    preflight_digest = _sha256(root / "results/raw/rq3-preflight.json")
+    anchor_history_ids = [
+        record.get("trial_id")
+        for pair in anchor_manifest.get("pairs", [])
+        if isinstance(pair, dict)
+        for record in pair.get("histories", [])
+        if isinstance(record, dict)
+    ]
     if summary is not None:
-        if summary.get("schema_version") != "rq3-analysis.v1":
-            errors.append("rq3: analysis summary schema is invalid")
+        try:
+            expected_historical_anchors = _summarize_historical_anchors(
+                anchor_manifest, repository_root=root
+            )
+        except (OSError, UnicodeError, json.JSONDecodeError, TypeError, KeyError, ValueError) as error:
+            errors.append(f"rq3: cannot derive historical anchor observations: {error}")
+            expected_historical_anchors = None
         if (
-            summary.get("campaign_manifest") != manifest_path.relative_to(root).as_posix()
+            summary.get("schema_version") != "rq3-analysis.v2"
+            or summary.get("protocol_id") != "rq3-protocol.v2"
+            or summary.get("campaign_manifest") != manifest_path.relative_to(root).as_posix()
             or summary.get("campaign_manifest_sha256") != campaign_digest
-            or summary.get("repetitions_per_contrast") != repetitions
+            or summary.get("preflight_sha256") != preflight_digest
+            or summary.get("anchor_manifest_sha256") != anchor_digest
+            or summary.get("historical_anchors") != expected_historical_anchors
+            or summary.get("repetitions_per_contrast") != RQ3_REPETITIONS
             or summary.get("selection_manifest") != selection_path.relative_to(root).as_posix()
         ):
-            errors.append("rq3: analysis summary is not tied to the complete campaign manifest")
+            errors.append("rq3: analysis summary is not tied to the v2 campaign, rehearsal, and anchors")
         generated_artifacts = summary.get("generated_artifacts")
         expected_artifacts = {
             "report_tex": "submission/generated-rq3.tex",
@@ -720,53 +1010,74 @@ def _check_rq3(root: Path, errors: list[str]) -> None:
             errors.append("rq3: analysis summary must contain M1, M2, and M3")
         else:
             for contrast_id, contrast_summary in contrast_summaries.items():
-                if not isinstance(contrast_summary, dict) or contrast_summary.get("pair_count") != repetitions:
-                    errors.append(f"rq3: analysis summary {contrast_id} must include every matched pair")
-                elif not isinstance(contrast_summary.get("signature_counts"), dict):
-                    errors.append(f"rq3: analysis summary {contrast_id} has no signature counts")
+                if not isinstance(contrast_summary, dict):
+                    errors.append(f"rq3: analysis summary {contrast_id} is invalid")
+                    continue
+                if (
+                    contrast_summary.get("planned_pair_count") != RQ3_REPETITIONS
+                    or contrast_summary.get("control_valid_pair_count") != RQ3_REPETITIONS
+                    or contrast_summary.get("invalid_pair_count") != 0
+                    or contrast_summary.get("invalid_pairs") != []
+                ):
+                    errors.append(f"rq3: analysis summary {contrast_id} has incorrect control-valid counts")
+                try:
+                    raw_counts = _counts(valid_pair_rows[contrast_id], contrast_id)
+                except (KeyError, TypeError, ValueError) as error:
+                    errors.append(f"rq3: cannot derive {contrast_id} signature counts from raw histories: {error}")
+                else:
+                    if contrast_summary.get("signature_counts") != raw_counts:
+                        errors.append(f"rq3: {contrast_id} signature counts differ from valid raw histories")
     if selection is not None:
         if (
-            selection.get("schema_version") != "rq3-selection.v1"
+            selection.get("schema_version") != "rq3-selection.v2"
+            or selection.get("protocol_id") != "rq3-protocol.v2"
             or selection.get("campaign_manifest") != manifest_path.relative_to(root).as_posix()
             or selection.get("campaign_manifest_sha256") != campaign_digest
+            or selection.get("preflight_sha256") != preflight_digest
+            or selection.get("anchor_manifest_sha256") != anchor_digest
+            or selection.get("anchor_history_ids") != anchor_history_ids
         ):
-            errors.append("rq3: selection manifest is not tied to the complete campaign manifest")
+            errors.append("rq3: selection manifest is not tied to the v2 campaign, rehearsal, and anchors")
         selected_pairs = selection.get("selected_pairs")
         if not isinstance(selected_pairs, dict) or set(selected_pairs) != set(RQ3_CONTRASTS):
-            errors.append("rq3: selection manifest must select one pair for M1, M2, and M3")
+            errors.append("rq3: selection manifest must select one valid pair for M1, M2, and M3")
         else:
+            contrast_summaries = summary.get("contrast_summaries") if summary is not None else None
             for contrast_id, selected in selected_pairs.items():
-                if not isinstance(selected, dict):
+                expected_pair_id = min(valid_pair_ids.get(contrast_id, []), default=None)
+                if not isinstance(selected, dict) or expected_pair_id is None:
                     errors.append(f"rq3: {contrast_id} selection is invalid")
                     continue
-                pair_id = selected.get("pair_id")
+                if selected.get("pair_id") != expected_pair_id or selected.get("control_valid") is not True:
+                    errors.append(f"rq3: {contrast_id} selection is not the first control-valid pair")
+                selected_records = records_by_pair.get(expected_pair_id, [])
                 histories = selected.get("histories")
-                expected_pair = records_by_pair.get(pair_id, []) if isinstance(pair_id, str) else []
-                selected_by_config = {}
-                if isinstance(histories, list):
-                    for item in histories:
-                        if not isinstance(item, dict) or not isinstance(item.get("configuration_id"), str):
-                            continue
-                        selected_by_config[item["configuration_id"]] = item
-                if len(expected_pair) != 2 or set(selected_by_config) != RQ3_CONTRASTS[contrast_id]["configurations"]:
+                selected_by_config = {
+                    item.get("configuration_id"): item
+                    for item in histories
+                    if isinstance(item, dict) and isinstance(item.get("configuration_id"), str)
+                } if isinstance(histories, list) else {}
+                if (
+                    len(selected_records) != 2
+                    or set(selected_by_config) != RQ3_CONTRASTS[contrast_id]["configurations"]
+                ):
                     errors.append(f"rq3: {contrast_id} selection does not identify both campaign arms")
                     continue
-                for record in expected_pair:
+                for record in selected_records:
                     selected_history = selected_by_config.get(record.get("configuration_id"), {})
                     if (
                         selected_history.get("trial_id") != record.get("trial_id")
                         or selected_history.get("sha256") != record.get("history_hash")
                         or selected_history.get("path") != record.get("path")
                     ):
-                        errors.append(f"rq3: {contrast_id} selected history is not tied to its campaign record")
-                if summary is not None:
-                    summaries = summary.get("contrast_summaries")
-                    contrast_summary = summaries.get(contrast_id) if isinstance(summaries, dict) else None
+                        errors.append(f"rq3: {contrast_id} selected history is not tied to its raw record")
+                if isinstance(contrast_summaries, dict):
+                    contrast_summary = contrast_summaries.get(contrast_id)
                     if (
                         not isinstance(contrast_summary, dict)
                         or contrast_summary.get("selected_pair") != selected
                     ):
-                        errors.append(f"rq3: analysis summary {contrast_id} selection differs from the selection manifest")
+                        errors.append(f"rq3: {contrast_id} analysis selection differs from its selection manifest")
 
     generated_tex = root / "submission/generated-rq3.tex"
     try:
@@ -781,6 +1092,18 @@ def _check_rq3(root: Path, errors: list[str]) -> None:
         ):
             if marker not in tex:
                 errors.append(f"rq3: generated report TeX is missing {marker}")
+        if selection is not None and isinstance(selection.get("selected_pairs"), dict):
+            try:
+                expected_tex = _render_report_section(
+                    valid_pair_rows,
+                    selection["selected_pairs"],
+                    manifest,
+                )
+            except (KeyError, TypeError, ValueError) as error:
+                errors.append(f"rq3: cannot regenerate report TeX from raw histories: {error}")
+            else:
+                if tex != expected_tex:
+                    errors.append("rq3: generated report TeX differs from its raw-derived rendering")
     results_tex = root / "submission/sections/07-results.tex"
     try:
         results_source = results_tex.read_text(encoding="utf-8")

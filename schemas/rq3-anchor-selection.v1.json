@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/mongo-consistency/rq3-anchor-selection.v1.json",
+  "title": "RQ3 selected historical anchor pairs",
+  "type": "object",
+  "required": ["schema_version", "source", "selection_document", "pairs"],
+  "properties": {
+    "schema_version": {"const": "rq3-anchor-selection.v1"},
+    "source": {"const": "results/raw/experiment"},
+    "selection_document": {"const": "docs/rq3-historical-trace-selection.md"},
+    "pairs": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "required": ["contrast_id", "property", "configurations", "histories", "interpretation", "limitation"],
+        "properties": {
+          "contrast_id": {"enum": ["M1", "M2", "M3"]},
+          "property": {"enum": ["RYW", "WFR", "MW"]},
+          "configurations": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"pattern": "^C[1-8]$"}},
+          "histories": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": {
+              "type": "object",
+              "required": ["trial_id", "configuration_id", "seed", "path", "raw_sha256", "history_hash"],
+              "properties": {
+                "trial_id": {"type": "string", "minLength": 1},
+                "configuration_id": {"pattern": "^C[1-8]$"},
+                "seed": {"type": "integer", "minimum": 0},
+                "path": {"type": "string", "pattern": "^results/raw/experiment/"},
+                "raw_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                "history_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+              },
+              "additionalProperties": false
+            }
+          },
+          "interpretation": {"type": "string", "minLength": 1},
+          "limitation": {"type": "string", "minLength": 1}
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

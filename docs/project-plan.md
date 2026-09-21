@@ -54,12 +54,19 @@ crash, primary crash/election, and primary-isolating network partition. It
 reuses the matching RQ1 normal histories as its descriptive baseline and adds
 no normal histories of its own. C5 versus C6 is reserved for RQ3.
 
-RQ3 uses only the preregistered M1-M3 contrasts in
-[`experimental-protocol.md`](experimental-protocol.md#rq3-mechanism-study).
-Each contrast changes one setting and replays eight matched-seed pairs by
-default. The paired histories have separate fault episodes and are not treated
-as one shared event. Retrospective RQ1 trace anchors and their selection limits
-are documented in [`rq3-historical-trace-selection.md`](rq3-historical-trace-selection.md).
+RQ3 uses six representative RQ1 histories as anchors for the causal-session,
+read-concern, and write-concern questions. The selected IDs and raw hashes live
+in [`configs/rq3-anchors.json`](../configs/rq3-anchors.json); the selection
+and its limits are described in
+[`rq3-historical-trace-selection.md`](rq3-historical-trace-selection.md).
+Three bounded matched contrasts replay each mechanism five times (30 histories
+total). These runs explain selected observations; they do not estimate
+violation probabilities. Each arm normalizes a fixed topology, checks direct
+member roles and actual command routes, and records final state after healing.
+The analyzer re-derives pair control validity from raw histories. An invalid
+pair is a control failure, not a consistency outcome. The first
+preregistered-valid replay pair is selected for the timeline without ranking
+on outcomes.
 
 ## Configuration and predictions
 
@@ -114,9 +121,11 @@ cache state is logged separately and never treated as ground truth.
    partition signature cells. The completed campaign has 432 histories across
    36 episodes; its generated report and detailed results are in
    [rq2-results.md](rq2-results.md) and the submission Results section.
-9. Rebuild analysis, plots, LaTeX macros, PDF, and reproduction archive from raw
-   histories.
-10. Audit the clean-clone path, generated artifacts, staged diff, and final
+9. Verify the six historical RQ1 anchors, run one topology rehearsal, then run
+   the 30-history RQ3 replay and analyze control-valid pairs.
+10. Rebuild analysis, plots, LaTeX macros, PDF, and reproduction archive from
+    canonical raw histories.
+11. Audit the clean-clone path, generated artifacts, staged diff, and final
     submission package.
 
 ## Completion gates
@@ -131,8 +140,10 @@ The work is complete only when all requirements in
 [experimental-protocol.md](experimental-protocol.md) have current evidence:
 fixture and malformed-history tests; exact property schedules; live smoke;
 frozen provenance; clean pilot; complete RQ1 and RQ2 manifests; offline analysis;
-rendered and inspected PDF; reproducible archive; and CI checks. A passing unit
-suite does not substitute for live schedule evidence.
+RQ3 anchor hashes and replay controls; rendered and inspected PDF;
+reproducible archive; and CI checks. A passing unit suite does not substitute
+for live schedule evidence. The focused RQ3 replay and its topology rehearsal
+have not yet run.
 
 The grouped RQ2 campaign completed on 20 September 2026 from clean runner and
 protocol commit `3c35e94`: 432 histories across 36 fault episodes, with all
