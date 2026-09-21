@@ -58,7 +58,8 @@ RQ3 uses only the preregistered M1-M3 contrasts in
 [`experimental-protocol.md`](experimental-protocol.md#rq3-mechanism-study).
 Each contrast changes one setting and replays eight matched-seed pairs by
 default. The paired histories have separate fault episodes and are not treated
-as one shared event.
+as one shared event. Retrospective RQ1 trace anchors and their selection limits
+are documented in [`rq3-historical-trace-selection.md`](rq3-historical-trace-selection.md).
 
 ## Configuration and predictions
 

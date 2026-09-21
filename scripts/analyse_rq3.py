@@ -130,6 +130,141 @@ def _matched_topology(pair: dict[str, dict[str, Any]]) -> bool:
     )
 
 
+def _timestamp_relation(value: Any, boundary: Any) -> str:
+    if not isinstance(value, dict) or not isinstance(boundary, dict):
+        return "unknown"
+    value_time = (value.get("seconds"), value.get("increment"))
+    boundary_time = (boundary.get("seconds"), boundary.get("increment"))
+    if not all(type(part) is int for part in (*value_time, *boundary_time)):
+        return "unknown"
+    if value_time > boundary_time:
+        return "ahead"
+    if value_time < boundary_time:
+        return "behind"
+    return "at"
+
+
+def _role_state_signature(history: dict[str, Any], operation_id: str) -> tuple[Any, ...] | None:
+    operation = _operation(history, operation_id)
+    topology = operation.get("topology_before")
+    members = topology.get("members") if isinstance(topology, dict) else None
+    primary = topology.get("primary") if isinstance(topology, dict) else None
+    faulted = set(_faulted_members(history))
+    address = operation.get("actual_server_address")
+    route = _member_from_address(address) if isinstance(address, str) else None
+    member_names = {"mongo1", "mongo2", "mongo3"}
+    if (
+        not isinstance(topology, dict)
+        or topology.get("stable") is not True
+        or not isinstance(members, dict)
+        or set(members) != member_names
+        or not isinstance(primary, str)
+        or primary not in members
+        or len(faulted) != 1
+        or not faulted.issubset(members)
+        or operation.get("operation_status") not in {"SUCCESS", "UNAVAILABLE", "INDETERMINATE"}
+        or not isinstance(address, str)
+        or route not in members
+    ):
+        return None
+    commit = topology.get("last_committed_op_time")
+    if _timestamp_relation(commit, commit) != "at":
+        return None
+    if any(not isinstance(member, dict) for member in members.values()):
+        return None
+    roles = [member.get("role") for member in members.values()]
+    if roles.count("PRIMARY") != 1 or roles.count("SECONDARY") != 2:
+        return None
+    state_relations = {
+        member_name: _timestamp_relation(member.get("last_write_op_time"), commit)
+        for member_name, member in members.items()
+    }
+    if any(relation not in {"ahead", "behind", "at"} for relation in state_relations.values()):
+        return None
+    state_by_role = tuple(
+        sorted(
+            (
+                str(member["role"]),
+                member_name in faulted,
+                state_relations[member_name],
+            )
+            for member_name, member in members.items()
+        )
+    )
+    route_member = members.get(route) if isinstance(route, str) else None
+    return (
+        len(members),
+        state_by_role,
+        primary in faulted,
+        route_member.get("role") if isinstance(route_member, dict) else None,
+        route in faulted if isinstance(route, str) else None,
+        route == primary if isinstance(route, str) else None,
+    )
+
+
+def _role_state_audit(pair: dict[str, Any], contrast_id: str) -> dict[str, bool]:
+    operation_id = {"M1": "read", "M2": "read", "M3": "first_write"}[contrast_id]
+    left_id, right_id = {
+        "M1": ("C5", "C6"),
+        "M2": ("C8", "C5"),
+        "M3": ("C3", "C6"),
+    }[contrast_id]
+    arms = pair["arms"]
+    left = _role_state_signature(arms[left_id], operation_id)
+    right = _role_state_signature(arms[right_id], operation_id)
+    eligible = left is not None and right is not None
+    return {"eligible": eligible, "matched": eligible and left == right}
+
+
+def _m2_timestamp_state_pattern(
+    history: dict[str, Any], expected_concern: str, expected_version: int
+) -> bool:
+    operation = _operation(history, "read")
+    topology = operation.get("topology_before")
+    members = topology.get("members") if isinstance(topology, dict) else None
+    primary = topology.get("primary") if isinstance(topology, dict) else None
+    faulted = set(_faulted_members(history))
+    address = operation.get("actual_server_address")
+    route = _member_from_address(address) if isinstance(address, str) else None
+    commit = topology.get("last_committed_op_time") if isinstance(topology, dict) else None
+    if (
+        operation.get("operation_status") != "SUCCESS"
+        or operation.get("read_concern") != expected_concern
+        or operation.get("observed_version") != expected_version
+        or not isinstance(topology, dict)
+        or topology.get("stable") is not True
+        or not isinstance(members, dict)
+        or not isinstance(primary, str)
+        or primary not in members
+        or len(faulted) != 1
+        or primary not in faulted
+        or not faulted.issubset(members)
+        or route != primary
+        or not isinstance(address, str)
+        or set(members) != {"mongo1", "mongo2", "mongo3"}
+        or any(not isinstance(member, dict) for member in members.values())
+    ):
+        return False
+    primary_state = members[primary]
+    secondaries = [member for name, member in members.items() if name != primary]
+    return (
+        primary_state.get("role") == "PRIMARY"
+        and _timestamp_relation(primary_state.get("last_write_op_time"), commit) == "ahead"
+        and all(
+            member.get("role") == "SECONDARY"
+            and _timestamp_relation(member.get("last_write_op_time"), commit) == "at"
+            for member in secondaries
+        )
+    )
+
+
+def _m2_timestamp_state_pattern_matched(pair: dict[str, Any]) -> bool:
+    arms = pair["arms"]
+    return _m2_timestamp_state_pattern(arms["C8"], "local", 1) and _m2_timestamp_state_pattern(
+        arms["C5"], "majority", 0
+    )
+
+
 def _duration_ms(operation: dict[str, Any]) -> float | None:
     events = operation.get("command_events", [])
     event = events[0] if isinstance(events, list) and events else {}
@@ -172,13 +307,21 @@ def _row_for_pair(contrast_id: str, pair_id: str, arms: dict[str, dict[str, Any]
         "M2": ("C8", "C5"),
         "M3": ("C3", "C6"),
     }[contrast_id]
-    return {
+    role_state_audit = _role_state_audit({"arms": arms}, contrast_id)
+    row = {
         "pair_id": pair_id,
         "arms": arms,
         "left_configuration": left_id,
         "right_configuration": right_id,
         "topology_matched": _matched_topology(arms),
+        "role_state_eligible": role_state_audit["eligible"],
+        "role_state_matched": role_state_audit["matched"],
     }
+    if contrast_id == "M2":
+        row["m2_timestamp_state_pattern_matched"] = _m2_timestamp_state_pattern_matched(
+            {"arms": arms}
+        )
+    return row
 
 
 def _score_pair(contrast_id: str, pair: dict[str, Any]) -> int:
@@ -244,6 +387,48 @@ def _history_id(history: dict[str, Any]) -> str:
 
 def _member_from_address(address: str | None) -> str:
     return address.split(":", maxsplit=1)[0] if address else "unknown member"
+
+
+def _same_actual_route(
+    pairs: list[dict[str, Any]], operation_id: str, left_id: str, right_id: str
+) -> int:
+    matches = 0
+    for pair in pairs:
+        left = _operation(pair["arms"][left_id], operation_id).get("actual_server_address")
+        right = _operation(pair["arms"][right_id], operation_id).get("actual_server_address")
+        matches += int(isinstance(left, str) and bool(left) and left == right)
+    return matches
+
+
+def _route_timestamp_relation(
+    history: dict[str, Any], operation_id: str, boundary: Any
+) -> str:
+    operation = _operation(history, operation_id)
+    topology = operation.get("topology_before")
+    address = operation.get("actual_server_address")
+    if (
+        not isinstance(topology, dict)
+        or topology.get("stable") is not True
+        or not isinstance(address, str)
+    ):
+        return "unknown"
+    members = topology.get("members")
+    route = _member_from_address(address)
+    member = members.get(route) if isinstance(members, dict) else None
+    if not isinstance(member, dict):
+        return "unknown"
+    return _timestamp_relation(boundary, member.get("last_write_op_time"))
+
+
+def _error_code_counts(
+    pairs: list[dict[str, Any]], configuration_id: str, operation_id: str
+) -> dict[str, int]:
+    counts: dict[str, int] = defaultdict(int)
+    for pair in pairs:
+        error_code = _operation(pair["arms"][configuration_id], operation_id).get("error_code")
+        if error_code is not None:
+            counts[str(error_code)] += 1
+    return dict(sorted(counts.items()))
 
 
 def _format_timestamp(value: Any) -> str:
@@ -446,6 +631,15 @@ def _counts(pairs: list[dict[str, Any]], contrast_id: str) -> dict[str, Any]:
                 and _read_signature(pair["arms"]["C5"])["after_cluster_time"] is None
                 for pair in pairs
             ),
+            "C5_write_time_ahead_of_routed_member_last_write": sum(
+                _route_timestamp_relation(
+                    pair["arms"]["C5"],
+                    "read",
+                    _operation(pair["arms"]["C5"], "write").get("operation_time_after"),
+                )
+                == "ahead"
+                for pair in pairs
+            ),
             "C6_after_cluster_time_present": sum(
                 _read_signature(pair["arms"]["C6"])["after_cluster_time"] is not None
                 for pair in pairs
@@ -456,10 +650,29 @@ def _counts(pairs: list[dict[str, Any]], contrast_id: str) -> dict[str, Any]:
                 and _read_signature(pair["arms"]["C6"])["after_cluster_time"] is not None
                 for pair in pairs
             ),
+            "C6_after_cluster_time_ahead_of_routed_member_last_write": sum(
+                _route_timestamp_relation(
+                    pair["arms"]["C6"],
+                    "read",
+                    _read_signature(pair["arms"]["C6"])["after_cluster_time"],
+                )
+                == "ahead"
+                for pair in pairs
+            ),
             "C6_read_attempted": sum(
                 _read_signature(pair["arms"]["C6"])["status"] is not None
                 for pair in pairs
             ),
+            "C6_unavailable_reads": sum(
+                _read_signature(pair["arms"]["C6"])["status"] == "UNAVAILABLE"
+                for pair in pairs
+            ),
+            "C6_indeterminate_reads": sum(
+                _read_signature(pair["arms"]["C6"])["status"] == "INDETERMINATE"
+                for pair in pairs
+            ),
+            "C6_read_error_code_counts": _error_code_counts(pairs, "C6", "read"),
+            "same_actual_read_route_pairs": _same_actual_route(pairs, "read", "C5", "C6"),
             "C6_successful_read_responses": sum(
                 _read_signature(pair["arms"]["C6"])["status"] == "SUCCESS"
                 for pair in pairs
@@ -506,15 +719,7 @@ def _counts(pairs: list[dict[str, Any]], contrast_id: str) -> dict[str, Any]:
                 _read_signature(pair["arms"]["C5"])["status"] == "SUCCESS"
                 for pair in pairs
             ),
-            "same_route_local_v1_majority_v0": sum(
-                _read_signature(pair["arms"]["C8"])["status"] == "SUCCESS"
-                and _read_signature(pair["arms"]["C8"])["version"] == 1
-                and _read_signature(pair["arms"]["C5"])["status"] == "SUCCESS"
-                and _read_signature(pair["arms"]["C5"])["version"] == 0
-                and _read_signature(pair["arms"]["C8"])["route"]
-                == _read_signature(pair["arms"]["C5"])["route"]
-                for pair in pairs
-            ),
+            "same_actual_read_route_pairs": _same_actual_route(pairs, "read", "C8", "C5"),
             "C8_W2_acknowledged": sum(
                 _operation(pair["arms"]["C8"], "write").get("operation_status") == "SUCCESS"
                 for pair in pairs
@@ -588,6 +793,9 @@ def _counts(pairs: list[dict[str, Any]], contrast_id: str) -> dict[str, Any]:
             _write_signature(pair["arms"]["C6"], "first_write")["error"] == "NetworkTimeout"
             and _final_write_presence(pair["arms"]["C6"], "w1") == "all_members"
             for pair in pairs
+        ),
+        "same_actual_first_write_route_pairs": _same_actual_route(
+            pairs, "first_write", "C3", "C6"
         ),
         "C6_converged_final_observations": sum(
             _final_write_presence(pair["arms"]["C6"], "w1") != "unobserved"
@@ -799,6 +1007,8 @@ def _summary_and_report(
         selections[contrast_id] = {
             "pair_id": chosen["pair_id"],
             "topology_matched": chosen["topology_matched"],
+            "role_state_eligible": chosen["role_state_eligible"],
+            "role_state_matched": chosen["role_state_matched"],
             "score": _score_pair(contrast_id, chosen),
             "histories": [
                 {
@@ -810,12 +1020,23 @@ def _summary_and_report(
                 for history in chosen["arms"].values()
             ],
         }
-        summary_contrasts[contrast_id] = {
+        contrast_summary = {
             "pair_count": len(pairs),
             "topology_matched_pairs": sum(pair["topology_matched"] for pair in pairs),
+            "role_state_auditable_pairs": sum(pair["role_state_eligible"] for pair in pairs),
+            "role_state_unobserved_pairs": sum(not pair["role_state_eligible"] for pair in pairs),
+            "role_state_matched_pairs": sum(pair["role_state_matched"] for pair in pairs),
+            "same_named_topology_signature_counts": _counts(
+                [pair for pair in pairs if pair["topology_matched"]], contrast_id
+            ),
             "signature_counts": _counts(pairs, contrast_id),
             "selected_pair": selections[contrast_id],
         }
+        if contrast_id == "M2":
+            contrast_summary["m2_timestamp_state_pattern_matched_pairs"] = sum(
+                pair["m2_timestamp_state_pattern_matched"] for pair in pairs
+            )
+        summary_contrasts[contrast_id] = contrast_summary
 
     causal_pair = next(
         pair
@@ -858,6 +1079,10 @@ def _summary_and_report(
         "schema_version": "rq3-analysis.v1",
         "campaign_manifest": manifest_path.relative_to(ROOT).as_posix(),
         "campaign_manifest_sha256": manifest_digest,
+        "role_state_audit_basis": (
+            "Post-hoc member-name permutation over role, fault, route, and recorded "
+            "lastWrite/commit timestamp components; per-OpTime terms are not retained."
+        ),
         "repetitions_per_contrast": campaign["repetitions_per_contrast"],
         "contrast_summaries": summary_contrasts,
         "selection_manifest": "results/analysis/rq3/selection-manifest.json",
@@ -887,19 +1112,36 @@ def _render_report_section(
         left, changed = specifications[contrast_id]
         n = repetitions
         if contrast_id == "M1":
-            evidence = (
-                f"C5 stale v0/no bound: {counts['C5_stale_success_without_after_cluster_time']}/{n}; "
-                f"C6 afterClusterTime present/matches W1 operationTime: "
-                f"{counts['C6_after_cluster_time_present']}/{n}/"
-                f"{counts['C6_after_cluster_time_matches_write_time']}/{n}; "
-                f"C6 reads issued: {counts['C6_read_attempted']}/{n}, "
-                f"successful: {counts['C6_successful_read_responses']}/{n}, "
-                f"not reached: {counts['C6_read_not_reached']}/{n}; "
+            successful_reads = counts["C6_successful_read_responses"]
+            error_codes = ", ".join(
+                f"{code}: {count}"
+                for code, count in counts["C6_read_error_code_counts"].items()
+            ) or "none recorded"
+            successful_value_summary = (
                 f"successful without a version: {counts['C6_successful_reads_without_version']}; "
                 f"nonstale concrete values: {counts['C6_nonstale_successful_reads']}/"
-                f"{counts['C6_successful_read_responses']}; "
-                f"stale among successful: {counts['C6_stale_successful_reads']}/"
-                f"{counts['C6_successful_read_responses']}."
+                f"{successful_reads}; stale among successful: "
+                f"{counts['C6_stale_successful_reads']}/{successful_reads}."
+                if successful_reads
+                else "no successful C6 read values to classify."
+            )
+            evidence = (
+                f"C5 stale v0/no afterClusterTime: "
+                f"{counts['C5_stale_success_without_after_cluster_time']}/{n}; "
+                f"W1 operationTime timestamp component greater than routed-member "
+                f"lastWrite timestamp component: "
+                f"{counts['C5_write_time_ahead_of_routed_member_last_write']}/{n}; "
+                f"C6 afterClusterTime present: {counts['C6_after_cluster_time_present']}/{n}, "
+                f"equal to W1 operationTime timestamp component: "
+                f"{counts['C6_after_cluster_time_matches_write_time']}/{n}, "
+                f"greater than routed-member lastWrite timestamp component: "
+                f"{counts['C6_after_cluster_time_ahead_of_routed_member_last_write']}/{n}; "
+                f"C6 reads issued: {counts['C6_read_attempted']}/{n}, "
+                f"successful: {successful_reads}/{n}, "
+                f"unavailable: {counts['C6_unavailable_reads']}/{n}, "
+                f"indeterminate: {counts['C6_indeterminate_reads']}/{n}, "
+                f"not reached: {counts['C6_read_not_reached']}/{n}; "
+                f"error codes: {error_codes}; {successful_value_summary}"
             )
         elif contrast_id == "M2":
             evidence = (
@@ -907,16 +1149,17 @@ def _render_report_section(
                 f"(successful reads: {counts['C8_successful_read_responses']}/{n}); "
                 f"C5 majority v0: {counts['C5_majority_read_v0']}/{n} "
                 f"(successful reads: {counts['C5_successful_read_responses']}/{n}); "
-                f"same route: {counts['same_route_local_v1_majority_v0']}/{n}; "
-                f"W2 acknowledgements C8/C5: {counts['C8_W2_acknowledged']}/{n}/"
-                f"{counts['C5_W2_acknowledged']}/{n}; non-successes: "
-                f"{counts['C8_W2_non_success']}/{n}/{counts['C5_W2_non_success']}/{n}; "
-                f"W2 on all final members C8/C5: "
-                f"{counts['C8_W2_present_on_all_final_members']}/{n}/"
-                f"{counts['C5_W2_present_on_all_final_members']}/{n}; "
-                f"read version retained after convergence C8/C5: "
-                f"{counts['C8_read_version_present_in_final_state']}/{n}/"
-                f"{counts['C5_read_version_present_in_final_state']}/{n}."
+                f"recorded timestamp-component pattern: "
+                f"{sum(pair['m2_timestamp_state_pattern_matched'] for pair in pairs)}/{n}; "
+                f"W2 acknowledged: C8 {counts['C8_W2_acknowledged']}/{n}, "
+                f"C5 {counts['C5_W2_acknowledged']}/{n}; non-success: "
+                f"C8 {counts['C8_W2_non_success']}/{n}, "
+                f"C5 {counts['C5_W2_non_success']}/{n}; W2 on all final members: "
+                f"C8 {counts['C8_W2_present_on_all_final_members']}/{n}, "
+                f"C5 {counts['C5_W2_present_on_all_final_members']}/{n}; "
+                f"read version retained after convergence: "
+                f"C8 {counts['C8_read_version_present_in_final_state']}/{n}, "
+                f"C5 {counts['C5_read_version_present_in_final_state']}/{n}."
             )
         else:
             evidence = (
@@ -931,9 +1174,28 @@ def _render_report_section(
                 f"C6 converged final states: {counts['C6_converged_final_observations']}/{n}."
             )
         topology_matched = sum(pair["topology_matched"] for pair in pairs)
-        evidence += f" Starting primary and fault target matched: {topology_matched}/{n}."
+        role_state_auditable = sum(pair["role_state_eligible"] for pair in pairs)
+        role_state_matched = sum(pair["role_state_matched"] for pair in pairs)
+        role_state_summary = (
+            f"{role_state_matched}/{role_state_auditable} auditable pairs"
+            if role_state_auditable
+            else "no auditable pairs"
+        )
+        route_operation = "first-write" if contrast_id == "M3" else "read"
+        route_match_count = counts[
+            "same_actual_first_write_route_pairs"
+            if contrast_id == "M3"
+            else "same_actual_read_route_pairs"
+        ]
+        evidence += (
+            f" Same-named initial primary/isolation target: {topology_matched}/{n}; "
+            f"same actual {route_operation} route: {route_match_count}/{n}; "
+            f"role/timestamp signature isomorphic under member-name permutation (post-hoc): "
+            f"{role_state_summary}; "
+            f"unobserved: {n - role_state_auditable}/{n}."
+        )
         chosen = selections[contrast_id]
-        matched = "topology matched" if chosen["topology_matched"] else "topology differed"
+        matched = "same-named member pair" if chosen["topology_matched"] else "member names differ"
         rows.append(
             f"{contrast_id} ({_latex_escape(left)}) & {_latex_escape(changed)} & "
             f"{_latex_escape(evidence)} & {_latex_escape(matched)}; "
@@ -942,25 +1204,86 @@ def _render_report_section(
     m2_pairs = grouped["M2"]
     m2_counts = _counts(m2_pairs, "M2")
     m2_topology_matches = sum(pair["topology_matched"] for pair in m2_pairs)
-    if m2_topology_matches < repetitions:
-        m2_note = (
-            f"M2 classifications were C8: {m2_counts['C8_WFR_violations']} "
-            f"VIOLATION/{m2_counts['C8_WFR_indeterminate']} INDETERMINATE; C5: "
-            f"{m2_counts['C5_WFR_passes']} PASS/{m2_counts['C5_WFR_indeterminate']} "
-            f"INDETERMINATE. W2 appears on all final members in both arms, but "
-            f"C8's returned v1 is absent from the converged final versions in "
-            f"{repetitions - m2_counts['C8_read_version_present_in_final_state']}/"
-            f"{repetitions}; C5's returned v0 remains in "
-            f"{m2_counts['C5_read_version_present_in_final_state']}/{repetitions}. "
-            f"Only {m2_topology_matches}/{repetitions} pairs matched both the initial "
-            "primary and isolated member, so interpret this as a pattern under the "
-            "recorded topologies rather than a fully topology-matched contrast."
+    m2_role_state_matches = sum(pair["role_state_matched"] for pair in m2_pairs)
+    m2_role_state_auditable = sum(pair["role_state_eligible"] for pair in m2_pairs)
+    m2_role_state_summary = (
+        f"{m2_role_state_matches}/{m2_role_state_auditable} auditable pairs"
+        if m2_role_state_auditable
+        else "no auditable pairs"
+    )
+    m2_note = (
+        f"M2 classifications: C8 {m2_counts['C8_WFR_violations']} WFR violations, "
+        f"{m2_counts['C8_WFR_indeterminate']} indeterminate; C5 "
+        f"{m2_counts['C5_WFR_passes']} WFR passes, "
+        f"{m2_counts['C5_WFR_indeterminate']} indeterminate. W2 was present on "
+        f"all final members in C8 {m2_counts['C8_W2_present_on_all_final_members']}/"
+        f"{repetitions} and C5 {m2_counts['C5_W2_present_on_all_final_members']}/"
+        f"{repetitions} pairs. C8's returned v1 is absent from the converged final "
+        f"versions in {repetitions - m2_counts['C8_read_version_present_in_final_state']}/"
+        f"{repetitions} pairs; C5's returned v0 remains in "
+        f"{m2_counts['C5_read_version_present_in_final_state']}/{repetitions}. "
+        f"Same-named initial primary/isolation targets: {m2_topology_matches}/"
+        f"{repetitions}; post-hoc role/timestamp-state audit: "
+        f"{m2_role_state_summary}; "
+        f"{repetitions - m2_role_state_auditable}/{repetitions} unobserved. The "
+        f"combined C8-local-v1/C5-majority-v0 outcome and recorded timestamp-component "
+        f"pattern (both reads routed to their isolated primary; the primary lastWrite "
+        f"timestamp component exceeded the commit timestamp component, while both "
+        f"secondary components equaled it) occurred in "
+        f"{sum(pair['m2_timestamp_state_pattern_matched'] for pair in m2_pairs)}"
+        f"/{repetitions} pairs. Interpret this under the explicit member-name "
+        "permutation assumption, not as same-host matching."
+    )
+    m3_exact_pairs = [pair for pair in grouped["M3"] if pair["topology_matched"]]
+    m3_exact_counts = _counts(m3_exact_pairs, "M3")
+    m3_role_state_matches = sum(pair["role_state_matched"] for pair in grouped["M3"])
+    m3_role_state_auditable = sum(pair["role_state_eligible"] for pair in grouped["M3"])
+    m3_role_state_summary = (
+        f"{m3_role_state_matches}/{m3_role_state_auditable} auditable pairs"
+        if m3_role_state_auditable
+        else "no auditable pairs"
+    )
+    if m3_exact_pairs:
+        m3_note = (
+            f"In the {len(m3_exact_pairs)} same-named M3 pairs, C3 acknowledged W1 "
+            f"and W1 was absent from every converged member in "
+            f"{m3_exact_counts['C3_acknowledged_w1_absent_from_all_converged_members']}/"
+            f"{len(m3_exact_pairs)}; C6 timed out on its majority W1 in "
+            f"{m3_exact_counts['C6_majority_first_write_network_timeout']}/"
+            f"{len(m3_exact_pairs)} and W1 was present on all final members in "
+            f"{m3_exact_counts['C6_w1_present_on_all_final_members_after_timeout']}/"
+            f"{len(m3_exact_pairs)}. The post-hoc role/timestamp-state audit matched "
+            f"{m3_role_state_summary} under member-name permutation."
         )
     else:
-        m2_note = (
-            f"M2 matched the initial primary and isolated member in all "
-            f"{repetitions} pairs."
+        m3_note = (
+            "No same-named M3 pairs were available for the exact-topology outcome "
+            "comparison. The post-hoc role/timestamp-state audit matched "
+            f"{m3_role_state_summary} under member-name permutation."
         )
+    m1_counts = _counts(grouped["M1"], "M1")
+    m1_errors = ", ".join(
+        f"{code}: {count}"
+        for code, count in m1_counts["C6_read_error_code_counts"].items()
+    ) or "none recorded"
+    m1_note = (
+        f"C5 returned stale v0 without afterClusterTime in "
+        f"{m1_counts['C5_stale_success_without_after_cluster_time']}/{repetitions} "
+        f"histories; W1's operationTime timestamp component was greater than the "
+        f"routed member's directly observed lastWrite timestamp component in "
+        f"{m1_counts['C5_write_time_ahead_of_routed_member_last_write']}/"
+        f"{repetitions}. In C6, afterClusterTime matched W1's operationTime "
+        f"timestamp component in {m1_counts['C6_after_cluster_time_matches_write_time']}/"
+        f"{repetitions} and was greater than the routed member's recorded lastWrite "
+        f"timestamp component at the pre-read snapshot in "
+        f"{m1_counts['C6_after_cluster_time_ahead_of_routed_member_last_write']}/"
+        f"{repetitions}; reads ended UNAVAILABLE with no value in "
+        f"{m1_counts['C6_unavailable_reads']}/{repetitions} histories (error codes: "
+        f"{m1_errors}). This is consistent with a causal lower bound constraining "
+        "read completion, but the snapshots and timeout do not prove an internal "
+        "server-side wait. Causal ordering constrains when a read may complete; "
+        "it does not make replication instantaneous."
+    )
     return rf"""\subsection{{Mechanism contrasts (RQ3)}}
 
 The study replays {repetitions} matched-seed pairs per contrast. Each arm is a
@@ -971,7 +1294,16 @@ snapshots are direct observations \cite{{mongodb-replset-status}}. The
 interpretations are consistent with documented causal-session, read-concern,
 and write-concern behavior
 \cite{{mongodb-causal-consistency,mongodb-read-concern,mongodb-write-concern}};
-they do not expose MongoDB's internal wait or replication state.
+they do not expose MongoDB's internal wait or replication state. Same-named
+member matching was preregistered; the supplementary role/state isomorphism
+audit is post-hoc and treats symmetric replica names as interchangeable labels.
+The three contrasts were motivated by six retrospective RQ1 anchor histories;
+their routes, outcomes, hashes, and selection limits are documented in
+\texttt{{docs/rq3-historical-trace-selection.md}}. Those anchors are not included
+in the replay denominators.
+The retained member lastWrite and majority-commit values include timestamp
+components but omit each OpTime's term, so timestamp-component comparisons below
+do not establish full term-aware OpTime order.
 
 {{\scriptsize
 \setlength{{\tabcolsep}}{{3pt}}
@@ -997,11 +1329,18 @@ The C3/C6 write comparison distinguishes acknowledgement from effect: a
 \texttt{{w:1}} acknowledgement followed by W1 missing from every converged,
 post-heal member is an observed rollback; a majority-write timeout remains
 unresolved until the direct final-state observation. The C5/C6 causal comparison
-records the command's causal time bound and client response separately, so a
-timeout is not described as proof of a server-side wait. Read concern is
-interpreted from the value and route actually recorded for each WFR read.
+records the command's causal time bound, direct routed-member state, and client
+response separately. Read concern is interpreted from the value and route
+actually recorded for each WFR read.
+The frozen protocol and runner specify \texttt{{w:1}} for M2's setup W1. The raw
+setup diagnostic does not retain its command event, so the outgoing concern is
+not independently observed in these histories.
+
+{_latex_escape(m1_note)}
 
 {_latex_escape(m2_note)}
+
+{_latex_escape(m3_note)}
 
 \maybefigure[fig:rq3-causal-timeline]{{submission/figures/rq3-causal-timeline.pdf}}{{Matched-seed C5/C6 RYW trace. The two arms use independent fault episodes; client command metadata, direct topology snapshots, and response outcomes are shown from the selected histories.}}
 """
