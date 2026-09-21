@@ -1,0 +1,45 @@
+\subsection{Mechanism contrasts (RQ3)}
+
+The study replays 8 matched-seed pairs per contrast. Each arm is a
+separate history and fault episode, so the seed and schedule are matched while
+the physical injections are independent. The counts below include every
+planned pair; topology matches are reported explicitly. The term and role
+snapshots are direct observations \cite{mongodb-replset-status}. The
+interpretations are consistent with documented causal-session, read-concern,
+and write-concern behavior
+\cite{mongodb-causal-consistency,mongodb-read-concern,mongodb-write-concern};
+they do not expose MongoDB's internal wait or replication state.
+
+{\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{longtable}{@{}p{1.7cm}p{2.5cm}p{7.8cm}p{2.4cm}@{}}
+\caption{RQ3 matched-seed mechanism contrasts. Counts use all 8 pairs per contrast.}
+\label{tab:rq3-mechanisms}\\
+\toprule
+Pair & Changed factor & Observed signatures & Topology / exemplar \\
+\midrule
+\endfirsthead
+\caption[]{RQ3 matched-seed mechanism contrasts (continued).}\\
+\toprule
+Pair & Changed factor & Observed signatures & Topology / exemplar \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+M1 (C5/C6) & causal: off/on & C5 stale v0/no bound: 8/8; C6 afterClusterTime present/matches W1 operationTime: 8/8/8/8; C6 reads issued: 8/8, successful: 0/8, not reached: 0/8; successful without a version: 0; nonstale concrete values: 0/0; stale among successful: 0/0. Starting primary and fault target matched: 8/8. & topology matched; selected \texttt{m1-r01} \\
+M2 (C8/C5) & read concern: local/majority & C8 local v1: 8/8 (successful reads: 8/8); C5 majority v0: 8/8 (successful reads: 8/8); same route: 0/8; W2 acknowledgements C8/C5: 5/8/5/8; non-successes: 3/8/3/8; W2 on all final members C8/C5: 8/8/8/8; read version retained after convergence C8/C5: 0/8/8/8. Starting primary and fault target matched: 0/8. & topology differed; selected \texttt{m2-r01} \\
+M3 (C3/C6) & write concern: w:1/majority & C3 w:1 first-write acknowledgements: 8/8; acknowledged W1 absent from every converged post-heal member: 8/8; C3 converged final states: 8/8; C6 majority acknowledgements: 0/8; C6 majority timeouts: 8/8; W1 later present on all converged members after NetworkTimeout: 8/8; C6 converged final states: 8/8. Starting primary and fault target matched: 4/8. & topology matched; selected \texttt{m3-r02} \\
+\end{longtable}
+}
+
+The C3/C6 write comparison distinguishes acknowledgement from effect: a
+\texttt{w:1} acknowledgement followed by W1 missing from every converged,
+post-heal member is an observed rollback; a majority-write timeout remains
+unresolved until the direct final-state observation. The C5/C6 causal comparison
+records the command's causal time bound and client response separately, so a
+timeout is not described as proof of a server-side wait. Read concern is
+interpreted from the value and route actually recorded for each WFR read.
+
+M2 classifications were C8: 5 VIOLATION/3 INDETERMINATE; C5: 5 PASS/3 INDETERMINATE. W2 appears on all final members in both arms, but C8's returned v1 is absent from the converged final versions in 8/8; C5's returned v0 remains in 8/8. Only 0/8 pairs matched both the initial primary and isolated member, so interpret this as a pattern under the recorded topologies rather than a fully topology-matched contrast.
+
+\maybefigure[fig:rq3-causal-timeline]{submission/figures/rq3-causal-timeline.pdf}{Matched-seed C5/C6 RYW trace. The two arms use independent fault episodes; client command metadata, direct topology snapshots, and response outcomes are shown from the selected histories.}

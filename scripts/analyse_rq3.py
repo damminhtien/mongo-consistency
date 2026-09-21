@@ -105,6 +105,16 @@ def _final_write_presence(history: dict[str, Any], write_id: str) -> str:
     return "no_members"
 
 
+def _final_contains_read_version(history: dict[str, Any]) -> bool:
+    version = _read_signature(history)["version"]
+    if not isinstance(version, int) or _final_write_presence(history, "w2") != "all_members":
+        return False
+    return all(
+        version in member.get("observed_versions", [])
+        for member in _final_members(history).values()
+    )
+
+
 def _matched_topology(pair: dict[str, dict[str, Any]]) -> bool:
     left, right = pair.values()
     left_primary = _initial_topology(left).get("primary")
@@ -302,64 +312,91 @@ def _find_pdflatex() -> str | None:
     return None
 
 
+def _snapshot_text(history: dict[str, Any], stage: str) -> str:
+    read = _read_signature(history)
+    snapshot = read.get(f"topology_{stage}")
+    if not isinstance(snapshot, dict):
+        return f"Topology {stage}: unavailable"
+    target = _member_from_address(read["route"])
+    members = snapshot.get("members")
+    state = members.get(target, {}) if isinstance(members, dict) else {}
+    term = snapshot.get("term")
+    return (
+        f"primary={snapshot.get('primary', 'unavailable')}; term="
+        f"{'unavailable' if term is None else term}; {target} "
+        f"role={state.get('role', 'unavailable')}; "
+        f"lastWrite={_format_timestamp(state.get('last_write_op_time'))}; "
+        f"majorityCommit={_format_timestamp(snapshot.get('last_committed_op_time'))}"
+    )
+
+
+def _write_trace_text(history: dict[str, Any]) -> str:
+    operation = _operation(history, "write")
+    write = _write_signature(history, "write")
+    return (
+        f"{write['status']} at {write['route']}; WC={operation.get('write_concern')}; "
+        f"opTime={_format_timestamp(operation.get('operation_time_after'))}; "
+        f"clusterTime={_format_timestamp(operation.get('cluster_time_after'))}"
+    )
+
+
+def _read_trace_text(history: dict[str, Any]) -> str:
+    operation = _operation(history, "read")
+    read = _read_signature(history)
+    if read["status"] == "SUCCESS":
+        result = f"SUCCESS v{read['version']}"
+    elif read["status"] is None:
+        result = "not reached"
+    else:
+        result = f"{read['status']}/{read['error'] or 'error unavailable'}"
+    return (
+        f"{result} at {read['route']}; RC={operation.get('read_concern')}; "
+        f"afterClusterTime={_format_timestamp(read['after_cluster_time']) if read['after_cluster_time'] is not None else 'absent'}; "
+        f"session opTime={_format_timestamp(operation.get('operation_time_before'))}, "
+        f"clusterTime={_format_timestamp(operation.get('cluster_time_before'))}; "
+        f"command={read['duration_ms'] if read['duration_ms'] is not None else 'unavailable'} ms"
+    )
+
+
 def _render_timeline(pair: dict[str, Any], destination: Path) -> None:
     arms = pair["arms"]
     c5 = arms["C5"]
     c6 = arms["C6"]
-    c5_read = _read_signature(c5)
-    c6_read = _read_signature(c6)
-    c5_write = _write_signature(c5, "write")
-    c6_write = _write_signature(c6, "write")
-    primary = str(_initial_topology(c5).get("primary", "unobserved"))
-    stale_member = _member_from_address(c6_read["route"] or c5_read["route"])
-    before = c6_read.get("topology_before") or {}
-    target_state = (before.get("members") or {}).get(stale_member, {})
-    target_role = target_state.get("role", "unobserved")
-    target_last_write = _format_timestamp(target_state.get("last_write_op_time"))
-    term = before.get("term")
-    term_text = "term unavailable" if term is None else f"term {term}"
-    c5_write_op = _operation(c5, "write")
-    c6_write_op = _operation(c6, "write")
-    write_text = (
-        f"Primary {primary}; C5: {c5_write['status']} at "
-        f"{_member_from_address(c5_write['route'])}, WC={c5_write_op.get('write_concern')}, "
-        f"opTime={_format_timestamp(c5_write_op.get('operation_time_after'))}, "
-        f"clusterTime={_format_timestamp(c5_write_op.get('cluster_time_after'))}; "
-        f"C6: {c6_write['status']} at {_member_from_address(c6_write['route'])}, "
-        f"WC={c6_write_op.get('write_concern')}, "
-        f"opTime={_format_timestamp(c6_write_op.get('operation_time_after'))}, "
-        f"clusterTime={_format_timestamp(c6_write_op.get('cluster_time_after'))}"
-    )
-    route_text = (
-        f"Target {stale_member}: role={target_role}, lastWrite={target_last_write}, "
-        f"{term_text}. C5 read: {_read_text(c5)}. C6 read: {_read_text(c6)}"
-    )
     c5_w1 = _final_write_presence(c5, "w1")
     c6_w1 = _final_write_presence(c6, "w1")
-    outcome_text = (
-        f"C5: {_read_result_text(c5)}; C6: {_read_result_text(c6)}. "
-        f"W1 after heal: C5={c5_w1}, C6={c6_w1}."
-    )
+    c5_final = f"{_read_result_text(c5)}; W1 after heal={c5_w1}"
+    c6_final = f"{_read_result_text(c6)}; W1 after heal={c6_w1}"
+    initial_primary = _initial_topology(c5).get("primary", "unavailable")
     source = rf"""\documentclass[10pt]{{article}}
-\usepackage[a4paper,margin=1.2cm]{{geometry}}
+\usepackage[paperwidth=210mm,paperheight=155mm,margin=12mm]{{geometry}}
 \usepackage[T1]{{fontenc}}
 \usepackage{{lmodern}}
 \usepackage{{booktabs}}
+\usepackage{{tabularx}}
+\usepackage{{array}}
 \pagestyle{{empty}}
 \setlength{{\parindent}}{{0pt}}
+\renewcommand{{\arraystretch}}{{1.35}}
 \begin{{document}}
 \begin{{center}}
-{{\large\bfseries Causal-session contrast: matched seed, separate fault episodes}}\\[0.5em]
-\footnotesize\texttt{{{_latex_escape(_history_id(c5))}}}\\
-\texttt{{{_latex_escape(_history_id(c6))}}}\\[0.8em]
-\begin{{tabular}}{{@{{}}p{{0.27\textwidth}}c p{{0.40\textwidth}}c p{{0.25\textwidth}}@{{}}}}
-\toprule
-\textbf{{1. Write}} & $\longrightarrow$ & \textbf{{2. Dependent read}} & $\longrightarrow$ & \textbf{{3. Client result}} \\
-\midrule
-{_latex_escape(write_text)} & $\longrightarrow$ & {_latex_escape(route_text)} & $\longrightarrow$ & {_latex_escape(outcome_text)} \\
-\bottomrule
-\end{{tabular}}
+{{\Large\bfseries Causal-session contrast}}\\[0.25em]
+{{\normalsize Matched seed; independent fault episodes; initial primary {initial_primary}}}\\[0.5em]
+{{\footnotesize\texttt{{{_latex_escape(_history_id(c5))}}}\\
+\texttt{{{_latex_escape(_history_id(c6))}}}}}
 \end{{center}}
+\vspace{{0.8em}}
+\normalsize
+\begin{{tabularx}}{{\textwidth}}{{@{{}}>{{\bfseries\raggedright\arraybackslash}}p{{0.16\textwidth}}>{{\raggedright\arraybackslash}}X>{{\raggedright\arraybackslash}}X@{{}}}}
+\toprule
+Stage & C5: causal session off & C6: causal session on \\
+\midrule
+1. W1 write & {_latex_escape(_write_trace_text(c5))} & {_latex_escape(_write_trace_text(c6))} \\
+2. R1 read & {_latex_escape(_read_trace_text(c5))} & {_latex_escape(_read_trace_text(c6))} \\
+3. Topology before R1 & {_latex_escape(_snapshot_text(c5, 'before'))} & {_latex_escape(_snapshot_text(c6, 'before'))} \\
+4. Topology after R1 & {_latex_escape(_snapshot_text(c5, 'after'))} & {_latex_escape(_snapshot_text(c6, 'after'))} \\
+5. Client result & {_latex_escape(c5_final)} & {_latex_escape(c6_final)} \\
+\bottomrule
+\end{{tabularx}}
 \end{{document}}
 """
     with tempfile.TemporaryDirectory(prefix="rq3-timeline-") as temporary:
@@ -477,6 +514,52 @@ def _counts(pairs: list[dict[str, Any]], contrast_id: str) -> dict[str, Any]:
                 and _read_signature(pair["arms"]["C8"])["route"]
                 == _read_signature(pair["arms"]["C5"])["route"]
                 for pair in pairs
+            ),
+            "C8_W2_acknowledged": sum(
+                _operation(pair["arms"]["C8"], "write").get("operation_status") == "SUCCESS"
+                for pair in pairs
+            ),
+            "C8_W2_non_success": sum(
+                _operation(pair["arms"]["C8"], "write").get("operation_status")
+                in {"UNAVAILABLE", "INDETERMINATE"}
+                for pair in pairs
+            ),
+            "C5_W2_acknowledged": sum(
+                _operation(pair["arms"]["C5"], "write").get("operation_status") == "SUCCESS"
+                for pair in pairs
+            ),
+            "C5_W2_non_success": sum(
+                _operation(pair["arms"]["C5"], "write").get("operation_status")
+                in {"UNAVAILABLE", "INDETERMINATE"}
+                for pair in pairs
+            ),
+            "C8_W2_present_on_all_final_members": sum(
+                _final_write_presence(pair["arms"]["C8"], "w2") == "all_members"
+                for pair in pairs
+            ),
+            "C5_W2_present_on_all_final_members": sum(
+                _final_write_presence(pair["arms"]["C5"], "w2") == "all_members"
+                for pair in pairs
+            ),
+            "C8_read_version_present_in_final_state": sum(
+                _final_contains_read_version(pair["arms"]["C8"])
+                for pair in pairs
+            ),
+            "C5_read_version_present_in_final_state": sum(
+                _final_contains_read_version(pair["arms"]["C5"])
+                for pair in pairs
+            ),
+            "C8_WFR_violations": sum(
+                pair["arms"]["C8"].get("result") == "VIOLATION" for pair in pairs
+            ),
+            "C8_WFR_indeterminate": sum(
+                pair["arms"]["C8"].get("result") == "INDETERMINATE" for pair in pairs
+            ),
+            "C5_WFR_passes": sum(
+                pair["arms"]["C5"].get("result") == "PASS" for pair in pairs
+            ),
+            "C5_WFR_indeterminate": sum(
+                pair["arms"]["C5"].get("result") == "INDETERMINATE" for pair in pairs
             ),
         }
     return {
@@ -793,15 +876,15 @@ def _render_report_section(
 ) -> str:
     repetitions = int(campaign["repetitions_per_contrast"])
     specifications = {
-        "M1": ("C5/C6", "causal session off/on", "C5 stale v0 without a causal time bound", "C6 carries afterClusterTime without a stale successful response"),
-        "M2": ("C8/C5", "read concern local/majority", "C8 local read returns v1", "C5 majority read returns v0"),
-        "M3": ("C3/C6", "write concern w:1/majority", "C3 first write is acknowledged", "C6 majority first write acknowledgement/status and final W1 state"),
+        "M1": ("C5/C6", "causal: off/on"),
+        "M2": ("C8/C5", "read concern: local/majority"),
+        "M3": ("C3/C6", "write concern: w:1/majority"),
     }
     rows = []
     for contrast_id in ("M1", "M2", "M3"):
         pairs = grouped[contrast_id]
         counts = _counts(pairs, contrast_id)
-        left, changed, _, _ = specifications[contrast_id]
+        left, changed = specifications[contrast_id]
         n = repetitions
         if contrast_id == "M1":
             evidence = (
@@ -824,7 +907,16 @@ def _render_report_section(
                 f"(successful reads: {counts['C8_successful_read_responses']}/{n}); "
                 f"C5 majority v0: {counts['C5_majority_read_v0']}/{n} "
                 f"(successful reads: {counts['C5_successful_read_responses']}/{n}); "
-                f"same-route differential: {counts['same_route_local_v1_majority_v0']}/{n}."
+                f"same route: {counts['same_route_local_v1_majority_v0']}/{n}; "
+                f"W2 acknowledgements C8/C5: {counts['C8_W2_acknowledged']}/{n}/"
+                f"{counts['C5_W2_acknowledged']}/{n}; non-successes: "
+                f"{counts['C8_W2_non_success']}/{n}/{counts['C5_W2_non_success']}/{n}; "
+                f"W2 on all final members C8/C5: "
+                f"{counts['C8_W2_present_on_all_final_members']}/{n}/"
+                f"{counts['C5_W2_present_on_all_final_members']}/{n}; "
+                f"read version retained after convergence C8/C5: "
+                f"{counts['C8_read_version_present_in_final_state']}/{n}/"
+                f"{counts['C5_read_version_present_in_final_state']}/{n}."
             )
         else:
             evidence = (
@@ -841,12 +933,33 @@ def _render_report_section(
         topology_matched = sum(pair["topology_matched"] for pair in pairs)
         evidence += f" Starting primary and fault target matched: {topology_matched}/{n}."
         chosen = selections[contrast_id]
-        ids = "/".join(_latex_escape(item["trial_id"]) for item in chosen["histories"])
         matched = "topology matched" if chosen["topology_matched"] else "topology differed"
         rows.append(
             f"{contrast_id} ({_latex_escape(left)}) & {_latex_escape(changed)} & "
             f"{_latex_escape(evidence)} & {_latex_escape(matched)}; "
-            f"exemplar \\texttt{{{ids}}} \\\\"
+            f"selected \\texttt{{{_latex_escape(chosen['pair_id'])}}} \\\\"
+        )
+    m2_pairs = grouped["M2"]
+    m2_counts = _counts(m2_pairs, "M2")
+    m2_topology_matches = sum(pair["topology_matched"] for pair in m2_pairs)
+    if m2_topology_matches < repetitions:
+        m2_note = (
+            f"M2 classifications were C8: {m2_counts['C8_WFR_violations']} "
+            f"VIOLATION/{m2_counts['C8_WFR_indeterminate']} INDETERMINATE; C5: "
+            f"{m2_counts['C5_WFR_passes']} PASS/{m2_counts['C5_WFR_indeterminate']} "
+            f"INDETERMINATE. W2 appears on all final members in both arms, but "
+            f"C8's returned v1 is absent from the converged final versions in "
+            f"{repetitions - m2_counts['C8_read_version_present_in_final_state']}/"
+            f"{repetitions}; C5's returned v0 remains in "
+            f"{m2_counts['C5_read_version_present_in_final_state']}/{repetitions}. "
+            f"Only {m2_topology_matches}/{repetitions} pairs matched both the initial "
+            "primary and isolated member, so interpret this as a pattern under the "
+            "recorded topologies rather than a fully topology-matched contrast."
+        )
+    else:
+        m2_note = (
+            f"M2 matched the initial primary and isolated member in all "
+            f"{repetitions} pairs."
         )
     return rf"""\subsection{{Mechanism contrasts (RQ3)}}
 
@@ -862,7 +975,7 @@ they do not expose MongoDB's internal wait or replication state.
 
 {{\scriptsize
 \setlength{{\tabcolsep}}{{3pt}}
-\begin{{longtable}}{{@{{}}p{{1.8cm}}p{{2.8cm}}p{{7.8cm}}p{{2.1cm}}@{{}}}}
+\begin{{longtable}}{{@{{}}p{{1.7cm}}p{{2.5cm}}p{{7.8cm}}p{{2.4cm}}@{{}}}}
 \caption{{RQ3 matched-seed mechanism contrasts. Counts use all {repetitions} pairs per contrast.}}
 \label{{tab:rq3-mechanisms}}\\
 \toprule
@@ -883,10 +996,12 @@ Pair & Changed factor & Observed signatures & Topology / exemplar \\
 The C3/C6 write comparison distinguishes acknowledgement from effect: a
 \texttt{{w:1}} acknowledgement followed by W1 missing from every converged,
 post-heal member is an observed rollback; a majority-write timeout remains
-unresolved until the direct final-state observation. The C5/C6 causal comparison records
-the command's causal time bound and client response separately, so a timeout is
-not described as proof of a server-side wait. Read concern is interpreted from
-the value and route actually recorded for each WFR read.
+unresolved until the direct final-state observation. The C5/C6 causal comparison
+records the command's causal time bound and client response separately, so a
+timeout is not described as proof of a server-side wait. Read concern is
+interpreted from the value and route actually recorded for each WFR read.
+
+{_latex_escape(m2_note)}
 
 \maybefigure[fig:rq3-causal-timeline]{{submission/figures/rq3-causal-timeline.pdf}}{{Matched-seed C5/C6 RYW trace. The two arms use independent fault episodes; client command metadata, direct topology snapshots, and response outcomes are shown from the selected histories.}}
 """
