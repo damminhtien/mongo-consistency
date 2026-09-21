@@ -173,7 +173,7 @@ def _valid_root(root: Path) -> None:
     (submission / "metadata.mk").write_text(
         "COURSE_CODE=DSA5208\n"
         "COURSE_TITLE=Scalable Distributed Computing for Data Science\n"
-        "PROJECT_SUPERVISOR=Prof. Cai, Zhenning\n"
+        "PROJECT_SUPERVISOR=Prof. Zhenning Cai\n"
         "PROJECT_TITLE=MongoDB consistency\n"
         "ACADEMIC_YEAR=AY2026/2027\n"
         "TEAM_NAME=Group\n"

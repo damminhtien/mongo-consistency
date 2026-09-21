@@ -3,20 +3,21 @@
 
 We tested four client-centric consistency properties on a three-member MongoDB
 replica set: read-your-writes (RYW), monotonic reads (MR), monotonic writes
-(MW), and writes-follow-reads (WFR). The registered RQ1 schedules varied read
-concern, write concern, and causal-session settings across C1-C8. RQ2 covered a
-secondary failure, a primary failure and election, and a partition that
-isolated the former primary. In normal operation, \NormalPassCount\ of
+(MW), and writes-follow-reads (WFR). The first set of schedules varied read
+concern, write concern, and causal-session settings across eight configurations.
+A separate fault campaign covered a secondary failure, a primary failure and
+election, and a partition that isolated the former primary. In normal
+operation, \NormalPassCount\ of
 \NormalHistoryCount\ histories passed and \NormalViolationCount\ showed a
-violation. Of \AdversarialHistoryCount\ adversarial RQ1 histories,
+violation. Of \AdversarialHistoryCount\ adversarial histories,
 \AdversarialPassCount\ passed and \AdversarialViolationCount\ violated a
 property. A further \AdversarialUnavailableCount\ did not complete,
 \AdversarialIndeterminateCount\ could not be resolved, and
 \AdversarialPreconditionMissCount\ failed a precondition; precondition misses
-were excluded from the consistency denominator. RQ2 covered \RQTwoHistoryCount\
-histories across \RQTwoFaultEpisodeCount\ fault episodes:
+were excluded from the consistency denominator. The fault campaign recorded
+\RQTwoHistoryCount\ histories across \RQTwoFaultEpisodeCount\ fault episodes:
 \RQTwoPassCount\ passed, \RQTwoViolationCount\ violated a property, and
-\RQTwoIndeterminateCount\ remained indeterminate. All RQ2 violations were
+\RQTwoIndeterminateCount\ remained indeterminate. All its violations were
 recorded in the primary-isolating partition condition. In four test cells,
 majority-write timeouts prevented the dependent operation from being
 issued. The findings are limited to MongoDB \MongoDBServerVersion, PyMongo

@@ -46,7 +46,7 @@ class SubmissionLayoutTests(unittest.TestCase):
             generated,
         )
         self.assertIn(
-            r"\newcommand{\ProjectSupervisor}{Prof. Cai, Zhenning}", generated
+            r"\newcommand{\ProjectSupervisor}{Prof. Zhenning Cai}", generated
         )
         self.assertIn(r"\newcommand{\AcademicYear}{AY2026/2027}", generated)
         self.assertIn(r"\newcommand{\TeamMembers}{Dam Minh Tien\\", generated)
@@ -158,30 +158,88 @@ class SubmissionLayoutTests(unittest.TestCase):
         positions = [report.index(item) for item in ordered]
         self.assertEqual(positions, sorted(positions))
         self.assertIn(r"\section*{Acknowledgements}", acknowledgements)
-        self.assertIn("We thank Prof. Cai, Zhenning", acknowledgements)
+        self.assertIn("We thank Prof. Zhenning Cai", acknowledgements)
         self.assertIn(r"\begin{tabular}", abbreviations)
         self.assertNotIn(r"\begin{longtable}", abbreviations)
 
+        abstract_input = r"\input{submission/sections/01-abstract.tex}"
+        acknowledgements_input = r"\input{submission/sections/00-acknowledgements.tex}"
+        abbreviations_input = r"\input{submission/sections/00-abbreviations.tex}"
+        self.assertRegex(
+            report,
+            re.escape(abstract_input) + r"\s*" + re.escape(acknowledgements_input),
+        )
+        contents_end = report.index(r"\tableofcontents") + len(r"\tableofcontents")
+        figures_start = report.index(r"\addcontentsline{toc}{section}{List of Figures}")
+        self.assertRegex(
+            report[contents_end:figures_start],
+            r"\s*\\clearpage\s*",
+        )
+        lists_start = figures_start
+        abbreviations_end = report.index(abbreviations_input) + len(abbreviations_input)
+        self.assertNotIn(r"\clearpage", report[lists_start:abbreviations_end])
+        self.assertRegex(
+            report,
+            re.escape(abbreviations_input)
+            + r"\s*\\clearpage\s*\\pagenumbering\{arabic\}",
+        )
+
         for abbreviation in (
-            "AI",
-            "AY",
-            "DSA5208",
+            "C1-C8",
             "F1-F3",
+            "H2.1-H2.4",
             "HTTP",
-            "ID",
             "MR",
             "MW",
-            "NUS",
-            "PDF",
             "RC",
             "RQ",
-            "RQ1/RQ2",
             "RYW",
-            "SHA-256",
             "WC",
             "WFR",
         ):
             self.assertIn(f"{abbreviation} &", abbreviations)
+
+        listed_abbreviations = {
+            line.split(" & ", 1)[0]
+            for line in abbreviations.splitlines()
+            if " & " in line
+        }
+        self.assertTrue(
+            {
+                "AI",
+                "AY",
+                "DSA5208",
+                "ID",
+                "NUS",
+                "PDF",
+                "RQ1/RQ2",
+                "SHA-256",
+            }.isdisjoint(listed_abbreviations)
+        )
+        self.assertIn(
+            "C denotes a configuration",
+            abbreviations,
+        )
+        self.assertIn(
+            "read concern, write concern, and causal-session setting",
+            abbreviations,
+        )
+        self.assertIn("hypotheses in the second experiment", abbreviations)
+
+        abstract = (ROOT / "submission/sections/01-abstract.tex").read_text(
+            encoding="utf-8"
+        )
+        introduction = (ROOT / "submission/sections/02-introduction.tex").read_text(
+            encoding="utf-8"
+        )
+        predictions = (ROOT / "submission/sections/05-predictions.tex").read_text(
+            encoding="utf-8"
+        )
+        self.assertNotIn("C1-C8", abstract)
+        self.assertNotIn("RQ1", abstract)
+        self.assertNotIn("RQ2", abstract)
+        self.assertIn("eight configurations labelled C1", introduction)
+        self.assertIn("hypotheses for RQ2, labelled H2.1 through H2.4", predictions)
 
     def test_report_sections_cover_project_requirements_in_order(self) -> None:
         ordered_sections = (
