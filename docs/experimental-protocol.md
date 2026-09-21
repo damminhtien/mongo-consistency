@@ -293,6 +293,24 @@ shutdown finishes the active trial's cleanup and marks the manifest
 provenance before skipping a completed case. RQ1 latency is not mixed with
 parallel execution measurements.
 
+#### Recorded RQ1 result
+
+The canonical RQ1 manifest is `COMPLETE` at 1,280/1,280 histories: 320 normal
+controls and 960 adversarial histories. The recorded outcomes are 415 PASS,
+443 VIOLATION, 224 UNAVAILABLE, 175 INDETERMINATE, 23 PRECONDITION_MISS, and no
+HARNESS_ERROR. Every precondition miss is an adversarial MR history. The runner
+records a clean frozen commit (`cc702ab`). Among the 960 adversarial histories,
+538 were resolved: 96 PASS and 442 VIOLATION. The consistency violation rate
+is 442/538 (82.2%); it describes only resolved histories under these schedules.
+The 23 MR PRECONDITION_MISS and 224 UNAVAILABLE histories remain separate
+outcomes.
+
+The prediction and protocol inputs are pinned to `b79b567` and `c7e3cf9`.
+Raw-record and schema validation passed. The offline summary, per-configuration
+prediction/outcome matrix, factorial contrasts, figures, and submission report
+were rebuilt from the canonical histories. Smoke manifests are separate
+machinery diagnostics and are excluded from RQ1 analysis and counts.
+
 ### RQ2 failure comparison
 
 RQ2 keeps the three-member replica set and crosses four sentinel

@@ -45,6 +45,12 @@ evidence. make pilot runs 192 separate histories. RQ1 is a sequential
 1,280-history campaign: 320 normal controls and 960 adversarial histories.
 The complete campaign is stored under the single canonical
 `results/raw/experiment/` directory.
+The manifest is complete at 1,280/1,280 histories. Across those histories,
+there are 415 PASS, 443 VIOLATION, 224 UNAVAILABLE, 175 INDETERMINATE, 23
+PRECONDITION_MISS, and no HARNESS_ERROR. All 23 precondition misses are
+adversarial MR histories. Of the 960 adversarial histories, 96 were PASS and
+442 were VIOLATION, giving 538 resolved histories. Smoke runs are separate
+machinery diagnostics and are not included in these counts.
 RQ2 is registered for C1/C3/C4/C6, three fault conditions, and all four
 properties. Its 384-history core is extended by 48 histories in four partition
 signature cells, for 432 histories total. RQ2 reuses the RQ1 normal histories

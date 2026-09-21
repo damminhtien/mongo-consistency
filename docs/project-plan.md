@@ -133,3 +133,17 @@ faults verified and all recovery checks converged. Record/schema validation
 passed and offline analysis was rebuilt. See [rq2-results.md](rq2-results.md).
 The host coordinator applies faults outside the runner container through a
 temporary IPC mount, keeping Docker control out of the runner.
+
+## Current RQ1 status
+
+RQ1 is complete. The canonical campaign completed all 1,280 histories on clean
+runner commit `cc702ab`: 320 normal controls and 960 adversarial histories.
+Across the full campaign there were 415 PASS, 443 VIOLATION, 224 UNAVAILABLE,
+175 INDETERMINATE, 23 PRECONDITION_MISS, and zero HARNESS_ERROR outcomes. Of
+the adversarial histories, 538 were resolved: 96 PASS and 442 VIOLATION.
+
+All 23 precondition misses occurred in adversarial MR histories; they remain
+separate from the consistency denominator. Raw-record and schema validation
+passed. The offline summary, prediction/outcome matrix, factorial contrasts,
+figures, and report were rebuilt from the canonical histories. Smoke records
+are separate machinery diagnostics, not RQ1 observations.
