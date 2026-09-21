@@ -26,5 +26,14 @@ not establish statistical significance.
 A zero observed violation count means no counterexample appeared in the
 completed histories for that registered schedule. It is not proof of a
 universal guarantee or a zero true violation probability. A high operation
-success rate is also distinct from history-level consistency: availability
-and consistency are reported separately.
+success rate is distinct from history-level consistency. Scheduled-operation
+success also does not measure continuous service availability.
+
+For F2, the scheduled-operation success rate is not an estimate of service
+availability across failover. Each history's first subject operation precedes
+the primary crash; the next operation is issued only after the new primary is
+elected. No request probes the election interval. All scheduled post-election
+operations completed successfully, while the median election interval was
+\RQTwoFtwoElectionMedianSeconds\ s across \RQTwoFtwoEpisodeCount\ episodes.
+We therefore interpret the \RQTwoFtwoOperationSuccessPercent\% result as
+success among scheduled calls, not as uninterrupted service during the election.

@@ -65,26 +65,47 @@ succeeded (\RQTwoOperationSuccessPercent\%), and
 Operation latency p50/p95/p99 was
 \RQTwoLatencyMedianMs/\RQTwoLatencyHighMs/\RQTwoLatencyTailMs\ ms. The independent
 observer checked \RQTwoRollbackCheckedWriteCount\ acknowledged writes and found
-\RQTwoRolledBackWriteCount\ rollbacks (\RQTwoRollbackPercent\%).
+\RQTwoRolledBackWriteCount\ rollbacks (\RQTwoRollbackPercent\%). The rollback
+rate describes writes in this fixed campaign and is not a real-world probability
+estimate.
 
 RQ2 used the matching C1/C3/C4/C6 RQ1 normal histories as a descriptive
 baseline; it added no normal histories. The tables report every fault,
 configuration, and property cell. Outcome vectors list, in order, PASS,
 VIOLATION, UNAVAILABLE, INDETERMINATE, PRECONDITION\_MISS, and HARNESS\_ERROR.
-Operation availability is reported as successful/attempted subject operations.
-Latency quantiles are in milliseconds. Rollback counts use acknowledged writes
-as the observation unit.
+Scheduled-operation success is reported as successful/attempted subject
+operations; this ratio does not measure continuous service availability during
+an interval with no request. Latency quantiles are in milliseconds. Rollback
+counts use acknowledged writes as the observation unit.
+
+All scheduled post-election operations completed successfully; the F2 failover
+nevertheless introduced a median election interval of
+\RQTwoFtwoElectionMedianSeconds\ s across \RQTwoFtwoEpisodeCount\ episodes,
+during which the experiment deliberately issued no second subject operation.
+The F2 operation-success rate therefore describes the calls that were
+scheduled, not request success or uninterrupted service during election. The F2
+operation-latency quantiles also cover issued calls only and exclude the election
+barrier.
+
+The latency table reports all subject operations with recorded start and end
+times, regardless of outcome. For F3, p95 across all
+\RQTwoFthreeOperationAttemptedCount\ timed operations was
+\RQTwoFthreeLatencyHighMs\ ms; this includes the
+\RQTwoFthreeIndeterminateCount\ timed-out INDETERMINATE
+calls. Among the \RQTwoFthreeOperationSuccessfulCount\ successful F3 operations,
+p95 latency was \RQTwoFthreeSuccessfulLatencyHighMs\ ms. These are different
+denominators and answer different questions.
 
 {\scriptsize
 \setlength{\tabcolsep}{3pt}
 \begin{longtable}{@{}lllrll@{}}
-\caption{RQ2 outcomes and operation availability by fault, configuration, and property.}
+\caption{RQ2 outcomes and scheduled-operation success by fault, configuration, and property.}
 \label{tab:rq2-outcomes}\\
 \toprule
 Fault & Config & Property & $n$ & P/V/U/I/PM/HE & Ops S/A \\
 \midrule
 \endfirsthead
-\caption[]{RQ2 outcomes and operation availability (continued).}\\
+\caption[]{RQ2 outcomes and scheduled-operation success (continued).}\\
 \toprule
 Fault & Config & Property & $n$ & P/V/U/I/PM/HE & Ops S/A \\
 \midrule
@@ -104,12 +125,12 @@ Fault & Config & Property & $n$ & P/V/U/I/PM/HE & Ops S/A \\
 \caption{RQ2 latency and acknowledged-write rollback by fault, configuration, and property.}
 \label{tab:rq2-latency-rollback}\\
 \toprule
-Fault & Config & Property & Latency p50/p95/p99 (ms) & Ack writes & Checked/rolled back & Rollback (\%) \\
+Fault & Config & Property & All-attempt latency p50/p95/p99 (ms) & Ack writes & Checked/rolled back & Rollback (\%) \\
 \midrule
 \endfirsthead
 \caption[]{RQ2 latency and acknowledged-write rollback (continued).}\\
 \toprule
-Fault & Config & Property & Latency p50/p95/p99 (ms) & Ack writes & Checked/rolled back & Rollback (\%) \\
+Fault & Config & Property & All-attempt latency p50/p95/p99 (ms) & Ack writes & Checked/rolled back & Rollback (\%) \\
 \midrule
 \endhead
 \midrule
@@ -126,7 +147,6 @@ Election and recovery use fault episodes as the unit (F1:
 \RQTwoFthreeEpisodeCount); histories sharing an episode are not independent
 fault injections. Every fault action was applied and every episode converged.
 
-\clearpage
 {\small
 \begin{longtable}{@{}lrrrrrr@{}}
 \caption{RQ2 election and recovery by fault episode. Times are p50 seconds.}

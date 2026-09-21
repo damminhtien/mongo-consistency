@@ -43,21 +43,34 @@ Every isolated member served successful client operations during the fault.
 Indeterminate operations are retained as timeouts and do not imply loss of the
 client route.
 
-## Operation availability, latency, and rollback
+## Scheduled operation outcomes, latency, and rollback
 
-| Fault | Histories | Successful/attempted operations | Success rate | Latency p50/p95/p99 (ms) | Acknowledged writes checked/rolled back |
+| Fault | Histories | Successful/attempted operations | Scheduled operation success rate | All-attempt latency p50/p95/p99 (ms) | Acknowledged writes checked/rolled back |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | F1 | 128 | 288/288 | 100.0% | 1.28 / 7.38 / 108.22 | 160/0 |
 | F2 | 128 | 288/288 | 100.0% | 1.37 / 6.65 / 8.28 | 160/0 |
 | F3 | 176 | 304/344 | 88.4% | 1.36 / 4993.57 / 4996.67 | 172/40 |
 
-The latency quantiles use subject operations with recorded start and end times.
-Overall, 880/920 operations succeeded (95.7%). All 432 histories reached a
-classified outcome. The independent observer checked all 492 acknowledged
-writes; 40 later rolled back (8.13%). The make analyse command also generates
-results/summary/summary.csv with the 48 fault/configuration/property groups,
-including per-cell outcomes, operation denominators, latency, rollback counts,
-and the matching RQ1 normal baseline.
+The success rate counts completed scheduled subject operations, not continuous
+service availability during intervals with no request. For F2, all scheduled
+post-election operations completed successfully; the failover nevertheless
+introduced a median election interval of 10.36 s during which the experiment
+deliberately issued no second subject operation. The 288/288 F2 result therefore
+does not measure request success during that election interval. F2 operation
+latency quantiles also cover scheduled calls only and exclude the election wait.
+
+All-attempt latency quantiles use every subject operation with recorded start
+and end times, including timed-out operations. For F3, the all-attempt p95 is
+4,993.57 ms because the 40 INDETERMINATE timeouts are retained. Among the 304
+successful F3 operations, p95 latency is 6.97 ms; this conditional quantile
+excludes those timeouts. Overall, 880/920 scheduled operations succeeded
+(95.7%). All 432 histories reached a classified outcome. The independent
+observer checked all 492 acknowledged writes; 40 later rolled back (8.13%).
+That rollback rate describes this fixed campaign and is not a real-world
+probability estimate. `make analyse` generates
+`results/summary/summary.csv` with the 48 fault/configuration/property groups,
+including per-cell outcomes, operation denominators, both all-attempt and
+successful-only latency, rollback counts, and the matching RQ1 normal baseline.
 
 ## Consistency outcomes
 

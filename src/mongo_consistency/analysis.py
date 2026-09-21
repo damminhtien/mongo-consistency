@@ -39,11 +39,12 @@ def quantile(values: Iterable[float], probability: float) -> float | None:
     return ordered[lower] + (ordered[upper] - ordered[lower]) * fraction
 
 
-def _duration_ms(history: History) -> list[float]:
+def _duration_ms(history: History, *, successful_only: bool = False) -> list[float]:
     return [
         (operation.end_ns - operation.start_ns) / 1_000_000
         for operation in history.operations
         if operation.kind != "setup"
+        and (not successful_only or operation.operation_status == "SUCCESS")
         and operation.start_ns is not None
         and operation.end_ns is not None
         and operation.end_ns >= operation.start_ns
@@ -55,15 +56,22 @@ def _operation_metrics(history: History) -> dict[str, Any]:
     successful = sum(operation.operation_status == "SUCCESS" for operation in operations)
     attempted = len(operations)
     durations = _duration_ms(history)
+    successful_durations = _duration_ms(history, successful_only=True)
     return {
         "attempted": attempted,
         "successful": successful,
         "success_rate": successful / attempted if attempted else None,
         "latencies_ms": durations,
+        "successful_latencies_ms": successful_durations,
         "latency_ms": {
             "p50": quantile(durations, 0.50),
             "p95": quantile(durations, 0.95),
             "p99": quantile(durations, 0.99),
+        },
+        "successful_latency_ms": {
+            "p50": quantile(successful_durations, 0.50),
+            "p95": quantile(successful_durations, 0.95),
+            "p99": quantile(successful_durations, 0.99),
         },
     }
 
@@ -389,6 +397,11 @@ def _group_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
         for row in rows
         for value in row["operation_metrics"].get("latencies_ms", [])
     ]
+    successful_latency_values = [
+        value
+        for row in rows
+        for value in row["operation_metrics"].get("successful_latencies_ms", [])
+    ]
     election_values = [
         value
         for row in rows
@@ -430,6 +443,7 @@ def _group_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "operation_success_rate": _rate(operation_successful, operation_attempted),
         "history_completion_rate": _rate(completed, len(rows)),
         "latency_ms": _quantile_set(latency_values),
+        "successful_latency_ms": _quantile_set(successful_latency_values),
         "election_ms": _quantile_set(election_values),
         "recovery_ms": _quantile_set(recovery_values),
         "acknowledged_write_count": acknowledged_writes,
@@ -1214,6 +1228,9 @@ def _write_summary_csv(path: Path, summaries: list[dict[str, Any]]) -> None:
         "latency_p50_ms",
         "latency_p95_ms",
         "latency_p99_ms",
+        "successful_latency_p50_ms",
+        "successful_latency_p95_ms",
+        "successful_latency_p99_ms",
         "election_p50_ms",
         "election_p95_ms",
         "election_p99_ms",
@@ -1262,6 +1279,9 @@ def _write_summary_csv(path: Path, summaries: list[dict[str, Any]]) -> None:
                 "latency_p50_ms": summary["latency_ms"]["p50"],
                 "latency_p95_ms": summary["latency_ms"]["p95"],
                 "latency_p99_ms": summary["latency_ms"]["p99"],
+                "successful_latency_p50_ms": summary["successful_latency_ms"]["p50"],
+                "successful_latency_p95_ms": summary["successful_latency_ms"]["p95"],
+                "successful_latency_p99_ms": summary["successful_latency_ms"]["p99"],
                 "election_p50_ms": summary["election_ms"]["p50"],
                 "election_p95_ms": summary["election_ms"]["p95"],
                 "election_p99_ms": summary["election_ms"]["p99"],

@@ -64,9 +64,16 @@ majority-write wait or failure. The independent observer checks all three
 members after healing or restarting the failed node. The primary analysis
 retains any acknowledged write later rolled back after convergence.
 
+For F2, after each history's pre-fault operation, the fault controller stops
+the primary and the runner waits for a new primary before issuing the
+post-fault operation. It deliberately sends no subject request during this
+election barrier. F2 therefore measures scheduled-operation success and
+election duration separately; it does not measure continuous request-level
+availability during election.
+
 Eight controlled repetitions support reproducible-behavior comparisons, not a
 precise estimate of a true violation probability. The report states counts and
-denominators and keeps operation availability separate from completed-history
-consistency.
+denominators and keeps scheduled-operation success separate from
+completed-history consistency.
 
 \maybefigure{submission/figures/representative-trace.pdf}{Representative operation trace with requested and actual routing.}

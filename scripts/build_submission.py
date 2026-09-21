@@ -391,6 +391,8 @@ def write_generated_analysis(path: Path, root: Path) -> None:
         "RQTwoEpisodeRows": "",
     }
     macros["RQTwoStatus"] = rq2_manifest_status
+    macros["RQTwoFthreeSuccessfulLatencyHighMs"] = "--"
+    macros["RQTwoFthreeIndeterminateCount"] = "--"
     if rq2_complete:
         rq2_adversarial = rq2_campaign.get("adversarial", {})
         rq2_outcomes = rq2_campaign.get("outcomes", {})
@@ -515,8 +517,14 @@ def write_generated_analysis(path: Path, root: Path) -> None:
             if not isinstance(fault_summary, dict):
                 fault_summary = {}
             prefix = f"RQTwo{rq2_fault_macro_names[fault]}"
+            fault_outcomes = fault_summary.get("outcomes", {})
+            if not isinstance(fault_outcomes, dict):
+                fault_outcomes = {}
             macros.update(
                 {
+                    f"{prefix}IndeterminateCount": str(
+                        int(fault_outcomes.get("INDETERMINATE", 0) or 0)
+                    ),
                     f"{prefix}OperationSuccessfulCount": str(
                         count_value(fault_summary, "operation_successful_count")
                     ),
@@ -537,6 +545,9 @@ def write_generated_analysis(path: Path, root: Path) -> None:
                     ),
                     f"{prefix}LatencyTailMs": millisecond_value(
                         (fault_summary.get("latency_ms") or {}).get("p99")
+                    ),
+                    f"{prefix}SuccessfulLatencyHighMs": millisecond_value(
+                        (fault_summary.get("successful_latency_ms") or {}).get("p95")
                     ),
                     f"{prefix}AcknowledgedWriteCount": str(
                         count_value(fault_summary, "acknowledged_write_count")
