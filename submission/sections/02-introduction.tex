@@ -1,7 +1,23 @@
 \section{Introduction}
 
-Client-centric consistency describes what one application can observe across its own operations. A replica set can acknowledge a write at one member while a later read reaches another member with a different state. Read concern, write concern, read preference, and causal session state determine which histories the client can observe \cite{mongodb-read-isolation,mongodb-read-write-semantics}.
+\subsection{Project objective}
 
-RQ1 asks how read concern, write concern, and causal sessions change RYW, MR, MW, and WFR under registered adversarial schedules. RQ2 asks: how do node failures, primary failover, and network partitions affect client-centric consistency, operation availability, and recovery in a three-member MongoDB replica set? It compares secondary crash, primary crash/election, and primary-isolating network partition. RQ2 uses C1, C3, C4, and C6 for all four properties and reuses the corresponding RQ1 normal histories as a descriptive baseline. A recorded dependency or visibility rule is used to explain a counterexample. A stronger setting can reduce a returned counterexample by waiting or rejecting an operation; that outcome is reported separately from a successful history.
+Our experiments measure what one MongoDB client can observe across operations
+on replicated data. We test four client-centric properties with registered
+schedules, versioned histories, and offline checkers. A completed history that
+contradicts a required dependency is a violation. Failed operations and
+unresolved effects remain unavailable or indeterminate, not passes. We follow
+the course's client-centric definitions \cite[slides 37 to 44]{cai-lecture-3}.
 
-The planned contribution is an executable comparison rather than a claim about MongoDB in general. The checker consumes saved histories without a live database. The report separates a successful history that violates a predicate from an operation that was blocked, timed out, or failed before a successful history existed.
+\subsection{Scope}
+
+MongoDB is deployed as a three-data-bearing-member replica set in Docker
+Compose. RQ1 varies read concern, write concern, and causal-session setting in
+the C1-C8 matrix. RQ2 tests a secondary crash, a primary crash followed by an
+election, and a partition that isolates the former primary from replication
+traffic while preserving its client route. The RQ2 matrix uses C1, C3, C4, and
+C6 and reuses matching RQ1 normal controls as its descriptive baseline.
+
+Findings are limited to the recorded software versions, schedules, C1-C8
+configuration matrix, and single-host container deployment. We did not measure
+production availability or behavior across geographically separated machines.

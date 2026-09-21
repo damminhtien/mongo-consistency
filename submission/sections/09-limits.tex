@@ -1,17 +1,28 @@
-\section{Limits}
+\section{Limitations and Threats to Validity}
 
-The baseline uses three containers on one laptop. The containers are logical
-replicas, not independent machines. Docker network faults are synthetic and do
-not reproduce a real wide-area network. Scheduler, replication, routing, and
-election timing can vary between trials.
+All three members ran as containers on one physical host. This setup tests
+replica behavior under controlled connectivity changes, but it does not model
+independent machine failures, wide-area latency, geographic placement, or
+independent clock behavior. The Docker VM kernel was recorded; the host
+operating-system release was not captured in the campaign manifests.
 
-The workloads are short and synthetic so a checker can evaluate a complete
-history. They cover only the registered operations and dependency patterns.
-Thirty repetitions are repetitions of these schedules, not a universal
-probability estimate. A precondition miss indicates that the required state
-was not created; it is reported separately and never converted into a database
-failure or violation.
+The workloads are short, synthetic histories chosen to exercise four
+client-centric properties. They do not represent arbitrary applications,
+multi-document transactions, or every routing and session pattern. Results
+apply to the recorded MongoDB and PyMongo versions, image digest, settings,
+registered schedules, and operation deadlines. They should not be generalized
+to other versions or production deployments without new evidence.
 
-Conclusions apply only to the server and driver versions, image digest,
-topology, settings, workloads, and fault schedules recorded in the campaign.
-Internal mechanisms are discussed only when supported by observable traces.
+Thirty RQ1 repetitions per adversarial cell and eight RQ2 core repetitions per
+cell (twenty in four F3 signature cells) provide finite coverage, not a
+probability estimate. Histories grouped under one RQ2 fault episode share a
+topology event and are not independent fault injections. F2 deliberately sends
+no request during the election barrier, so the experiment cannot quantify
+request availability during that interval. C6 timeouts leave some dependent
+operations unissued; those cases remain indeterminate rather than being
+treated as successful consistency checks.
+
+Outcome explanations use recorded routes, actual server addresses, direct role
+observations, session metadata, fault events, and independent post-recovery
+snapshots. We did not inspect MongoDB's internal causal state. The conclusions
+therefore apply only to the measured client histories and topology.

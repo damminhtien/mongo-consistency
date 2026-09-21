@@ -1,44 +1,63 @@
-# MongoDB consistency submission package
+# MongoDB consistency project submission
 
-The archive contains the report source, project documentation, executable
-harness, tests, and the raw evidence available in the source revision used to
-build it. Smoke histories are excluded from scientific evidence.
+This archive contains the report sources and the repository material needed to
+inspect or reproduce the recorded experiments. Campaign manifests identify
+which runs are complete and record their provenance. Derived tables and plots
+are rebuilt from canonical histories; smoke and pilot outputs are not treated
+as main-campaign evidence.
 
-## Rebuild
+## Rebuild the report and archive
 
-From a checkout with the pinned Python environment and LaTeX tooling installed:
+Use a checkout with the Python dependencies and LaTeX tools installed:
 
 ~~~bash
+python3 -m pip install -r requirements-dev.txt
 make test
 make check-docs
 make check-schemas
 make analyse
-make check-release-ready
 make submission
 ~~~
 
-The command writes
-output/pdf/mongo-consistency-report.pdf,
-output/submission/mongo-consistency-submission.zip, and a SHA-256 manifest.
-The archive source is placed under source/ so the report can be rebuilt from
-that directory.
+The build writes the report PDF, a filtered source/evidence archive, and a
+SHA-256 manifest under `output/`. The manifest records the base Git revision
+and working-tree state; its checksums identify the exact packaged source
+snapshot under `source/`.
 
-## Evidence status
+## Reproduce the campaigns
 
-The report reads its counts and metrics from generated analysis artifacts. A
-missing or incomplete campaign is labelled as such and is not presented as a
-zero-violation result. The 32-history smoke is machinery validation and is not
-included in the archive as scientific evidence. The pilot is kept separate
-from RQ1 estimates. RQ1 is run sequentially. RQ2 has a separate manifest and
-analysis condition: 384 core histories across C1/C3/C4/C6, F1/F2/F3, and
-RYW/MR/MW/WFR, plus 48 partition-signature histories. The matching RQ1 normal
-histories are the descriptive baseline; no normal histories are repeated in
-RQ2. The 432 histories are grouped into 36 shared fault episodes, so report
-episode-level election and recovery measures separately from history-level
-outcomes.
+Docker is required for setup and live campaigns. From a clean checkout with
+the frozen prediction, protocol, and runner provenance:
 
-## Metadata
+~~~bash
+make setup
+make smoke
+make pilot
+make experiment
+make rq2
+~~~
 
-Set the team name, member names and student IDs, submission date, and any
-course-required AI disclosure in source/submission/metadata.mk before making
-the final archive.
+Smoke checks the execution machinery and is not scientific evidence. Pilot
+histories remain separate from the main campaign. RQ1 runs sequentially. RQ2
+uses a separate manifest and groups histories that share a fault event.
+
+To derive report tables from saved histories without starting MongoDB, run:
+
+~~~bash
+make analyse
+make submission
+~~~
+
+## Contents and metadata
+
+The archive includes the assignment summary, project plan, experimental
+protocol, report plan, configuration and schedule inputs, schemas, source code,
+tests, analysis scripts, campaign manifests and histories included in the
+source snapshot, report source, bibliography, and package manifest. The full
+artifact map is in Appendix D of the report.
+
+Replace pending team identifiers in `submission/metadata.mk` and run
+`make check-release-ready` before upload. The report's AI Usage Statement
+describes the assistance used to organize and edit the report; the project
+group remains responsible for checking the sources, measurements, commands,
+explanations, and final PDF.

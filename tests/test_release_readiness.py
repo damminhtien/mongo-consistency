@@ -172,10 +172,15 @@ def _valid_root(root: Path) -> None:
     submission.mkdir()
     (submission / "metadata.mk").write_text(
         "COURSE_CODE=DSA5208\n"
+        "COURSE_TITLE=Scalable Distributed Computing for Data Science\n"
+        "PROJECT_SUPERVISOR=Prof. Cai, Zhenning\n"
         "PROJECT_TITLE=MongoDB consistency\n"
+        "ACADEMIC_YEAR=AY2026/2027\n"
         "TEAM_NAME=Group\n"
         "TEAM_MEMBERS=DAM MINH TIEN (A0355091E); NGUYEN MINH DUC (A0000000X); "
         "VU NHAT MINH THU (A0000001X)\n"
+        "STUDENT_EMAIL_MEMBER=DAM MINH TIEN\n"
+        "STUDENT_EMAIL=student@example.edu\n"
         "SUBMISSION_DATE=20 September 2026\n"
         "AI_USE_DISCLOSURE=Reviewed\n",
         encoding="utf-8",

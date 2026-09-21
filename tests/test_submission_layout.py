@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import unittest
 from pathlib import Path
 
@@ -10,6 +11,7 @@ from scripts.build_submission import (
     REQUIRED_SUBMISSION_FILES,
     parse_metadata,
     write_generated_analysis,
+    write_generated_metadata,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -25,6 +27,227 @@ class SubmissionLayoutTests(unittest.TestCase):
         values = parse_metadata(ROOT / "submission/metadata.mk")
         self.assertEqual(set(METADATA_KEYS), set(values))
         self.assertTrue(all(values[key] for key in METADATA_KEYS))
+
+    def test_cover_metadata_is_written_to_latex_macros(self) -> None:
+        from tempfile import TemporaryDirectory
+
+        values = parse_metadata(ROOT / "submission/metadata.mk")
+        with TemporaryDirectory() as directory:
+            target = Path(directory) / "generated-metadata.tex"
+            write_generated_metadata(target, values)
+            generated = target.read_text(encoding="utf-8")
+
+        self.assertIn(
+            r"\newcommand{\ProjectTitle}{Consistency Models in Distributed Databases}",
+            generated,
+        )
+        self.assertIn(
+            r"\newcommand{\CourseTitle}{Scalable Distributed Computing for Data Science}",
+            generated,
+        )
+        self.assertIn(
+            r"\newcommand{\ProjectSupervisor}{Prof. Cai, Zhenning}", generated
+        )
+        self.assertIn(r"\newcommand{\AcademicYear}{AY2026/2027}", generated)
+        self.assertIn(r"\newcommand{\TeamMembers}{Dam Minh Tien\\", generated)
+        self.assertIn("A0355091E\\\\\n\\StudentEmail", generated)
+        self.assertNotIn(r"Email: \StudentEmail", generated)
+        self.assertLess(
+            generated.index(r"\StudentEmail"),
+            generated.index("Nguyen Minh Duc"),
+        )
+        self.assertIn(r"\newcommand{\StudentEmail}{damminhtien@u.nus.edu}", generated)
+
+    def test_cover_matches_course_project_layout(self) -> None:
+        report = (ROOT / "submission/report.tex").read_text(encoding="utf-8")
+        cover = report.split(r"\begin{titlepage}", maxsplit=1)[1].split(
+            r"\end{titlepage}", maxsplit=1
+        )[0]
+        self.assertIn(r"\begin{titlepage}", report)
+        self.assertIn(r"\newgeometry{margin=3cm}", report)
+        self.assertIn(r"\restoregeometry", report)
+        self.assertIn(r"\centering", cover)
+        self.assertIn(r"\fontsize{18}{24}", cover)
+        self.assertIn(r"\fontsize{12}{18}", cover)
+        self.assertIn(r"\fontfamily{ptm}", cover)
+        self.assertNotIn(r"\vspace*{0.10\textheight}", cover)
+        self.assertIn(r"\CourseCode{}: PROJECT 1", cover)
+        self.assertNotIn(r"Email: \StudentEmail", cover)
+        self.assertIn(r"Project supervisor: \ProjectSupervisor", cover)
+        self.assertIn(r"\CourseCode{} \CourseTitle", cover)
+        self.assertIn("Centre for Data Science and Machine Learning", cover)
+        self.assertIn("Department of Mathematics", cover)
+        self.assertIn("National University of Singapore", cover)
+        self.assertIn("Project 1, Semester 1, \\AcademicYear", cover)
+        self.assertNotIn(r"\MakeUppercase", cover)
+        self.assertNotIn(r"\includegraphics", cover)
+        self.assertNotIn(r"\href", cover)
+        self.assertNotIn("Examiner", cover)
+        self.assertNotIn(r"\section*{Submission status}", report)
+        self.assertNotIn("The report includes measured evidence only", report)
+        self.assertNotIn(
+            "Complete pending course metadata before the Canvas upload", report
+        )
+
+    def test_professor_lecture_slides_are_bibliographic_sources(self) -> None:
+        bibliography = (ROOT / "submission/report.bib").read_text(encoding="utf-8")
+        introduction = (ROOT / "submission/sections/02-introduction.tex").read_text(
+            encoding="utf-8"
+        )
+        background = (ROOT / "submission/sections/03-background.tex").read_text(
+            encoding="utf-8"
+        )
+        configurations = (ROOT / "submission/sections/05-predictions.tex").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("@misc{cai-lecture-1,", bibliography)
+        self.assertIn("@misc{cai-lecture-3,", bibliography)
+        self.assertIn(r"\cite[slides 37 to 44]{cai-lecture-3}", introduction)
+        self.assertIn(r"\cite[slides 17 to 20]{cai-lecture-1}", background)
+        self.assertIn(r"\cite[slides 49 to 53]{cai-lecture-3}", configurations)
+
+    def test_cited_web_references_have_urls_and_are_rendered(self) -> None:
+        report = (ROOT / "submission/report.tex").read_text(encoding="utf-8")
+        bibliography = (ROOT / "submission/report.bib").read_text(encoding="utf-8")
+        sections = "\n".join(
+            path.read_text(encoding="utf-8")
+            for path in (ROOT / "submission/sections").glob("*.tex")
+        )
+
+        entries = {
+            match.group(1): match.group(2)
+            for match in re.finditer(r"(?ms)^@\w+\{([^,]+),(.*?)^\}", bibliography)
+        }
+        cited_keys = {
+            key.strip()
+            for citation in re.findall(r"\\cite(?:\[[^\]]*\])?\{([^}]+)\}", sections)
+            for key in citation.split(",")
+        }
+
+        self.assertTrue(cited_keys)
+        self.assertEqual(set(), cited_keys - entries.keys())
+        self.assertIn(r"\bibliographystyle{plainurl}", report)
+        course_sources = {"cai-lecture-1", "cai-lecture-3"}
+        for key in sorted(cited_keys - course_sources):
+            self.assertRegex(
+                entries[key],
+                r"(?m)^\s*url\s*=\s*\{https?://[^}]+\}",
+                msg=f"Cited web reference {key} must define a URL",
+            )
+
+    def test_front_matter_lists_figures_tables_and_abbreviations(self) -> None:
+        report = (ROOT / "submission/report.tex").read_text(encoding="utf-8")
+        acknowledgements = (
+            ROOT / "submission/sections/00-acknowledgements.tex"
+        ).read_text(encoding="utf-8")
+        abbreviations = (ROOT / "submission/sections/00-abbreviations.tex").read_text(
+            encoding="utf-8"
+        )
+        ordered = (
+            r"\pagenumbering{roman}",
+            r"\input{submission/sections/01-abstract.tex}",
+            r"\input{submission/sections/00-acknowledgements.tex}",
+            r"\addcontentsline{toc}{section}{Contents}",
+            r"\listoffigures",
+            r"\listoftables",
+            r"\input{submission/sections/00-abbreviations.tex}",
+            r"\pagenumbering{arabic}",
+            r"\input{submission/sections/02-introduction.tex}",
+        )
+        positions = [report.index(item) for item in ordered]
+        self.assertEqual(positions, sorted(positions))
+        self.assertIn(r"\section*{Acknowledgements}", acknowledgements)
+        self.assertIn("We thank Prof. Cai, Zhenning", acknowledgements)
+        self.assertIn(r"\begin{tabular}", abbreviations)
+        self.assertNotIn(r"\begin{longtable}", abbreviations)
+
+        for abbreviation in (
+            "AI",
+            "AY",
+            "DSA5208",
+            "F1-F3",
+            "HTTP",
+            "ID",
+            "MR",
+            "MW",
+            "NUS",
+            "PDF",
+            "RC",
+            "RQ",
+            "RQ1/RQ2",
+            "RYW",
+            "SHA-256",
+            "WC",
+            "WFR",
+        ):
+            self.assertIn(f"{abbreviation} &", abbreviations)
+
+    def test_report_sections_cover_project_requirements_in_order(self) -> None:
+        ordered_sections = (
+            "02-introduction.tex",
+            "03-background.tex",
+            "04-deployment.tex",
+            "05-predictions.tex",
+            "06-method.tex",
+            "07-results.tex",
+            "08-discussion.tex",
+            "09-limits.tex",
+            "10-reproduction.tex",
+            "11-conclusion.tex",
+        )
+        source = "\n".join(
+            (ROOT / "submission/sections" / filename).read_text(encoding="utf-8")
+            for filename in ordered_sections
+        )
+        expected_headings = (
+            r"\section{Introduction}",
+            r"\section{Database System and Deployment}",
+            r"\section{Consistency Configurations}",
+            r"\section{Experimental Design}",
+            r"\section{Experiments and Results}",
+            r"\section{Discussion}",
+            r"\section{Limitations and Threats to Validity}",
+            r"\section{Reproducibility}",
+            r"\section{Conclusion}",
+        )
+        positions = [source.index(heading) for heading in expected_headings]
+        self.assertEqual(positions, sorted(positions))
+
+        results = (ROOT / "submission/sections/07-results.tex").read_text(
+            encoding="utf-8"
+        )
+        for property_name in (
+            "Read-your-writes consistency",
+            "Monotonic-reads consistency",
+            "Monotonic-writes consistency",
+            "Writes-follow-reads consistency",
+        ):
+            self.assertIn(rf"\subsection{{{property_name}}}", results)
+        for prefix in ("RYW", "MR", "MW", "WFR"):
+            for subsection in (
+                "prediction",
+                "experiment",
+                "rationale",
+                "results",
+                "explanation",
+            ):
+                self.assertIn(
+                    rf"\subsubsection{{{prefix} {subsection}}}", results
+                )
+
+        discussion = (ROOT / "submission/sections/08-discussion.tex").read_text(
+            encoding="utf-8"
+        )
+        for heading in (
+            "Predictions and observations",
+            "Effect of consistency configuration",
+            "Effect of node failure",
+            "Effect of network partition",
+            "Consistency and availability",
+            "Unexpected behavior and interpretation",
+        ):
+            self.assertIn(rf"\subsection{{{heading}}}", discussion)
 
     def test_makefile_exposes_submission_target(self) -> None:
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
@@ -56,6 +279,46 @@ class SubmissionLayoutTests(unittest.TestCase):
         self.assertIn(r"\newcommand{\AnalysisStatus}{NO\_DATA}", content)
         self.assertIn(r"\newcommand{\LatencyMedian}{NO\_DATA}", content)
         self.assertIn(r"\newcommand{\AdversarialViolationCount}{--}", content)
+        self.assertIn(r"\newcommand{\RQTwoFaultEpisodeCount}{--}", content)
+
+    def test_complete_rq2_keeps_rq1_observation_rows_macro(self) -> None:
+        from tempfile import TemporaryDirectory
+
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            summary_path = root / "results/summary/summary.json"
+            summary_path.parent.mkdir(parents=True)
+            faults = ("F1", "F2", "F3")
+            configurations = ("C1", "C3", "C4", "C6")
+            properties = ("RYW", "MR", "MW", "WFR")
+            summary = {
+                "status": "DATA",
+                "groups": [
+                    {
+                        "campaign_id": "rq2",
+                        "topology_condition": fault,
+                        "configuration_id": configuration,
+                        "property": property_name,
+                    }
+                    for fault in faults
+                    for configuration in configurations
+                    for property_name in properties
+                ],
+                "fault_episode_summaries": [
+                    {"topology_condition": fault, "episode_count": 1}
+                    for fault in faults
+                ],
+            }
+            summary_path.write_text(json.dumps(summary), encoding="utf-8")
+            manifest_path = root / "results/raw/rq2/campaign-manifest.json"
+            manifest_path.parent.mkdir(parents=True)
+            manifest_path.write_text('{"status":"COMPLETE"}', encoding="utf-8")
+            target = root / "generated-analysis.tex"
+            write_generated_analysis(target, root)
+            generated = target.read_text(encoding="utf-8")
+
+        self.assertIn(r"\newcommand{\RQOnePredictionObservationRows}{", generated)
+        self.assertIn(r"\newcommand{\RQTwoFaultEpisodeCount}{3}", generated)
 
     def test_generated_report_uses_main_campaign_and_separates_conditions(self) -> None:
         from tempfile import TemporaryDirectory

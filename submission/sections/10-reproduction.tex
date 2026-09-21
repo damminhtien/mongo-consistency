@@ -1,54 +1,46 @@
-\section{Reproduction}
+\section{Reproducibility}
 
-The canonical source tree contains:
+The archive includes the source tree, raw campaign evidence available at the
+build revision, configuration and prediction files, schemas, tests, analysis
+scripts, report sources, and a SHA-256 manifest. The artifact map and command
+list are also provided in Appendices~\ref{app:repository} and
+\ref{app:install}.
 
-\begin{verbatim}
-configs/            configurations, schedules, predictions, campaign rules
-results/raw/        canonical histories and campaign manifests
-results/summary/    derived analysis outputs
-figures/            plots generated from raw histories
-schemas/            versioned record contracts
-scripts/            setup, runner, analysis, build, and validation commands
-src/                topology, workloads, history, checkers, and analysis
-tests/              offline fixtures and harness checks
-submission/         LaTeX sources, bibliography, and metadata
-\end{verbatim}
-
-Run the offline checks first:
+For a clean checkout, install the pinned Python dependencies and Docker tooling
+recorded for the campaign. The setup target verifies the local tools and
+starts the three-member Compose replica set:
 
 \begin{verbatim}
-make test
-make check-docs
-make check-schemas
-\end{verbatim}
-
-The live sequence is:
-
-\begin{verbatim}
+python3 -m pip install -r requirements-dev.txt
 make setup
+\end{verbatim}
+
+The live validation and experiment commands are:
+
+\begin{verbatim}
 make smoke
 make pilot
 make experiment
 make rq2
 \end{verbatim}
 
-The 32-history smoke validates machinery and is not scientific evidence. The
-192-history pilot is separate from the sequential RQ1 design of 320 normal
-controls and 960 adversarial histories. RQ2 has 384 core histories and 48
-additional histories for four partition-signature cells. It uses C1/C3/C4/C6,
-F1/F2/F3, and all four properties. It groups those histories into 24 core and
-12 partition-extension fault episodes. RQ1 normal histories are its baseline;
-no normal histories are repeated. The protocol requires frozen prediction
-and protocol commits before the pilot and main campaigns.
+Smoke validates machinery and is not scientific evidence. Pilot histories are
+kept separate from RQ1. RQ1 runs sequentially; RQ2 uses its own campaign
+manifest and grouped fault coordinator. Main campaigns require frozen,
+matching prediction, protocol, and runner provenance in a clean checkout.
 
-Analysis and packaging do not require a live MongoDB server:
+Analysis and report generation use the saved campaign artifacts and do not
+require a live database:
 
 \begin{verbatim}
+make test
+make check-docs
+make check-schemas
 make analyse
 make submission
 \end{verbatim}
 
-Analysis recomputes checkers and summaries from raw histories. Submission
-builds the PDF and checksummed reproduction archive from the source available
-at that revision. A clean-clone reproduction must use the recorded toolchain
-and verify the package manifest before upload.
+The first four commands validate and rebuild derived analysis from canonical
+raw histories. \texttt{make submission} rebuilds the PDF and filtered
+reproduction archive. Run \texttt{make check-release-ready} before upload; it
+checks required team metadata in addition to campaign evidence.

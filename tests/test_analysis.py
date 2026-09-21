@@ -15,7 +15,7 @@ from mongo_consistency.models import History, OperationRecord
 
 
 class AnalysisTests(unittest.TestCase):
-    def test_raw_loader_reads_histories_from_one_tree_without_overlay_rules(self) -> None:
+    def test_raw_loader_ignores_histories_without_a_campaign_manifest(self) -> None:
         history = History(
             manifest={
                 "trial_id": "experiment-00001-C1-ryw",
@@ -34,6 +34,7 @@ class AnalysisTests(unittest.TestCase):
             raw_root = Path(directory) / "raw"
             write_history(raw_root / "experiment/experiment-00001-C1-ryw.json", history)
             (raw_root / "experiment/campaign-manifest.json").write_text("{}", encoding="utf-8")
+            write_history(raw_root / "experiment-rebuild/orphaned-history.json", history)
 
             rows = load_rows(raw_root)
 

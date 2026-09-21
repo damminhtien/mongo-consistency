@@ -1,10 +1,11 @@
-\section{Background and formal model}
+\subsection{Client-centric consistency models}
 
 Let $v$ denote an integer application version allocated by the single logical
 writer. A write is written as $W_c(x,v)$ and a read as $R_c(x,v)$. The checker
 compares versions and explicit dependencies; response timestamps are used for
 latency and diagnosis only. Lamport scalar time can order events but does not by
-itself establish the application dependency required by these properties.
+itself establish the application dependency required by these properties
+\cite[slides 17 to 20]{cai-lecture-1}.
 
 \begin{description}
 \item[RYW] After client $c$ writes $W_c(x,v_w)$, a later read of $x$ must not
@@ -17,16 +18,13 @@ under the registered one-document observation.
 be visible without that version.
 \end{description}
 
-MongoDB causal sessions track operation and cluster time, but documented
-causal guarantees depend on the read and write concerns used by operations in
-the session \cite{mongodb-read-isolation,pymongo-sessions}. Causal ON and OFF
-both use an explicit session; only its causal-consistency option changes.
+\subsection{Research questions}
 
-The six history outcomes have separate meanings. PASS satisfies the checked
-predicate; VIOLATION is a complete counterexample; UNAVAILABLE means an
-operation could not be served; INDETERMINATE means a possible mutation or
-observation is unresolved; PRECONDITION\_MISS means the schedule did not
-establish its required state; HARNESS\_ERROR means the runner or controller
-failed. Only PASS and VIOLATION enter the consistency denominator.
+RQ1 asks how read concern, write concern, and causal sessions affect RYW, MR,
+MW, and WFR under registered schedules. RQ2 asks how node failures, primary
+failover, and network partitions affect the same properties, scheduled
+operation success, and recovery. Individual outcome explanations use recorded
+routes, dependencies, fault events, and final snapshots. Timestamps alone do
+not reveal MongoDB's internal causal state.
 
-\maybefigure{submission/figures/property-timelines.pdf}{Slide-aligned operation shapes for the four properties.}
+\maybefigure[fig:property-timelines]{submission/figures/property-timelines.pdf}{Operation schedules for the four client-centric properties.}

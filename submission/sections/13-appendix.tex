@@ -1,30 +1,100 @@
-\section{Build and evidence checklist}
+\section{Configuration Details}
+\label{app:configuration}
 
-The reproduction archive contains source and evidence available at the commit
-used for the build:
+The canonical configuration and schedule inputs are under \texttt{configs/}.
+The main report's C1-C8 matrix lists the tested read concern, write concern,
+causal-session setting, and registered target properties. Additional deployment
+defaults are:
 
 \begin{itemize}
-\item the report PDF and its LaTeX source;
-\item bibliography, submission metadata, and package instructions;
-\item assignment summary, project plan, protocol, report plan, and slide mapping;
-\item configuration matrix, prediction manifest, schedules, and schemas;
-\item setup, experiment, analysis, report-build, and validation scripts;
-\item source, tests, raw histories, summaries, plots, and image digests when present;
-\item a package README and SHA-256 manifest.
+\item replica-set name: \texttt{rs0}; three data-bearing members;
+\item database port inside each container: 27017;
+\item default host ports: 27017, 27018, and 27019;
+\item client subnet: 172.19.0.0/16; replica subnet: 172.20.0.0/16;
+\item operation deadlines, retry policy, and preconditions: \path{docs/experimental-protocol.md}.
 \end{itemize}
 
-The package builder excludes version-control metadata, local caches, virtual
-environments, and smoke histories. Missing campaign evidence remains missing;
-it is not replaced with predicted values.
+The prediction targets are stored in \texttt{configs/predictions.json}; the
+runner, schema, campaign, and schedule contracts are versioned alongside it.
+Reported settings come from those configuration files and the campaign
+manifests, not from a mutable setup snapshot.
 
-The report records separate prediction, protocol, and runner provenance. Every
-reported outcome is derived by the offline checker from a canonical raw
-history.
+\section{Installation and Reproduction Commands}
+\label{app:install}
 
-\section{Exploratory factorial contrasts}
+Run from the repository root in a clean checkout. \texttt{make setup} verifies
+the local toolchain and initializes the Docker Compose replica set. The
+campaign commands require the Docker services; offline analysis and report
+generation use saved artifacts.
 
-The contrasts summarize differences among available RQ1 cells. They are
-descriptive, do not impute missing outcomes, and are not tests of statistical
+\begin{verbatim}
+python3 -m pip install -r requirements-dev.txt
+make setup
+make smoke
+make pilot
+make experiment
+make rq2
+make test
+make check-docs
+make check-schemas
+make analyse
+make submission
+make check-release-ready
+\end{verbatim}
+
+Smoke and pilot outputs are not pooled into the main campaign results. The
+campaign manifest records status, source provenance, software versions, and
+image digest. Analysis validates and recomputes outcomes from canonical raw
+histories before building the report. The release-readiness check also
+requires complete team metadata.
+
+\section{Additional Results}
+\label{app:additional-results}
+
+Machine-readable results are under \texttt{results/summary/}; canonical
+histories and manifests are under \texttt{results/raw/}. The RQ2 episode table
+records fault application, election, and recovery at the episode level.
+The following factorial figure is descriptive and does not claim statistical
 significance.
 
-\maybefigure{submission/figures/factorial-interactions.pdf}{Descriptive factorial contrasts for RQ1 adversarial histories.}
+\maybefigure[fig:factorial-interactions]{submission/figures/factorial-interactions.pdf}{Descriptive factorial contrasts for RQ1 adversarial histories.}
+\FloatBarrier
+
+\section{Source Structure and Requirement Map}
+\label{app:repository}
+
+The principal artifact locations are:
+
+\begin{verbatim}
+configs/       configuration, schedules, predictions, campaign rules
+docs/          assignment, project plan, protocol, results, report plan
+figures/       analysis figures derived from campaign histories
+infra/         experiment container and fault-controller definitions
+results/raw/   campaign histories and manifests
+results/summary/derived summaries and metrics
+schemas/       versioned record contracts
+scripts/       setup, execution, analysis, validation, report build
+src/           workloads, topology, recorder, checkers, analysis
+submission/    LaTeX source, bibliography, metadata, package guide
+tests/         offline fixtures and harness checks
+\end{verbatim}
+
+\begin{center}
+\small
+\begin{tabular}{@{}p{0.52\textwidth}p{0.36\textwidth}@{}}
+\toprule
+Project requirement & Report location \\
+\midrule
+Chosen database and deployment architecture & Sections 2.1--2.2 \\
+Software versions and installation procedure & Sections 2.3--2.4 \\
+Consistency parameters and expected behavior & Sections 3.1--3.4 \\
+Four client-centric properties and predictions & Sections 1.3, 3.4, 5.1--5.4 \\
+Design, rationale, normal operation, node failure, partition & Sections 4.1--4.7 \\
+Results and explanation & Section 5 \\
+Prediction-to-observation comparison & Section 6.1 \\
+Limitations & Section 7 \\
+Sources and AI use & References; AI Usage Statement \\
+Source code and reproduction instructions & Section 8; Appendices B and D \\
+\bottomrule
+\end{tabular}
+\end{center}

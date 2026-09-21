@@ -1,30 +1,82 @@
-\section{Deployment and settings}
+\section{Database System and Deployment}
 
-The baseline deployment is a three-member MongoDB replica set in Docker Compose. The runner uses Python and PyMongo and reaches the members through a client-only network. A separate sidecar controls replica-network traffic through a narrow HTTP interface. The design keeps the cluster on one host and records the server version, driver version, Python version, Docker Engine version, Compose version, member identities, and observed roles with each trial \cite{mongodb-replication}.
+\subsection{MongoDB overview}
 
-The locked settings are listed in Table~\ref{tab:settings}. C1-C8 form a full three-factor design. The exact values used in a run belong in its trial manifest as well as in this table.
+The selected database is MongoDB, configured as a replica set with three
+data-bearing members. Replica-set election, replication, read concern, and write
+concern expose the consistency and failure behavior tested in this study
+\cite{mongodb-replication,mongodb-read-isolation,mongodb-write-concern}.
+
+\subsection{Deployment architecture}
+
+The Compose deployment runs on one physical host. Three MongoDB containers
+(`mongo1`, `mongo2`, and `mongo3`) join a client network and a separate replica
+network. The experiment runner joins only the client network. A fault
+controller shares each MongoDB container's network namespace and changes
+replica-path reachability through a restricted control endpoint. The runner
+does not have a Docker socket or Docker credentials.
+
+The default host ports are 27017, 27018, and 27019 for the three members; their
+database port inside each container is 27017. The default Compose subnets are
+172.19.0.0/16 for clients and 172.20.0.0/16 for replication. Environment
+overrides are defined in \texttt{compose.yaml}. The architecture figure shows
+the client and replication paths. Roles are elected and may change;
+trial records preserve requested routes, actual servers, and direct role
+observations rather than treating one setup snapshot as permanent topology.
+
+\maybefigure[fig:architecture]{submission/figures/architecture.pdf}{Three-member deployment and client and replication networks.}
+
+\subsection{Software and environment versions}
+
+Table~\ref{tab:environment-versions} is generated from the completed RQ1
+campaign manifest and the setup snapshot. The campaign image digest identifies
+the MongoDB image used for the recorded histories. The host operating-system
+release was not captured in the campaign manifests.
 
 \begin{table}[ht]
 \centering
-\caption{Candidate read, write, and session settings.}
-\label{tab:settings}
-\begin{tabular}{@{}llll@{}}
+\caption{Software versions recorded for the experiment.}
+\label{tab:environment-versions}
+\begin{tabular}{@{}ll@{}}
 \toprule
-ID & Read concern & Write concern & Causal session \\
+Component & Recorded value \\
 \midrule
-C1 & \texttt{local} & \texttt{w: 1} & off \\
-C2 & \texttt{local} & \texttt{w: 1} & on \\
-C3 & \texttt{majority} & \texttt{w: 1} & on \\
-C4 & \texttt{local} & \texttt{majority} & on \\
-C5 & \texttt{majority} & \texttt{majority} & off \\
-C6 & \texttt{majority} & \texttt{majority} & on \\
-C7 & \texttt{majority} & \texttt{w: 1} & off \\
-C8 & \texttt{local} & \texttt{majority} & off \\
+MongoDB image & \texttt{\MongoDBImage} \\
+MongoDB server & \texttt{\MongoDBServerVersion} \\
+PyMongo & \texttt{\PyMongoVersion} \\
+Runner Python & \texttt{\RunnerPythonVersion} \\
+Docker Engine & \texttt{\DockerEngineVersion} \\
+Docker Compose & \texttt{\DockerComposeVersion} \\
+Docker VM kernel & \texttt{\DockerKernelVersion} \\
+Host OS release & \HostOSVersion \\
+Image digest & {\scriptsize\texttt{\MongoImageDigest}} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-The target versions are MongoDB 7.0.34, PyMongo 4.18.1, Python 3.14.7, Docker Engine 29.8.0, and Docker Compose 5.5.1. MongoDB 7.0.34 was selected after a direct startup probe on the Docker Desktop Linux kernel available on the experiment machine. The setup record also stores the resolved image digest. Operation timeout is 5 seconds; election and topology convergence have a separate 30-second barrier.
+\subsection{Installation and replica-set initialization}
 
-\maybefigure{submission/figures/architecture.pdf}{Compose architecture and the client and replica network paths.}
-\maybefigure{submission/figures/fault-topology.pdf}{Fault topologies used by the property schedules.}
+Run \texttt{make setup} from the repository root. The setup script checks the
+pinned local tools and Compose configuration, verifies the Docker daemon,
+builds the runner and three fault controllers, and starts the three MongoDB
+members and controllers. It then issues \texttt{rs.initiate()} for replica set
+\texttt{rs0}, waits for a stable primary and two secondaries, probes the
+container-side Python and PyMongo versions, and records the image digest and
+member roles. The complete command sequence is in Appendix~\ref{app:install}.
+
+\subsection{Deployment verification}
+
+The topology oracle sends a direct \texttt{hello} command to each member. A
+stable setup requires one reachable primary and two reachable secondaries.
+Campaign histories retain role and server observations for each operation;
+the setup snapshot is provenance, not a substitute for trial-level checks.
+The setup view of the running containers is shown in
+Figure~\ref{fig:docker-desktop-running}.
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.82\linewidth]{submission/evidence/docker-desktop-running.png}
+\caption{Docker Desktop container list showing the experiment runner, three MongoDB members, and fault controllers running.}
+\label{fig:docker-desktop-running}
+\end{figure}
+\FloatBarrier

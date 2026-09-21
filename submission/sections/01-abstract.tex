@@ -1,19 +1,23 @@
-\section{Abstract}
+\section*{Abstract}
+\addcontentsline{toc}{section}{Abstract}
 
-This study evaluates read-your-writes (RYW), monotonic reads (MR), monotonic
-writes (MW), and writes-follow-reads (WFR) in a three-member MongoDB replica
-set. RQ1 varies read concern, write concern, and explicit causal sessions across
-the C1-C8 configuration matrix. RQ2 compares secondary crash, primary
-crash/election, and primary-isolating partition under C1, C3, C4, and C6 for
-the same four properties. Its registered design has 384 core histories and 48
-partition-signature extensions; RQ1 normal histories supply the descriptive
-baseline. Each property has a registered schedule and a separate offline
-checker.
-
-The report uses the campaign and analysis state recorded at build time:
-\texttt{\MainCampaignStatus} and \texttt{\AnalysisStatus}. It reports the
-available history counts and keeps PASS, VIOLATION, UNAVAILABLE,
-INDETERMINATE, PRECONDITION\_MISS, and HARNESS\_ERROR distinct. If the analysis
-state is \texttt{NO\_DATA}, the build contains no measured campaign conclusion.
-Claims apply only to the recorded software versions, settings, topology,
-workloads, and schedules.
+We tested four client-centric consistency properties on a three-member MongoDB
+replica set: read-your-writes (RYW), monotonic reads (MR), monotonic writes
+(MW), and writes-follow-reads (WFR). The registered RQ1 schedules varied read
+concern, write concern, and causal-session settings across C1-C8. RQ2 covered a
+secondary failure, a primary failure and election, and a partition that
+isolated the former primary. In normal operation, \NormalPassCount\ of
+\NormalHistoryCount\ histories passed and \NormalViolationCount\ showed a
+violation. Of \AdversarialHistoryCount\ adversarial RQ1 histories,
+\AdversarialPassCount\ passed and \AdversarialViolationCount\ violated a
+property. A further \AdversarialUnavailableCount\ did not complete,
+\AdversarialIndeterminateCount\ could not be resolved, and
+\AdversarialPreconditionMissCount\ failed a precondition; precondition misses
+were excluded from the consistency denominator. RQ2 covered \RQTwoHistoryCount\
+histories across \RQTwoFaultEpisodeCount\ fault episodes:
+\RQTwoPassCount\ passed, \RQTwoViolationCount\ violated a property, and
+\RQTwoIndeterminateCount\ remained indeterminate. All RQ2 violations were
+recorded in the primary-isolating partition condition. In four test cells,
+majority-write timeouts prevented the dependent operation from being
+issued. The findings are limited to MongoDB \MongoDBServerVersion, PyMongo
+\PyMongoVersion, the registered schedules, and the single-host topology.

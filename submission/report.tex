@@ -8,6 +8,7 @@
 \usepackage{booktabs}
 \usepackage{graphicx}
 \usepackage{longtable}
+\usepackage{placeins}
 \usepackage{textcomp}
 \usepackage{url}
 \usepackage[hidelinks]{hyperref}
@@ -18,52 +19,64 @@
 \setlength{\parindent}{0pt}
 \setlength{\parskip}{5pt}
 
-\newcommand{\maybefigure}[2]{%
+\newcommand{\maybefigure}[3][]{%
 \begin{figure}[ht]
 \centering
-\IfFileExists{#1}{%
-\includegraphics[width=0.94\linewidth]{#1}%
+\IfFileExists{#2}{%
+\includegraphics[width=0.94\linewidth]{#2}%
 }{%
-\fbox{\parbox{0.88\linewidth}{\centering\texttt{NO DATA}: #2}}%
+\fbox{\parbox{0.88\linewidth}{\centering\texttt{NO DATA}: #3}}%
 }%
-\caption{#2}
+\caption{#3}
+\if\relax\detokenize{#1}\relax\else\label{#1}\fi
 \end{figure}%
 }
 
-\title{\ProjectTitle}
-\author{\TeamName\\\parbox{0.92\textwidth}{\centering\TeamMembers}}
-\date{\SubmissionDate}
-
 \begin{document}
 
-\maketitle
-
-\begin{center}
-\textbf{\CourseCode{} project submission}
-\end{center}
-
-\section*{Submission status}
-
-\begin{tabular}{@{}p{0.34\linewidth}p{0.58\linewidth}@{}}
-\toprule
-Report source & \texttt{submission/report.tex} \\
-Evidence state & \texttt{\AnalysisStatus} \\
-Main campaign manifest & \texttt{\MainCampaignStatus} \\
-Main campaign histories & \texttt{\HistoryCount} \\
-Normal controls / adversarial & \texttt{\NormalHistoryCount} / \texttt{\AdversarialHistoryCount} \\
-Pilot histories (excluded from main estimates) & \texttt{\PilotHistoryCount} \\
-Result labels & \texttt{PASS}, \texttt{VIOLATION}, \texttt{UNAVAILABLE}, \texttt{INDETERMINATE}, \texttt{PRECONDITION\_MISS}, \texttt{HARNESS\_ERROR} \\
-Reproduction entry point & \texttt{make submission} \\
-\bottomrule
-\end{tabular}
-
+\newgeometry{margin=3cm}
+\begin{titlepage}
+\thispagestyle{empty}
+\centering
+\vspace*{0.15\textheight}
+{\fontfamily{ptm}\fontsize{18}{24}\selectfont\bfseries
+\mbox{\ProjectTitle}\par}
+\vspace{1.8cm}
+{\fontfamily{ptm}\fontsize{12}{18}\selectfont
+\CourseCode{}: PROJECT 1\par}
+\vspace{1.4cm}
+{\fontfamily{ptm}\fontsize{12}{18}\selectfont
+\TeamMembers\par}
+\vspace{1.4cm}
+{\fontfamily{ptm}\fontsize{12}{18}\selectfont
+Project supervisor: \ProjectSupervisor\par}
 \vfill
+{\fontfamily{ptm}\fontsize{12}{18}\selectfont
+Centre for Data Science and Machine Learning\\
+Department of Mathematics\\
+National University of Singapore\\[0.8em]
+\CourseCode{} \CourseTitle\\
+Project 1, Semester 1, \AcademicYear\par}
+\end{titlepage}
+\restoregeometry
 
-\noindent The report includes measured evidence only when the corresponding analysis artifacts exist. A \texttt{NO\_DATA} status is not a zero-violation result. Complete pending course metadata before the Canvas upload.
-
-\newpage
-
+\pagenumbering{roman}
 \input{submission/sections/01-abstract.tex}
+\clearpage
+\input{submission/sections/00-acknowledgements.tex}
+\clearpage
+\addcontentsline{toc}{section}{Contents}
+\tableofcontents
+\clearpage
+\addcontentsline{toc}{section}{List of Figures}
+\listoffigures
+\clearpage
+\addcontentsline{toc}{section}{List of Tables}
+\listoftables
+\clearpage
+\input{submission/sections/00-abbreviations.tex}
+\clearpage
+\pagenumbering{arabic}
 \input{submission/sections/02-introduction.tex}
 \input{submission/sections/03-background.tex}
 \input{submission/sections/04-deployment.tex}
@@ -75,7 +88,9 @@ Reproduction entry point & \texttt{make submission} \\
 \input{submission/sections/10-reproduction.tex}
 \input{submission/sections/11-conclusion.tex}
 
-\bibliographystyle{plain}
+\clearpage
+\addcontentsline{toc}{section}{References}
+\bibliographystyle{plainurl}
 \bibliography{submission/report}
 
 \input{submission/sections/12-tool-use.tex}

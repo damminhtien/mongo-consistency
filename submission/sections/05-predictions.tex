@@ -1,41 +1,90 @@
-\section{Predictions}
+\section{Consistency Configurations}
 
-The prediction matrix is committed before the main result files. A target lists the property for which the selected combination is expected to protect a successful history under the registered schedule. An unlisted property can expose a counterexample; it does not predict a violation on every repetition.
+\subsection{MongoDB consistency mechanisms}
 
-\begin{longtable}{@{}p{0.10\linewidth}p{0.23\linewidth}p{0.24\linewidth}p{0.32\linewidth}@{}}
-\caption{Prediction matrix to freeze before the main campaign.}\label{tab:predictions}\\
+RQ1 varies read concern, write concern, and causal-session setting.
+Read concern governs which data state a read may return; write concern governs
+the acknowledgement condition for a write. In a causally consistent session,
+MongoDB documents combinations of these concerns with different client-centric
+guarantees \cite[slides 49 to 53]{cai-lecture-3}
+\cite{mongodb-read-concern,mongodb-write-concern,mongodb-read-preference,mongodb-causal-consistency,pymongo-sessions}.
+
+Both causal-session conditions use an explicit PyMongo session. The OFF
+condition sets causal consistency to false; it does not omit the session. The
+read preference and requested member are selected by each registered schedule
+to construct a stale or current observation. They are recorded per operation
+but are not independent factors in C1-C8.
+
+\subsection{Parameters explored}
+
+\begin{table}[ht]
+\centering
+\caption{Parameters varied or controlled by the registered schedules.}
+\label{tab:parameters}
+\begin{tabular}{@{}p{0.21\textwidth}p{0.31\textwidth}p{0.36\textwidth}@{}}
 \toprule
-ID & Setting & Guarantee target & Interpretation \\
+Parameter & Values & Role in the experiment \\
 \midrule
-\endfirsthead
-\toprule
-ID & Setting & Expected protection & Expected failure response \\
-\midrule
-\endhead
-C1 & local, \texttt{w: 1}, causal off & none & All four properties are unprotected by the selected combination. \\
-C2 & local, \texttt{w: 1}, causal on & none & Session state is explicit, but the selected concerns do not supply a listed target. \\
-C3 & majority, \texttt{w: 1}, causal on & MR, WFR & Majority reads and causal sessions are tested against these two targets. \\
-C4 & local, majority, causal on & MW & Majority acknowledgement is tested against ordered writes. \\
-C5 & majority, majority, causal off & none assumed & This cell isolates majority concerns without session ordering. \\
-C6 & majority, majority, causal on & RYW, MR, MW, WFR & This is the strongest candidate combination in the matrix. \\
-C7 & majority, \texttt{w: 1}, causal off & none & This cell separates read concern from causal-session effects. \\
-C8 & local, majority, causal off & none & This cell completes the factorial design. \\
+Read concern & \texttt{local}, \texttt{majority} & Selects the read visibility condition in C1-C8. \\
+Write concern & \texttt{w:1}, \texttt{majority} & Selects the write acknowledgement condition in C1-C8. \\
+Causal session & off, on & Controls session dependency propagation; both conditions use one explicit session. \\
+Read preference / member & Schedule-directed primary or secondary & Constructs a registered route; the actual server and role are recorded. \\
 \bottomrule
-\end{longtable}
+\end{tabular}
+\end{table}
 
-These are predictions for the registered workloads and fault schedules. They are not observations. Each row uses a seeded case order, a unique namespace, and a manifest with the software versions and image digest.
+\subsection{Experimental configurations}
 
-The prediction targets use the durability-aware interpretation adopted in the experimental protocol.
+\begin{table}[ht]
+\centering
+\caption{C1-C8 settings and registered guarantee targets.}
+\label{tab:configurations}
+\begin{tabular}{@{}lllll@{}}
+\toprule
+ID & Read concern & Write concern & Causal session & Target properties \\
+\midrule
+C1 & local & \texttt{w:1} & off & none \\
+C2 & local & \texttt{w:1} & on & none \\
+C3 & majority & \texttt{w:1} & on & MR, WFR \\
+C4 & local & majority & on & MW \\
+C5 & majority & majority & off & none \\
+C6 & majority & majority & on & RYW, MR, MW, WFR \\
+C7 & majority & \texttt{w:1} & off & none \\
+C8 & local & majority & off & none \\
+\bottomrule
+\end{tabular}
+\end{table}
 
-RQ2 evaluates four pre-registered hypotheses:
+\subsection{Expected behaviour and predictions}
 
-\begin{itemize}
-\item H2.1: A secondary crash mainly reduces redundancy. Operations that remain routable should not create new consistency anomalies.
-\item H2.2: A primary crash mainly appears as election delay and temporary unavailability rather than completed but invalid histories.
-\item H2.3: A primary-isolating partition is the clearest condition for exposing differences between weak (local/\texttt{w: 1}) and majority settings, including stale state and acknowledged writes later rolled back.
-\item H2.4: Majority read/write concerns with a causal session should shift outcomes from successful but invalid histories toward waiting or temporary unavailability.
-\end{itemize}
+The prediction manifest assigns durability-aware targets to successful
+histories under the registered schedules. C3 targets MR and WFR, C4 targets MW,
+and C6 targets all four properties. C1, C2, C5, C7, and C8 have no registered
+target. No target means that the project does not predict a counterexample on
+every run. C5 separates majority concerns from causal-session setting; its
+concerns alone are not treated as the project's registered causal guarantee.
 
-These hypotheses are predictions, not conclusions. A zero observed count is
-reported as no violation observed in the completed repetitions, not as a zero
-true violation probability.
+These targets are committed in \texttt{configs/predictions.json} before the
+campaign. A history classified UNAVAILABLE or INDETERMINATE does not establish
+whether its consistency predicate held. The official MongoDB documentation
+also distinguishes causal sessions and concern combinations, including the
+durability condition on majority reads and writes
+\cite{mongodb-causal-consistency}.
+
+RQ2 uses four pre-registered expectations:
+
+\begin{description}
+\item[H2.1] A secondary crash should reduce redundancy; operations that remain
+routable should not create a new consistency anomaly.
+\item[H2.2] A primary crash should appear as an election interval and possible
+temporary unavailability rather than as a completed invalid history.
+\item[H2.3] Isolating the former primary should expose differences between
+weak and majority write acknowledgement, including rollback of an acknowledged
+write on the isolated branch.
+\item[H2.4] Majority concerns with causal sessions may turn a would-be
+counterexample into a wait or an unresolved operation instead of a returned
+stale value.
+\end{description}
+
+The comparison in Sections~5 and 6 keeps predictions separate from measured
+outcomes. A pass in a finite campaign is not proof of a universal guarantee.

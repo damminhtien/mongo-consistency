@@ -1,15 +1,10 @@
 \section{Conclusion}
 
-The conclusion answers RQ1 and RQ2 only when their campaign manifests and
-analysis artifacts are complete. RQ1 compares the registered configuration
-semantics for RYW, MR, MW, and WFR. RQ2 compares secondary crash, primary
-crash/election, and primary-isolating network partition under C1, C3, C4, and
-C6, using all four properties. Its baseline is the corresponding RQ1 normal
-data. The counts and rates are taken from generated analysis macros, not copied
-into the report source.
-
-A precondition miss, unavailable operation, indeterminate mutation, and
-harness error are not consistency violations. If a campaign is incomplete or
-the analysis state is \texttt{NO\_DATA}, the report states that the evidence is
-insufficient to answer the corresponding question. No finite set of histories
-establishes a universal guarantee.
+Of the 530 resolved adversarial RQ1 histories, 436 violated a tested property
+and 94 passed. Under the F3 partition, C1 produced stale-read and write-order
+counterexamples. The corresponding C6 histories remained indeterminate because
+majority-write timeouts prevented dependent operations from being issued. All
+scheduled F2 calls after the election completed, but no request was made during
+the election barrier; availability in that interval was not measured. These
+findings are specific to MongoDB \MongoDBServerVersion, PyMongo
+\PyMongoVersion, the registered schedules, and the single-host topology.

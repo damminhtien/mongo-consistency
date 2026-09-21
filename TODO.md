@@ -9,7 +9,7 @@ offline analysis, and the rendered submission all pass the evidence checks.
 - [x] Preserve the DSA5208 slide-page mapping outside the source PDFs.
 - [x] Rewrite the protocol as the scientific source of truth and align the project
   plan, README, report plan, and six-outcome taxonomy.
-- [ ] Rewrite all LaTeX sections and the package README to remove stale
+- [x] Rewrite all LaTeX sections and the package README to remove stale
   parallel-campaign narratives and hard-coded historical measurements.
 - [ ] Freeze protocol, schedules, schemas, and predictions in a clean commit
   after the live smoke passes.
@@ -52,13 +52,14 @@ offline analysis, and the rendered submission all pass the evidence checks.
 
 ## Validation and campaigns
 
-- [ ] Run all offline gates after the LaTeX/package rewrite.
+- [x] Run `make test`, `make check-docs`, `make check-schemas`, and `make analyse`
+  after the LaTeX/package rewrite.
 - [ ] Start Docker Desktop and run make setup.
 - [ ] Run make smoke; inspect every property and require a passing gate.
 - [ ] Freeze predictions and protocol after smoke passes.
-- [ ] Run the 192-history pilot; require zero harness errors and precondition
+- [x] Run the 192-history pilot; require zero harness errors and precondition
   misses at or below 5% per property.
-- [ ] Run sequential RQ1: 320 normal controls plus 960 adversarial histories.
+- [x] Run sequential RQ1: 320 normal controls plus 960 adversarial histories.
 - [x] Implement the grouped RQ2 runner and host-only fault coordinator for
   C1/C3/C4/C6, F1/F2/F3, and RYW/MR/MW/WFR, with a 432-history plan across 36
   episodes and unique keys/sessions per history.
@@ -73,8 +74,9 @@ offline analysis, and the rendered submission all pass the evidence checks.
 - [x] Publish generated RQ2 outcome, availability, latency, rollback, election,
   and recovery results in the report and experiment notes.
 - [ ] Add generated-result drift checks to CI.
-- [ ] Derive every outcome and metric in LaTeX from generated macros.
-- [ ] Render and visually inspect the final PDF after RQ1/RQ2 evidence is complete.
+- [x] Derive aggregate outcome counts and metrics in LaTeX from generated
+  macros; retain representative traces from canonical histories.
+- [x] Render and visually inspect the final PDF after RQ1/RQ2 evidence is complete.
 - [ ] Build and inspect the checksummed archive from a clean clone.
 - [ ] Commit coherent slices, inspect staged diffs, run git diff --check, and
   push main.

@@ -1,39 +1,65 @@
 \section{Discussion}
 
-The discussion compares the committed prediction matrix with checked histories
-for each configuration and property. It separates a successful counterexample
-from an operation that was unavailable, a write whose effect is indeterminate,
-a missed precondition, or a harness error. A precondition miss says that the
-schedule did not construct the required state; it is not evidence for or
-against a database guarantee.
+\subsection{Predictions and observations}
 
-Representative explanations use the saved operation trace: requested route,
-actual server address, direct role observation, session timing, logical
-dependency, fault event, and final independent snapshot. Driver topology cache
-data are diagnostic only. Any explanation of a MongoDB mechanism must be
-identified as an inference from these observations rather than a direct
-inspection of internal state.
+The RQ1 prediction matrix and the RQ2 target/outcome table put each registered
+expectation beside the checked histories. A prediction target applies to
+successful histories under its schedule; it does not predict that every
+repetition will pass. For targeted cells, completed counterexamples disagree
+with the expected behavior. UNAVAILABLE and INDETERMINATE outcomes do not
+resolve that comparison because the required value or dependent operation was
+not observed. Non-target cells are descriptive, not failed predictions.
 
-The RQ1 normal controls remain a separate baseline for both questions. RQ2
-reports results by fault condition, configuration, and property; it does not
-rerun or pool normal histories. Each grouped fault episode is one topology
-event, and histories sharing that event are not counted as independent fault
-events. The main RQ1 comparison follows configuration by property, from the
-registered prediction to the checked observation and trace-supported
-explanation. Descriptive factor contrasts are confined to the appendix and do
-not establish statistical significance.
+\subsection{Effect of consistency configuration}
 
-A zero observed violation count means no counterexample appeared in the
-completed histories for that registered schedule. It is not proof of a
-universal guarantee or a zero true violation probability. A high operation
-success rate is distinct from history-level consistency. Scheduled-operation
-success also does not measure continuous service availability.
+The C1-C8 design varies read concern, write concern, and causal-session
+setting. C3 targets MR and WFR, C4 targets MW, and C6 targets all four
+properties. The observed cell matrix must be read with its durability
+definition: a write acknowledged with \texttt{w:1} may later roll back, whereas
+the project evaluates acknowledged writes as part of the recorded durable
+history. C5 also shows why concern settings and causal-session state are
+reported separately. The contrasts are descriptive and do not establish
+statistical significance.
 
-For F2, the scheduled-operation success rate is not an estimate of service
-availability across failover. Each history's first subject operation precedes
-the primary crash; the next operation is issued only after the new primary is
-elected. No request probes the election interval. All scheduled post-election
-operations completed successfully, while the median election interval was
-\RQTwoFtwoElectionMedianSeconds\ s across \RQTwoFtwoEpisodeCount\ episodes.
-We therefore interpret the \RQTwoFtwoOperationSuccessPercent\% result as
-success among scheduled calls, not as uninterrupted service during the election.
+\subsection{Effect of node failure}
+
+F1 removes a secondary but leaves the primary and one secondary. F2 removes the
+primary and requires an election. All scheduled post-election F2 operations
+completed, but no subject operation was issued during the election barrier.
+Thus the measured success rate applies only to scheduled calls; it cannot show
+that requests would have succeeded continuously through failover. Election
+and recovery quantiles use fault episodes rather than histories as their
+denominator.
+
+\subsection{Effect of network partition}
+
+F3 preserves a client path to the isolated member while blocking its
+replication path to the other two members. The C1 signature histories include
+completed stale-read and write-order counterexamples, while the corresponding
+C6 histories stop at majority-write timeouts and remain indeterminate. The
+independent observer also records acknowledged writes that are absent after
+recovery. These observations describe C1 and C6 under the tested topology; they
+do not establish behavior for other partition designs or deployments.
+
+\subsection{Consistency and availability}
+
+Operation success and consistency outcome are separate measures. UNAVAILABLE
+means an operation did not complete; INDETERMINATE means its effect or required
+observation could not be resolved. Neither is a consistency pass. F2 has no
+request during its election interval, so successful scheduled calls do not
+measure continuous availability. F3 timeouts remain in all-attempt latency
+quantiles rather than being dropped in favor of successful-call latency.
+
+\subsection{Unexpected behavior and interpretation}
+
+The C6 F3 majority-write timeouts match the registered expectation that stronger
+durability may leave a dependent history unresolved rather than return a
+stale value. They do not establish that the consistency predicate passed.
+F2's scheduled-call success can also look like uninterrupted service, but the
+experiment sent no request during the election interval and therefore did not
+measure that interval.
+Likewise, a \texttt{w:1} write that is acknowledged and later rolled back is
+reported as an observed rollback and evaluated under the project's durable
+history definition. The trace supports these client-visible statements; it
+does not reveal MongoDB's internal causal counters or establish a cause beyond
+the recorded routes, responses, roles, faults, and final state.

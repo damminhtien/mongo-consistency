@@ -1,7 +1,12 @@
 # Values used by the report build. Complete the pending student IDs before submission.
 COURSE_CODE=DSA5208
-PROJECT_TITLE=Experimental Evaluation of Client-Centric Consistency in MongoDB under Replica Failures and Network Partitions
+COURSE_TITLE=Scalable Distributed Computing for Data Science
+PROJECT_SUPERVISOR=Prof. Cai, Zhenning
+PROJECT_TITLE=Consistency Models in Distributed Databases
+ACADEMIC_YEAR=AY2026/2027
 TEAM_NAME=DSA5208 project group
-TEAM_MEMBERS=DAM MINH TIEN (A0355091E); NGUYEN MINH DUC (Student ID pending); VU NHAT MINH THU (Student ID pending)
+TEAM_MEMBERS=Dam Minh Tien (A0355091E); Nguyen Minh Duc (Student ID pending); Vu Nhat Minh Thu (Student ID pending)
+STUDENT_EMAIL_MEMBER=Dam Minh Tien
+STUDENT_EMAIL=damminhtien@u.nus.edu
 SUBMISSION_DATE=15 September 2026
-AI_USE_DISCLOSURE=Generative AI assistance was used for document organization and wording review. The group checked the source material, code, commands, measurements, citations, and final PDF.
+AI_USE_DISCLOSURE=OpenAI Codex assisted with report structure, LaTeX editing, and validation; it did not generate experiment histories or measurements.

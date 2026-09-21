@@ -27,6 +27,8 @@ REQUIRED_SUBMISSION_FILES = (
 REQUIRED_SECTIONS = tuple(
     Path("submission/sections") / f"{number:02d}-{name}.tex"
     for number, name in (
+        (0, "acknowledgements"),
+        (0, "abbreviations"),
         (1, "abstract"),
         (2, "introduction"),
         (3, "background"),
@@ -44,9 +46,14 @@ REQUIRED_SECTIONS = tuple(
 )
 METADATA_KEYS = (
     "COURSE_CODE",
+    "COURSE_TITLE",
+    "PROJECT_SUPERVISOR",
     "PROJECT_TITLE",
+    "ACADEMIC_YEAR",
     "TEAM_NAME",
     "TEAM_MEMBERS",
+    "STUDENT_EMAIL_MEMBER",
+    "STUDENT_EMAIL",
     "SUBMISSION_DATE",
     "AI_USE_DISCLOSURE",
 )
@@ -156,21 +163,48 @@ def escape_latex(value: str) -> str:
     return re.sub(r"[\\&%$#_{}~^]", lambda match: replacements[match.group()], value)
 
 
+def format_team_members(value: str, email_member: str) -> str:
+    """Render each member and place the report owner's email beneath their ID."""
+
+    rendered_members = []
+    for entry in value.split(";"):
+        member = entry.strip()
+        if not member:
+            continue
+        match = re.fullmatch(r"(.+?)\s+\(([^()]*)\)", member)
+        if match:
+            name, student_id = match.groups()
+            rendered = f"{escape_latex(name)}\\\\\n{escape_latex(student_id)}"
+            if name == email_member:
+                rendered += "\\\\\n" + r"\StudentEmail"
+            rendered_members.append(rendered)
+        else:
+            rendered_members.append(escape_latex(member))
+    return r"\\[0.6em] ".join(rendered_members)
+
+
 def write_generated_metadata(path: Path, values: dict[str, str]) -> None:
     """Write build-only LaTeX macros from the metadata values."""
 
     macros = {
         "CourseCode": values["COURSE_CODE"],
+        "CourseTitle": values["COURSE_TITLE"],
+        "ProjectSupervisor": values["PROJECT_SUPERVISOR"],
         "ProjectTitle": values["PROJECT_TITLE"],
+        "AcademicYear": values["ACADEMIC_YEAR"],
         "TeamName": values["TEAM_NAME"],
-        "TeamMembers": values["TEAM_MEMBERS"],
+        "TeamMembers": format_team_members(
+            values["TEAM_MEMBERS"], values["STUDENT_EMAIL_MEMBER"]
+        ),
+        "StudentEmail": values["STUDENT_EMAIL"],
         "SubmissionDate": values["SUBMISSION_DATE"],
         "AiUseDisclosure": values["AI_USE_DISCLOSURE"],
     }
-    content = "\n".join(
-        f"\\newcommand{{\\{name}}}{{{escape_latex(value)}}}"
-        for name, value in macros.items()
-    )
+    lines = []
+    for name, value in macros.items():
+        rendered = value if name == "TeamMembers" else escape_latex(value)
+        lines.append(f"\\newcommand{{\\{name}}}{{{rendered}}}")
+    content = "\n".join(lines)
     path.write_text(content + "\n", encoding="utf-8")
 
 
@@ -260,6 +294,28 @@ def write_generated_analysis(path: Path, root: Path) -> None:
         except (OSError, UnicodeError, json.JSONDecodeError):
             rq2_manifest = {}
     rq2_manifest_status = str(rq2_manifest.get("status", "NO_DATA"))
+    software_versions = main_manifest.get("software_versions", {})
+    if not isinstance(software_versions, dict):
+        software_versions = {}
+    setup_actual: dict[str, Any] = {}
+    setup_path = root / "results/setup/toolchain.json"
+    if setup_path.is_file():
+        try:
+            setup_data = json.loads(setup_path.read_text(encoding="utf-8"))
+            if isinstance(setup_data, dict) and isinstance(setup_data.get("actual"), dict):
+                setup_actual = setup_data["actual"]
+        except (OSError, UnicodeError, json.JSONDecodeError):
+            setup_actual = {}
+
+    def version_value(key: str) -> str:
+        value = software_versions.get(key)
+        return str(value) if value else "not recorded"
+
+    image_digests = main_manifest.get("image_digest", [])
+    if isinstance(image_digests, list):
+        image_digest = ", ".join(str(value) for value in image_digests if value)
+    else:
+        image_digest = str(image_digests) if image_digests else "not recorded"
     rq2_groups = [row for row in summary_groups if row.get("campaign_id") == "rq2"]
     rq1_adversarial_groups = {
         (str(row.get("configuration_id")), str(row.get("property"))): row
@@ -406,6 +462,19 @@ def write_generated_analysis(path: Path, root: Path) -> None:
         "ControlElectionMedian": metric(normal, ("election_ms", "p50")),
         "RecoveryMedian": metric(adversarial, ("recovery_ms", "p50")),
         "ControlRecoveryMedian": metric(normal, ("recovery_ms", "p50")),
+        "MongoDBImage": (
+            f"mongo:{version_value('mongodb')}"
+            if version_value("mongodb") != "not recorded"
+            else "not recorded"
+        ),
+        "MongoDBServerVersion": version_value("mongodb"),
+        "PyMongoVersion": version_value("pymongo"),
+        "RunnerPythonVersion": version_value("python"),
+        "DockerEngineVersion": version_value("docker_engine"),
+        "DockerComposeVersion": version_value("docker_compose"),
+        "DockerKernelVersion": str(setup_actual.get("docker_kernel") or "not recorded"),
+        "MongoImageDigest": image_digest or "not recorded",
+        "HostOSVersion": "not recorded in campaign manifests",
     }
     if isinstance(property_summaries, dict):
         for property_name in ("RYW", "MR", "MW", "WFR"):
@@ -440,6 +509,10 @@ def write_generated_analysis(path: Path, root: Path) -> None:
     macros["RQTwoStatus"] = rq2_manifest_status
     macros["RQTwoFthreeSuccessfulLatencyHighMs"] = "--"
     macros["RQTwoFthreeIndeterminateCount"] = "--"
+    for property_name in rq2_properties:
+        macros[f"RQTwo{property_name}HistoryCount"] = "--"
+        for macro_suffix in outcome_names.values():
+            macros[f"RQTwo{property_name}{macro_suffix}Count"] = "--"
     if rq2_complete:
         rq2_adversarial = rq2_campaign.get("adversarial", {})
         rq2_outcomes = rq2_campaign.get("outcomes", {})
@@ -450,6 +523,12 @@ def write_generated_analysis(path: Path, root: Path) -> None:
         macros.update(
             {
                 "RQTwoHistoryCount": str(count_value(rq2_campaign, "history_count")),
+                "RQTwoFaultEpisodeCount": str(
+                    sum(
+                        count_value(episode, "episode_count")
+                        for episode in rq2_episode_by_fault.values()
+                    )
+                ),
                 "RQTwoPassCount": str(int(rq2_outcomes.get("PASS", 0) or 0)),
                 "RQTwoViolationCount": str(int(rq2_outcomes.get("VIOLATION", 0) or 0)),
                 "RQTwoUnavailableCount": str(int(rq2_outcomes.get("UNAVAILABLE", 0) or 0)),
@@ -497,6 +576,24 @@ def write_generated_analysis(path: Path, root: Path) -> None:
             }
         )
 
+        rq2_property_summaries = rq2_campaign.get("properties", {})
+        if not isinstance(rq2_property_summaries, dict):
+            rq2_property_summaries = {}
+        for property_name in rq2_properties:
+            property_summary = rq2_property_summaries.get(property_name, {})
+            if not isinstance(property_summary, dict):
+                property_summary = {}
+            property_counts = property_summary.get("outcomes", {})
+            if not isinstance(property_counts, dict):
+                property_counts = {}
+            macros[f"RQTwo{property_name}HistoryCount"] = str(
+                count_value(property_summary, "history_count")
+            )
+            for outcome, macro_suffix in outcome_names.items():
+                macros[f"RQTwo{property_name}{macro_suffix}Count"] = str(
+                    int(property_counts.get(outcome, 0) or 0)
+                )
+
         outcome_rows: list[str] = []
         metric_rows: list[str] = []
         episode_table_rows: list[str] = []
@@ -511,6 +608,10 @@ def write_generated_analysis(path: Path, root: Path) -> None:
                     counts = row.get("outcomes", {})
                     if not isinstance(counts, dict):
                         counts = {}
+                    prediction = prediction_manifest.get(configuration, {})
+                    targets = prediction.get("guarantee_targets", [])
+                    targets = set(targets) if isinstance(targets, list) else set()
+                    target_code = "G" if property_name in targets else "N"
                     macros[f"{prefix}HistoryCount"] = str(count_value(row, "history_count"))
                     for outcome, macro_suffix in outcome_names.items():
                         macros[f"{prefix}{macro_suffix}Count"] = str(
@@ -539,6 +640,7 @@ def write_generated_analysis(path: Path, root: Path) -> None:
                     )
                     outcome_rows.append(
                         f"{fault} & {configuration} & {property_name} & "
+                        f"{target_code} & "
                         f"{count_value(row, 'history_count')} & "
                         f"{'/'.join(map(str, outcome_values))} & {operations} \\\\"
                     )
@@ -646,15 +748,18 @@ def write_generated_analysis(path: Path, root: Path) -> None:
                 f"{converged_count} & "
                 f"{second_value((episode.get('recovery_ms') or {}).get('p50'))} \\\\"
             )
-        rq2_raw_macros = {
-            "RQTwoOutcomeRows": "\n".join(outcome_rows),
-            "RQTwoMetricRows": "\n".join(metric_rows),
-            "RQTwoEpisodeRows": "\n".join(episode_table_rows),
-        }
+        rq2_raw_macros.update(
+            {
+                "RQTwoOutcomeRows": "\n".join(outcome_rows),
+                "RQTwoMetricRows": "\n".join(metric_rows),
+                "RQTwoEpisodeRows": "\n".join(episode_table_rows),
+            }
+        )
     else:
         macros.update(
             {
                 "RQTwoHistoryCount": "--",
+                "RQTwoFaultEpisodeCount": "--",
                 "RQTwoPassCount": "--",
                 "RQTwoViolationCount": "--",
                 "RQTwoUnavailableCount": "--",
@@ -904,6 +1009,24 @@ def source_revision(root: Path) -> str:
     return result.stdout.strip() if result.returncode == 0 else "unknown"
 
 
+def source_worktree_state(root: Path) -> str:
+    """Describe whether the package is built from a clean Git worktree."""
+
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(root), "status", "--porcelain", "--untracked-files=all"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            check=False,
+        )
+    except OSError:
+        return "unknown"
+    if result.returncode != 0:
+        return "unknown"
+    return "dirty" if result.stdout.strip() else "clean"
+
+
 def write_manifest(package_root: Path, root: Path) -> Path:
     """Write checksums for every package payload except the manifest itself."""
 
@@ -914,6 +1037,8 @@ def write_manifest(package_root: Path, root: Path) -> Path:
     lines = [
         "MongoDB consistency submission package",
         f"Source revision: {source_revision(root)}",
+        f"Working tree state: {source_worktree_state(root)}",
+        "The checksums below identify the packaged source snapshot.",
         "Checksums: SHA-256",
         "",
     ]

@@ -268,13 +268,16 @@ def _history_row(path: Path, raw_root: Path) -> dict[str, Any]:
 
 
 def load_rows(raw_root: Path) -> list[dict[str, Any]]:
-    """Load all canonical trial JSON files below a raw-results root."""
+    """Load trial JSON only from campaign directories with a manifest."""
 
     if not raw_root.exists():
         return []
+    manifest_paths = sorted(raw_root.glob("*/campaign-manifest.json"))
+    search_roots = [path.parent for path in manifest_paths] or [raw_root]
     paths = sorted(
         path
-        for path in raw_root.rglob("*.json")
+        for campaign_root in search_roots
+        for path in campaign_root.rglob("*.json")
         if path.name != "campaign-manifest.json"
         and ".rq2-staging" not in path.relative_to(raw_root).parts
     )
