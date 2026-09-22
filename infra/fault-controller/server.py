@@ -9,7 +9,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Any
 
 CHAIN = "MONGO_CONSISTENCY"
-INTERFACE = os.environ.get("REPLICA_INTERFACE", "eth1")
+INTERFACE = os.environ.get("REPLICA_INTERFACE", "eth0")
 MEMBER = os.environ.get("MEMBER", "unknown")
 PORT = int(os.environ.get("CONTROL_PORT", "29092"))
 
