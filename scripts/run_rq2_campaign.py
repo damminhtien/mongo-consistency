@@ -84,6 +84,7 @@ class CaseState:
     first_operation: OperationRecord | None = None
     read_version: int | None = None
     route_verified: bool = True
+    wfr_election_guard: str | None = None
     runner_error: str | None = None
     final_observation: dict[str, Any] | None = None
 
@@ -212,31 +213,185 @@ def _record_route(case: CaseState, operation: OperationRecord, member: str) -> N
         case.route_verified = case.trial.verify_requested_route(operation, member) and case.route_verified
 
 
+def _freeze_wfr_election_guard(case: CaseState, member: str, event_id: str) -> None:
+    trial = case.trial
+    if trial is None or not _case_ready(case):
+        return
+    try:
+        state = trial.oracle.member_state(member)
+        satisfied = state.get("reachable") is True and state.get("role") == "SECONDARY"
+        trial.record_diagnostic("rq2-wfr-election-guard-before", state)
+        trial.record_precondition(
+            "rq2-wfr-election-guard-secondary",
+            satisfied=satisfied,
+            expected="reachable SECONDARY",
+            actual=state.get("role"),
+        )
+        if not satisfied:
+            return
+        trial.oracle.freeze_member(member, 120)
+        trial.manifest.setdefault("rq2_wfr_election_guards", []).append(
+            {"member": member, "action": "freeze", "event_id": event_id}
+        )
+        case.wfr_election_guard = member
+    except Exception as error:  # noqa: BLE001 - guard failure prevents this schedule state.
+        trial.mark_precondition_miss(
+            "rq2-wfr-election-guard",
+            expected={"member": member, "action": "freeze"},
+            actual={"error": str(error)},
+        )
+
+
+def _unfreeze_wfr_election_guard(case: CaseState, event_id: str) -> None:
+    trial = case.trial
+    member = case.wfr_election_guard
+    if trial is None or member is None:
+        return
+    case.wfr_election_guard = None
+    try:
+        trial.oracle.freeze_member(member, 0)
+        state = trial.oracle.member_state(member)
+        satisfied = state.get("reachable") is True and state.get("role") == "SECONDARY"
+        trial.record_diagnostic("rq2-wfr-election-guard-after", state)
+        trial.record_precondition(
+            "rq2-wfr-election-guard-unfrozen",
+            satisfied=satisfied,
+            expected="reachable SECONDARY",
+            actual=state.get("role"),
+        )
+        trial.manifest.setdefault("rq2_wfr_election_guards", []).append(
+            {"member": member, "action": "unfreeze", "event_id": event_id}
+        )
+    except Exception as error:  # noqa: BLE001 - cleanup failure remains explicit in the history.
+        trial.mark_precondition_miss(
+            "rq2-wfr-election-guard-unfrozen",
+            expected={"member": member, "action": "unfreeze"},
+            actual={"error": str(error)},
+        )
+
+
+def _run_wfr_first_operation(
+    case: CaseState,
+    member: str,
+    *,
+    write_concern: str,
+    fault_event_id: str | None = None,
+    majority_members: tuple[str, ...] = (),
+) -> None:
+    trial = case.trial
+    if trial is None or not _case_ready(case):
+        return
+    trial.reset_deadline()
+    setup = trial.setup_write(
+        member,
+        write_id="w1",
+        version=1,
+        write_concern=write_concern,
+    )
+    setup_route_verified = trial.verify_setup_route(setup, member)
+    if setup.get("status") != "SUCCESS" or not setup_route_verified:
+        trial.mark_precondition_miss(
+            "wfr-setup-write",
+            expected={"status": "SUCCESS", "member": member, "write_concern": write_concern},
+            actual=setup,
+        )
+        return
+    if majority_members:
+        try:
+            branch_states = {
+                branch_member: trial.oracle.observe_document(
+                    branch_member,
+                    trial.database_name,
+                    trial.collection_name,
+                    trial.document_id,
+                )
+                for branch_member in (member, *majority_members)
+            }
+        except Exception as error:  # noqa: BLE001 - failed branch evidence is a precondition miss.
+            trial.mark_precondition_miss(
+                "wfr-branch-state",
+                expected="isolated primary at v1 and majority-side members at v0",
+                actual={"error": str(error)},
+            )
+            return
+        trial.record_diagnostic("wfr-branch-state", branch_states)
+        isolated_state = branch_states[member]
+        majority_states = [branch_states[branch_member] for branch_member in majority_members]
+        branch_satisfied = (
+            isolated_state.get("observed_versions") == [0, 1]
+            and isolated_state.get("observed_write_ids") == ["init", "w1"]
+            and all(
+                state.get("observed_versions") == [0]
+                and state.get("observed_write_ids") == ["init"]
+                for state in majority_states
+            )
+        )
+        if not trial.record_precondition(
+            "wfr-branch-state",
+            satisfied=branch_satisfied,
+            expected={
+                "isolated_member": member,
+                "isolated_state": {"observed_versions": [0, 1], "observed_write_ids": ["init", "w1"]},
+                "majority_members": list(majority_members),
+                "majority_state": {"observed_versions": [0], "observed_write_ids": ["init"]},
+            },
+            actual=branch_states,
+        ):
+            return
+    operation = trial.read(
+        "read",
+        requested_member=member,
+        force_primary=True,
+        fault_event_id=fault_event_id,
+    )
+    case.read_version = operation.observed_version
+    _record_route(case, operation, member)
+    if (
+        operation.operation_status != "SUCCESS"
+        or operation.observed_version != 1
+        or "w1" not in operation.observed_write_ids
+    ):
+        trial.mark_precondition_miss(
+            "wfr-first-read-sees-seed-write",
+            expected={"version": 1, "write_id": "w1", "member": member},
+            actual={
+                "status": operation.operation_status,
+                "version": operation.observed_version,
+                "write_ids": list(operation.observed_write_ids),
+                "member": operation.actual_server_address,
+            },
+        )
+    case.first_operation = operation
+
+
 def _run_first_operation(case: CaseState, primary: str, *, signature_deferred: bool) -> None:
     trial = case.trial
     if trial is None or not _case_ready(case):
         return
     trial.reset_deadline()
     property_name = case.plan.property_name
-    if signature_deferred and property_name in {"RYW", "MW"}:
+    if signature_deferred and property_name in {"RYW", "MW", "WFR"}:
         return
     try:
         if property_name == "RYW":
             operation = trial.write("write", write_id="w1", intended_version=1)
         elif property_name == "MR":
-            seed_write = trial.write(
-                "seed_write", write_id="w1", intended_version=1
+            setup = trial.setup_write(
+                primary,
+                write_id="w1",
+                version=1,
+                write_concern=str(case.configuration["write_concern"]),
             )
-            _record_route(case, seed_write, primary)
-            if seed_write.operation_status != "SUCCESS" or not case.route_verified:
+            setup_route_verified = trial.verify_setup_route(setup, primary)
+            if setup.get("status") != "SUCCESS" or not setup_route_verified:
                 trial.mark_precondition_miss(
                     "mr-seed-write-acknowledged",
-                    expected={"status": "SUCCESS", "member": primary},
-                    actual={
-                        "status": seed_write.operation_status,
-                        "member": seed_write.actual_server_address,
-                        "error": seed_write.error_message,
+                    expected={
+                        "status": "SUCCESS",
+                        "member": primary,
+                        "write_concern": case.configuration["write_concern"],
                     },
+                    actual=setup,
                 )
                 return
             operation = trial.read(
@@ -265,15 +420,12 @@ def _run_first_operation(case: CaseState, primary: str, *, signature_deferred: b
                 "first_write", write_id="w1", intended_version=1
             )
         else:
-            operation = trial.read("read", requested_member=primary, force_primary=True)
-            if operation.operation_status == "SUCCESS":
-                case.read_version = operation.observed_version
-                if case.read_version is None:
-                    trial.mark_precondition_miss(
-                        "wfr-concrete-read-version",
-                        expected="a concrete version returned by R1",
-                        actual=None,
-                    )
+            _run_wfr_first_operation(
+                case,
+                primary,
+                write_concern=str(case.configuration["write_concern"]),
+            )
+            return
         case.first_operation = operation
         _record_route(case, operation, primary)
     except Exception as error:  # noqa: BLE001 - isolate schedule errors to their history.
@@ -379,7 +531,7 @@ def _run_after_fault(
             operation = trial.write(
                 "write",
                 write_id="w2",
-                intended_version=1,
+                intended_version=2,
                 depends_on_read_id="read",
                 depends_on_version=case.read_version,
                 fault_event_id=event_id,
@@ -534,6 +686,8 @@ def run_episode(
                     "rq2-episode-initial-topology",
                     {"episode_id": episode.episode_id, **before.to_dict()},
                 )
+                if episode.topology_condition == "F3" and case.plan.property_name == "WFR":
+                    _freeze_wfr_election_guard(case, before.secondaries[0], event_id)
             _run_first_operation(
                 case,
                 primary,
@@ -616,6 +770,18 @@ def run_episode(
                     ]
                     for future in futures:
                         future.result()
+            for case in cases:
+                if case.plan.property_name == "WFR":
+                    try:
+                        _run_wfr_first_operation(
+                            case,
+                            primary,
+                            write_concern="w:1",
+                            fault_event_id=event_id,
+                            majority_members=tuple(before.secondaries),
+                        )
+                    finally:
+                        _unfreeze_wfr_election_guard(case, event_id)
             event["election_start_ns"] = event["applied_ns"]
             try:
                 new_primary = lead.oracle.wait_for_majority_primary(
@@ -692,6 +858,8 @@ def run_episode(
             else:
                 case.runner_error = group_error
     finally:
+        for case in cases:
+            _unfreeze_wfr_election_guard(case, event_id)
         if apply_attempted and faulted_member is not None:
             recovery_requested_ns = time.monotonic_ns()
             try:

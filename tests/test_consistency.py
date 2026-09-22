@@ -293,6 +293,7 @@ class CheckerTests(unittest.TestCase):
                     write_id="w2",
                     depends_on_read_id="read",
                     depends_on_version=1,
+                    write_base_observed=True,
                     write_base_version=1,
                 ),
             ],
@@ -314,6 +315,7 @@ class CheckerTests(unittest.TestCase):
                     write_id="w2",
                     depends_on_read_id="read",
                     depends_on_version=1,
+                    write_base_observed=True,
                     write_base_version=0,
                 ),
             ],
@@ -356,6 +358,67 @@ class CheckerTests(unittest.TestCase):
             ],
         )
         self.assertEqual(Outcome.INDETERMINATE, check_history(history).outcome)
+
+    def test_wfr_requires_observed_preimage_before_using_its_version(self) -> None:
+        history = base_history(
+            "WFR",
+            [
+                operation("read", "read", observed_version=1),
+                operation(
+                    "write",
+                    "write",
+                    intended_version=2,
+                    write_id="w2",
+                    depends_on_read_id="read",
+                    depends_on_version=1,
+                    write_base_version=1,
+                    write_base_observed=False,
+                ),
+            ],
+        )
+        self.assertEqual(Outcome.INDETERMINATE, check_history(history).outcome)
+
+    def test_subject_operation_order_is_a_harness_contract(self) -> None:
+        histories = {
+            "RYW": [
+                operation("read", "read", observed_version=1),
+                operation("write", "write", intended_version=1, write_id="w1"),
+            ],
+            "MR": [
+                operation("second_read", "read", observed_version=1),
+                operation("first_read", "read", observed_version=1),
+            ],
+            "MW": [
+                operation(
+                    "second_write",
+                    "write",
+                    intended_version=2,
+                    write_id="w2",
+                    parent_write_id="w1",
+                    write_base_observed=True,
+                    write_base_write_ids=("init", "w1"),
+                ),
+                operation("first_write", "write", intended_version=1, write_id="w1"),
+            ],
+            "WFR": [
+                operation(
+                    "write",
+                    "write",
+                    intended_version=2,
+                    write_id="w2",
+                    depends_on_read_id="read",
+                    depends_on_version=1,
+                    write_base_observed=True,
+                    write_base_version=1,
+                ),
+                operation("read", "read", observed_version=1),
+            ],
+        }
+        for property_name, operations in histories.items():
+            with self.subTest(property_name=property_name):
+                result = check_history(base_history(property_name, operations))
+                self.assertEqual(Outcome.HARNESS_ERROR, result.outcome)
+                self.assertEqual("subject operations are out of order", result.reason)
 
     def test_write_timeout_is_indeterminate_and_read_error_is_unavailable(self) -> None:
         write_timeout = base_history(

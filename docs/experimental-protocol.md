@@ -168,8 +168,9 @@ complete, the result is unavailable rather than a consistency violation.
 1. Verify stable topology and version 0 on all members.
 2. Select `S_stale` and `S_fresh`; isolate `S_stale` before creating version 1.
 3. Verify `S_stale` remains directly reachable as a secondary at `v0`.
-4. `SETUP W1(x,v1)` on the healthy primary with majority acknowledgement. This
-   setup write is not a subject operation and does not use the subject session.
+4. `SETUP W1(x,v1)` on the healthy primary with the configuration's registered
+   write concern. This setup write is not a subject operation and does not use
+   the subject session.
 5. Verify `S_fresh` contains `v1` and `S_stale` contains `v0`.
 6. `SUBJECT R1(x)` from `S_fresh`, followed by `SUBJECT R2(x)` from
    `S_stale`, using the same explicit session.
@@ -201,6 +202,14 @@ observation; it is not by itself an MW violation. An unresolved W2 response is
 indeterminate.
 
 ### WFR: dependent write after a read from the old branch
+
+For F1 and F2, create `SETUP W1(x,v1)` outside the subject session on the
+stable primary using the configuration's registered write concern. The subject
+then issues `R1(x)` on that primary and must observe `v1` before the secondary
+crash or primary election. After the fault, issue `SUBJECT W2(x,v2)` with the
+R1 dependency.
+
+For F3:
 
 1. Verify stable topology and version 0 on all members; record old primary
    `P_old`.
@@ -395,21 +404,21 @@ Each history places the related client operations around the fault transition:
 | RYW | `W1(x,v1) -> fault transition -> R1(x)` | A read older than the acknowledged W1 is a violation. |
 | MR | `W1(x,v1) -> R1(x,v1) -> fault transition -> R2(x)` | A second read older than R1 is a violation. |
 | MW | `W1(x) -> fault transition -> W2(x,parent=W1)` | Check whether W1's write ID is present in W2's atomic pre-image; absence is a violation. |
-| WFR | `R1(x,vr) -> fault transition -> W2(x,depends_on=vr)` | Compare W2's atomic pre-image version with vr. An older pre-image is a violation. |
+| WFR | F1/F2: `SETUP W1 -> R1(x,v1) -> fault transition -> W2(x,v2)`; F3: `partition -> SETUP W1 -> R1(x,v1) -> election -> W2(x,v2)` | Compare W2's atomic pre-image version with the value returned by R1. An older pre-image is a violation. |
 
 The schedules record unavailable and indeterminate operations as such; they do
-not turn them into consistency violations. MR first acknowledges W1 at version
-1, then requires R1 to return that write before the fault. This gives the two
-subject reads a concrete version that can regress; a missed write or read is a
-precondition miss. F3 also records the transition from the former primary to
-the majority-side primary. In the four C1/C6 RYW/MW signature cells, start F3
-first, launch the four independent W1 operations concurrently, and retain only
-operations routed to the former primary during its transient primary interval.
-Then wait for the majority-side election and issue R1 or W2 on that side. A C1
-`w:1` W1 may be acknowledged and later rolled back; C6 majority W1 may wait or
-be unavailable. Record every acknowledged write and retain a later rollback in
-the history. The final observer reads the complete logical document directly
-from all three members after topology recovery.
+not turn them into consistency violations. MR first creates W1 outside the
+subject session and requires R1 to return that write before the fault. This
+gives the two subject reads a concrete version that can regress; a missed write
+or read is a precondition miss. F3 also records the transition from the former
+primary to the majority-side primary. In the four C1/C6 RYW/MW signature cells,
+start F3 first, launch the four independent W1 operations concurrently, and
+retain only operations routed to the former primary during its transient
+primary interval. Then wait for the majority-side election and issue R1 or W2
+on that side. A C1 `w:1` W1 may be acknowledged and later rolled back; C6
+majority W1 may wait or be unavailable. Record every acknowledged write and
+retain a later rollback in the history. The final observer reads the complete
+logical document directly from all three members after topology recovery.
 
 The runner groups cases by fault condition and repetition to reduce repeated
 fault setup. A grouped episode shares one topology event, so the episode is the
@@ -505,15 +514,18 @@ make submission
 offline. Setup, smoke, pilot, RQ1, RQ2, and RQ3 require Docker Desktop and the
 pinned runtime. RQ2 reuses the RQ1 normal baseline and runs no additional
 normal histories. RQ3 performs only the three registered mechanism contrasts.
-The report describes only the frozen protocol and completed campaigns;
-development attempts are not scientific results.
+The report describes only the frozen protocol and campaigns that pass the
+current evidence gates; development attempts and superseded semantic records
+are not scientific results.
 
-The grouped `make rq2` runner completed on 20 September 2026 with 432 histories
-in 36 verified fault episodes. All fault actions were applied and all recovery
-checks converged. The host-side coordinator applies node faults and partition
-rules through a temporary, narrowly mounted IPC directory; the runner container
-receives no Docker socket and runs as a non-root user matching the host-owned
-IPC path. See [rq2-results.md](rq2-results.md) for the observed outcomes.
+The previous grouped `make rq2` run completed on 20 September 2026 with 432
+histories in 36 verified fault episodes. Those records predate the current RQ2
+WFR construction and pre-image checker contract, so they are development data
+only and must not be cited as final evidence. The host-side coordinator applies
+node faults and partition rules through a temporary, narrowly mounted IPC
+directory; the runner container receives no Docker socket and runs as a
+non-root user matching the host-owned IPC path. See [rq2-results.md](rq2-results.md)
+for the status of the retained development records.
 
 ## RQ3 mechanism study: protocol v2
 
@@ -612,6 +624,12 @@ observations, final document presence, and the returned value remain distinct
 observations.
 
 ### Preflight, campaign, and acceptance
+
+The previously recorded RQ3 protocol-v2 campaign is also superseded by the
+current MW/WFR semantics. Its raw histories and selection artifacts remain
+available for development traceability, but the completion table below is not a
+current acceptance record. RQ3 must be rerun after the corrected RQ2 and RQ1
+inputs are frozen.
 
 Unit tests exercise the contrast definitions, anchor hashes, pair identity,
 deterministic member plans, normalization failure behavior, resume hashes,

@@ -43,9 +43,18 @@ issue a successor write after the topology change.
 election, and issue a dependent write on the new primary.
 \end{description}
 
-Every precondition is checked before the subject sequence begins. If a
-prerequisite fails or returns no concrete version, the dependent operation is
-not issued.
+In the fault campaign, MR creates its seed write outside the subject session
+and requires the first subject read to return version~1 before the fault. For
+WFR, F1 and F2 use the configuration's registered write concern for the setup
+write and read version~1 before the fault. F3 isolates the former primary,
+creates the setup write with \texttt{w:1}, verifies version~1 on that branch
+and version~0 on the majority side, and then reads version~1 before the
+election. In every case, W2 is issued only after R1 has returned a concrete
+version.
+
+Each schedule checks its prerequisites before issuing the dependent subject
+operation. If a prerequisite fails or returns no concrete version, the
+dependent operation is not issued.
 
 \maybefigure[fig:property-timelines]{submission/figures/property-timelines.pdf}{Property schedules used to create controlled replica divergence. Setup and recovery checks are omitted for clarity.}
 

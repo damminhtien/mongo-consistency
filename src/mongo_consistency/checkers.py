@@ -125,6 +125,25 @@ def _preflight(
                 step=name,
             )
         selected[name] = operation
+    operation_positions = {
+        operation.operation_id: index
+        for index, operation in enumerate(history.operations)
+    }
+    expected_order = [operation.operation_id for operation in selected.values()]
+    actual_order = [
+        operation.operation_id
+        for operation in sorted(
+            selected.values(),
+            key=lambda operation: operation_positions[operation.operation_id],
+        )
+    ]
+    if expected_order != actual_order:
+        return None, _result(
+            Outcome.HARNESS_ERROR,
+            "subject operations are out of order",
+            expected_order=expected_order,
+            actual_order=actual_order,
+        )
     for name, operation in selected.items():
         status = operation.operation_status
         if status == "HARNESS_ERROR":
@@ -453,6 +472,12 @@ def check_wfr(history: History) -> CheckerResult:
             "dependent write does not name the version returned by the read",
             expected_version=read_version,
             actual_version=write.depends_on_version,
+        )
+    if not write.write_base_observed:
+        return _result(
+            Outcome.INDETERMINATE,
+            "state immediately preceding the dependent write was not recorded",
+            read_version=read_version,
         )
     if write.write_base_version is None:
         return _result(

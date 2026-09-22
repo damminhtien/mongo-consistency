@@ -36,9 +36,10 @@ post-recovery observer remains separate durability evidence.
 - For MW, isolate the old primary before W1, preserve client access, verify
   W1's actual route, elect a new primary, and issue dependent W2 in the same
   subject session.
-- For WFR, create the old-branch version with setup w:1 outside the subject
-  session, read a concrete version through the subject session, then issue W2
-  only after the majority-side election.
+- For WFR, use the registered setup concern before F1/F2 subject reads. For F3,
+  create the old-branch version with setup w:1 outside the subject session,
+  read a concrete version through the subject session, then issue W2 only
+  after the majority-side election.
 - Observe final MW/WFR state from independent direct clients after healing and
   stable topology; do not use the subject read concern for the checker snapshot.
 - Use application versions and explicit dependencies rather than Lamport values
@@ -47,8 +48,8 @@ post-recovery observer remains separate durability evidence.
 - Classify a lost possible write as INDETERMINATE and a missing schedule state
   as PRECONDITION_MISS.
 - Keep operation deadlines separate from election/topology barriers.
-- For RQ1, treat 30 repetitions as registered-history repetitions, not a
-  universal probability estimate.
+- Treat controlled repetitions as registered-history repetitions, not estimates
+  of a universal violation probability.
 - For RQ2, use C1/C3/C4/C6 across F1/F2/F3 and RYW/MR/MW/WFR. Reuse matching
   RQ1 normal histories as the descriptive baseline; do not rerun normal.
 - Group RQ2 into 24 core episodes with 16 histories each and 12 partition

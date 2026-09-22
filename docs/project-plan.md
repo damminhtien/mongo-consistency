@@ -57,7 +57,7 @@ Three bounded matched contrasts replay each mechanism eight times (48 histories
 total). These runs explain selected observations; they do not estimate
 violation probabilities. A separate offline calculation records observed
 definitive completion and latency consequences from immutable Q1 and Q2
-histories. Neither analysis layer is a third research question.
+histories. Both are supporting analyses for the two research questions.
 
 ## Configuration and predictions
 
@@ -108,13 +108,13 @@ cache state is logged separately and never treated as ground truth.
    cleanup failures, or more than 5% precondition misses for any property.
 7. Run the reduced RQ1 sequentially: 96 normal controls plus 160 adversarial
    histories, 256 in total.
-8. [x] Implement the grouped RQ2 runner and host coordinator, freeze their
-   provenance, then run 384 core histories and 48 extra histories for four
-   partition signature cells. The completed campaign has 432 histories across
-   36 episodes; detailed results are in [rq2-results.md](rq2-results.md).
-9. [x] Verify the six historical Q1 anchors, run ten topology rehearsals, then
-   run the 48-history mechanism replay and analyze control-valid pairs.
-10. [x] Derive consistency, observed definitive completion, indeterminate
+8. [ ] Implement the grouped RQ2 runner and host coordinator, freeze their
+   provenance, then rerun the 384 core histories and 48 extra histories for
+   four partition signature cells. The earlier 432-history record is retained
+   as development data until this rerun passes its gates.
+9. [ ] Verify the six historical Q1 anchors, run ten topology rehearsals, then
+   rerun the 48-history mechanism replay and analyze control-valid pairs.
+10. [ ] Derive consistency, observed definitive completion, indeterminate
     rate, and separate all-attempt and resolved critical-operation p50/p95
     latency from immutable RQ1/RQ2 raw histories. Keep unrecorded signature
     cells explicit.
@@ -135,14 +135,15 @@ The work is complete only when all requirements in
 fixture and malformed-history tests; exact property schedules; live smoke;
 frozen provenance; clean pilot; complete Q1 and Q2 manifests; offline analysis;
 anchor hashes and replay controls; reproducible code package; and CI checks. A
-passing unit suite does not substitute for live schedule evidence. The focused
-mechanism replay completed 48 histories after all ten topology rehearsal cycles
-passed; raw-derived analysis was rebuilt.
+passing unit suite does not substitute for live schedule evidence. The earlier
+mechanism replay and its raw-derived analysis also predate the corrected
+semantics and must be rerun.
 
-The grouped RQ2 campaign completed on 20 September 2026 from clean runner and
-protocol commit `3c35e94`: 432 histories across 36 fault episodes, with all
-faults verified and all recovery checks converged. Record/schema validation
-passed and offline analysis was rebuilt. See [rq2-results.md](rq2-results.md).
+The previous grouped RQ2 campaign completed on 20 September 2026 with 432
+histories across 36 fault episodes. Those records predate the current WFR
+schedule and pre-image checker contract, so they are retained for development
+traceability and are not final evidence. The completion gate remains open until
+the corrected campaign is rerun and reanalysed.
 The host coordinator applies faults outside the runner container through a
 temporary IPC mount, keeping Docker control out of the runner.
 

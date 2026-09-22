@@ -1,6 +1,12 @@
 # RQ2 results
 
-RQ2 completed on 20 September 2026 with the locked design: four configurations
+> Status: previous development run, not final submission evidence. The records
+> below predate the corrected RQ2 WFR schedule and the current write pre-image
+> checker contract. Keep them for traceability only; rerun RQ2 before citing
+> any count, rate, latency, or mechanism conclusion.
+
+The previous RQ2 run completed on 20 September 2026 with the then-locked design:
+four configurations
 (C1/C3/C4/C6), three faults (F1/F2/F3), four properties (RYW/MR/MW/WFR), and
 eight repetitions, plus 12 F3 extension episodes that bring four signature
 cells to 20 repetitions. The campaign contains 432 histories in 36 fault
