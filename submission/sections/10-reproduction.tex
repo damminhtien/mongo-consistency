@@ -1,10 +1,9 @@
 \section{Reproducibility}
 
-The submitted archive contains the compiled report PDF, the runtime source and
-campaign scripts needed to recreate the MongoDB deployment, and the offline
-analysis entry points needed to rebuild summaries. The report source, tests,
-and raw histories remain in the repository for review but are not part of the
-upload archive.
+The submitted archive contains the compiled report PDF and the runtime source
+and campaign scripts needed to recreate the MongoDB deployment. The report
+source, tests, offline analysis tools, and raw histories remain in the
+repository for review but are not part of the upload archive.
 
 From a clean checkout with Docker running, install the pinned dependencies and
 start the three-member Compose deployment:
@@ -44,7 +43,6 @@ make rq4-analyse
 
 Finally, \texttt{make submission} compiles the manually authored LaTeX source,
 adds the data macros derived from the saved summaries, validates the PDF, and
-creates the archive containing the PDF, source tree, campaign scripts, and
-offline analysis scripts. The manifest records SHA-256 checksums for the
-uploaded files. Run
+creates the archive containing the PDF and runtime code. The manifest records
+SHA-256 checksums for the uploaded files. Run
 \texttt{make check-submission-artifacts} before upload.
