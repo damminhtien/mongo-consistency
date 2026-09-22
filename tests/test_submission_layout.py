@@ -103,6 +103,33 @@ class SubmissionLayoutTests(unittest.TestCase):
             self.assertNotIn(r"\section{RQ3}", source)
             self.assertNotIn(r"\section{RQ4}", source)
 
+    def test_course_definitions_are_separate_from_project_proxies(self) -> None:
+        background = (ROOT / "submission/sections/03-background.tex").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(r"\paragraph{Course definitions.}", background)
+        self.assertIn(r"\paragraph{Operationalisation in this project.}", background)
+        self.assertRegex(background, r"completed before any\s+successive write")
+        self.assertIn("same or a more recent value", background)
+        self.assertIn("does not establish the full temporal definition", background)
+        self.assertNotIn(
+            "A successor write must not become visible without its predecessor", background
+        )
+        self.assertNotIn("not become visible without that version", background)
+
+        method = (ROOT / "submission/sections/06-method.tex").read_text(encoding="utf-8")
+        self.assertIn("project operationalisation in\nSection~2.1", method)
+        self.assertNotIn("implement the definitions in Section~2", method)
+
+        results = (ROOT / "submission/sections/07-results.tex").read_text(encoding="utf-8")
+        self.assertIn("post-heal witness", results)
+        self.assertIn("full temporal course definitions", results)
+
+        protocol = (ROOT / "docs/experimental-protocol.md").read_text(encoding="utf-8")
+        self.assertIn("## Course definitions and project operationalisation", protocol)
+        self.assertIn("durable MW-proxy\nviolation", protocol)
+        self.assertIn("durable\nWFR-proxy violation", protocol)
+
     def test_professor_slides_are_cited_and_web_references_have_urls(self) -> None:
         bibliography = (ROOT / "submission/report.bib").read_text(encoding="utf-8")
         sections = "\n".join(

@@ -348,7 +348,7 @@ def check_mr(history: History) -> CheckerResult:
 
 
 def check_mw(history: History) -> CheckerResult:
-    """Check a dependent write pair against one independent converged snapshot."""
+    """Check the project's durable post-recovery proxy for monotonic writes."""
 
     selected, error = _preflight(history, "MW", ("first_write", "second_write"))
     if error:
@@ -386,20 +386,20 @@ def check_mw(history: History) -> CheckerResult:
     if first.write_id not in visible:
         return _result(
             Outcome.VIOLATION,
-            "successor write is visible while its predecessor is absent",
+            "durable MW proxy observed a successor write without its predecessor",
             visible_write_ids=sorted(visible),
             predecessor_write_id=first.write_id,
             successor_write_id=second.write_id,
         )
     return _result(
         Outcome.PASS,
-        "final converged state contains both predecessor and successor writes",
+        "durable MW proxy found both predecessor and successor writes after recovery",
         visible_write_ids=sorted(visible),
     )
 
 
 def check_wfr(history: History) -> CheckerResult:
-    """Check that a dependent write retains the concrete version returned by a read."""
+    """Check the project's durable post-recovery proxy for writes-follow-reads."""
 
     selected, error = _preflight(history, "WFR", ("read", "write"))
     if error:
@@ -444,14 +444,14 @@ def check_wfr(history: History) -> CheckerResult:
     if read_version not in visible_versions:
         return _result(
             Outcome.VIOLATION,
-            "dependent write is visible while the version it read is absent",
+            "durable WFR proxy observed a dependent write without its read version",
             visible_versions=sorted(visible_versions),
             read_version=read_version,
             dependent_write_id=write.write_id,
         )
     return _result(
         Outcome.PASS,
-        "final converged state contains the read dependency and dependent write",
+        "durable WFR proxy found the read dependency and dependent write after recovery",
         visible_versions=sorted(visible_versions),
     )
 

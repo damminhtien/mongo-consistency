@@ -7,22 +7,37 @@ logical writer. A write is \(W_c(x,v)\) and a read is \(R_c(x,v)\). The
 properties concern the versions and dependencies observed by the client, not
 the order of wall-clock timestamps.
 
+\paragraph{Course definitions.}
+
 \begin{description}
-\item[RYW] After client \(c\) writes \(W_c(x,v_w)\), a later read of \(x\)
-must not return a version \(v_r < v_w\).
-\item[MR] Successive reads of the same key by one client must not move to a
-lower returned version.
-\item[MW] A successor write must not become visible without its predecessor
-under the experiment's one-document observation.
-\item[WFR] A write that depends on a version returned by a preceding read must
-not become visible without that version.
+\item[RYW] The effect of a write on \(x\) by a process must be seen by a
+successive read of \(x\) by that same process.
+\item[MR] After a process reads a value of \(x\), every successive read of
+\(x\) by that process must return that value or a more recent one.
+\item[MW] A write operation by a process on \(x\) is completed before any
+successive write operation on \(x\) by that same process.
+\item[WFR] A write operation by a process on \(x\) following a previous read
+of \(x\) by that same process must take place on the same or a more recent
+value of \(x\) that was read.
 \end{description}
 
-RYW and MR are decided directly from values returned to the subject client.
-MW and WFR use a one-document post-heal observer to check whether a durable
-counterexample remains after the replica set converges. This operationalisation
-cannot sample every transient state between a write and recovery, so a PASS
-means that the registered durable counterexample was not observed.
+These are the client-centric definitions from Lecture~3
+\cite[slides 37 to 44]{cai-lecture-3}.
+
+\paragraph{Operationalisation in this project.}
+RYW and MR are tested directly from successive versions returned to the
+subject client. The recorded histories do not contain an independent observer
+immediately after the second MW or WFR write. For MW, the post-recovery
+observer checks whether a retained successor write has its recorded predecessor
+in the converged update list. For WFR, it checks whether a retained dependent
+write has the exact version returned by the preceding read in that list.
+
+These are durable proxies, not full observations of the temporal definitions.
+They can expose a durable counterexample after recovery, but they cannot show
+whether the first write completed before its successor or whether the dependent
+write took place on the same or a more recent value at execution time. A MW or
+WFR PASS therefore means that no durable counterexample to the project proxy
+was observed; it does not establish the full temporal definition.
 
 \subsection{MongoDB mechanisms}
 

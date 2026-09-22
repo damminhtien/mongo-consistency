@@ -16,6 +16,15 @@ source PDFs remain outside the repository at
 | Lec3.pdf | 49-51 | Read concern, write concern, majority behaviour, and snapshots. |
 | Lec3.pdf | 52-53 | Causal-session limits and the limits of a read/write-concern pair alone. |
 
+## Definition and measurement boundary
+
+The report states the Lecture 3 definition before describing a schedule or
+checker. RYW and MR use successive client-visible read values. MW and WFR use
+a post-recovery durable proxy because the histories do not contain an
+independent observer immediately after the second write. A proxy result must
+not be presented as a full observation of completion order or of the value on
+which a write took place.
+
 ## Method changes reflected in the final protocol
 
 - Keep configuration semantics (RQ1) separate from topology-failure comparison

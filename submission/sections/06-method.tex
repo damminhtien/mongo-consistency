@@ -12,11 +12,13 @@ all three members after recovery without using the subject session. A
 restricted controller applies the fault and replication-path changes. The
 checker then asks, in order: what operation was attempted, what value or
 dependency was returned, and whether the final state contains the required
-predecessor. The four property checkers implement the definitions in Section~2.
+predecessor. The four checkers evaluate the project operationalisation in
+Section~2.1.
 
 For MW and WFR, the post-heal observer is a durable witness rather than an
-intermediate visibility sample. It can identify a persisted counterexample but
-cannot exclude a transient ordering anomaly before convergence.
+intermediate visibility sample. Their PASS and VIOLATION labels describe the
+durable proxy only; they do not directly observe the temporal course
+definitions before convergence.
 
 \subsection{Configuration campaign}
 

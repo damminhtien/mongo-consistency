@@ -30,6 +30,9 @@ generated document fragments.
   analysis are supporting analyses, not independent research questions.
 - Explain the property definitions and MongoDB mechanisms before presenting
   results.
+- State the course definition before the project operationalisation. For MW and
+  WFR, label a post-recovery result as a durable proxy and never as a complete
+  observation of the temporal definition.
 - Describe the experiment as a property by configuration by scenario cube.
 - Put prediction statements in Background and Expectations and method details
   in Experimental Method. Results should report what happened and why it
