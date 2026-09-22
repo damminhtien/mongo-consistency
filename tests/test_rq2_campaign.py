@@ -206,7 +206,12 @@ class RQ2ScheduleTests(unittest.TestCase):
     def test_f3_wfr_first_read_is_deferred_until_after_partition(self) -> None:
         case = make_case("WFR")
 
-        _run_first_operation(case, "mongo1", signature_deferred=True)
+        _run_first_operation(
+            case,
+            "mongo1",
+            signature_deferred=False,
+            wfr_deferred=True,
+        )
 
         assert case.trial is not None
         self.assertEqual([], case.trial.setup_calls)

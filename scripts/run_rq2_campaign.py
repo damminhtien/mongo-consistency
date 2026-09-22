@@ -364,13 +364,21 @@ def _run_wfr_first_operation(
     case.first_operation = operation
 
 
-def _run_first_operation(case: CaseState, primary: str, *, signature_deferred: bool) -> None:
+def _run_first_operation(
+    case: CaseState,
+    primary: str,
+    *,
+    signature_deferred: bool,
+    wfr_deferred: bool = False,
+) -> None:
     trial = case.trial
     if trial is None or not _case_ready(case):
         return
     trial.reset_deadline()
     property_name = case.plan.property_name
     if signature_deferred and property_name in {"RYW", "MW", "WFR"}:
+        return
+    if wfr_deferred and property_name == "WFR":
         return
     try:
         if property_name == "RYW":
@@ -695,6 +703,7 @@ def run_episode(
                     episode.topology_condition == "F3"
                     and (case.plan.configuration_id, case.plan.property_name) in SIGNATURE_CELLS
                 ),
+                wfr_deferred=episode.topology_condition == "F3",
             )
 
         action = "isolate" if episode.topology_condition == "F3" else "stop"
