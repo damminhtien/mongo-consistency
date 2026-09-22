@@ -160,9 +160,9 @@ harness errors remain separate. Valid timeout timestamps remain in the
 all-attempt sample; the resolved sample has its own denominator.
 
 For MW and WFR, PASS and VIOLATION use the course-definition evidence recorded
-by the runner: write completion intervals for MW and the atomic write
-pre-image for WFR. Post-recovery observations are reported separately as
-durability and rollback evidence.
+by the runner: W1's write ID in W2's atomic pre-image for MW and the
+application version in that pre-image for WFR. Post-recovery observations are
+reported separately as durability and rollback evidence.
 
 The analysis writes `results/summary/rq4/metrics.csv`, `contrasts.csv`, and
 `fault_deltas.csv`, plus three PDF figures under `figures/`. Rebuild it with

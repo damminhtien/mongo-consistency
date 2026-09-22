@@ -12,9 +12,9 @@ all three members after recovery without using the subject session. A
 restricted controller applies the fault and replication-path changes. The
 checker first verifies the attempted operations and their client-visible
 evidence. RYW and MR use the versions returned to the subject client. MW uses
-the recorded completion intervals, and WFR uses the application version in the
-atomic pre-image returned to the subject write. The four checkers evaluate the
-course definitions in Section~2.1.
+the preceding write identifier in the atomic pre-image returned to the
+successive write, and WFR uses the application version in that pre-image. The
+four checkers evaluate the course definitions in Section~2.1.
 
 The post-heal observer is not used to infer MW or WFR. It records whether
 acknowledged writes remain after recovery and whether replicas agree on the

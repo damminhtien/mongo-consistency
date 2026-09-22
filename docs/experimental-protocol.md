@@ -131,13 +131,15 @@ below keeps the same conditions in plain text:
   recent value of x that was read.
 
 RYW and MR are measured directly from the successive values returned to the
-subject client. For MW, the recorder compares the completion time of W1 with
-the start time of W2. For WFR, the write command atomically returns its
-pre-image; the recorder stores the highest application version in that
-pre-image as write_base_version. The checker compares that value with the
-version returned by R1. A missing interval or pre-image is INDETERMINATE. The
-post-recovery observer is used for durability and rollback evidence, not as a
-substitute for either course definition.
+subject client. For MW, the atomic pre-image of W2 records the update
+identifiers already present at the member executing that write. The checker
+reports a violation when the W1 identifier is absent from that pre-image. For
+WFR, the same pre-image supplies the highest application version immediately
+before W2 as `write_base_version`; the checker compares it with the version
+returned by R1. Missing
+write pre-image evidence is INDETERMINATE. The post-recovery observer is used
+for durability and rollback evidence, not as a substitute for either course
+definition.
 
 ## Registered schedules
 
@@ -191,9 +193,9 @@ R1, the history is an MR violation.
 8. The independent observer reads the complete document directly from all
    three members and waits until all three update lists agree.
 
-The direct MW checker reports PASS when the acknowledged W1 completion precedes
-the start of W2 and VIOLATION when the two intervals overlap. If either
-completion interval is missing, the result is INDETERMINATE. A
+The direct MW checker reports PASS when the W1 identifier is present in the
+atomic pre-image of W2 and VIOLATION when it is absent. If the write pre-image
+is missing, the result is INDETERMINATE. A
 majority-acknowledged W1 that is absent after recovery is a separate rollback
 observation; it is not by itself an MW violation. An unresolved W2 response is
 indeterminate.
@@ -392,7 +394,7 @@ Each history places the related client operations around the fault transition:
 | --- | --- | --- |
 | RYW | `W1(x,v1) -> fault transition -> R1(x)` | A read older than the acknowledged W1 is a violation. |
 | MR | `W1(x,v1) -> R1(x,v1) -> fault transition -> R2(x)` | A second read older than R1 is a violation. |
-| MW | `W1(x) -> fault transition -> W2(x,parent=W1)` | Compare W1 completion with W2 start. An overlap is a violation. |
+| MW | `W1(x) -> fault transition -> W2(x,parent=W1)` | Check whether W1's write ID is present in W2's atomic pre-image; absence is a violation. |
 | WFR | `R1(x,vr) -> fault transition -> W2(x,depends_on=vr)` | Compare W2's atomic pre-image version with vr. An older pre-image is a violation. |
 
 The schedules record unavailable and indeterminate operations as such; they do

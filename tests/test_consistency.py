@@ -10,7 +10,12 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from mongo_consistency.checkers import check_history
 from mongo_consistency.config import load_configurations, load_predictions
-from mongo_consistency.history import compute_history_hash, read_history, write_history
+from mongo_consistency.history import (
+    compute_history_hash,
+    read_history,
+    validate_history,
+    write_history,
+)
 from mongo_consistency.models import History, OperationRecord, Outcome
 from mongo_consistency.trial import classify_exception
 
@@ -111,71 +116,7 @@ class CheckerTests(unittest.TestCase):
         self.assertEqual(Outcome.HARNESS_ERROR, check_history(ryw).outcome)
         self.assertEqual(Outcome.HARNESS_ERROR, check_history(mr).outcome)
 
-    def test_mw_checks_completion_order_and_same_key(self) -> None:
-        passing = base_history(
-            "MW",
-            [
-                operation(
-                    "first_write",
-                    "write",
-                    intended_version=1,
-                    write_id="w1",
-                    start_ns=0,
-                    end_ns=10,
-                ),
-                operation(
-                    "second_write",
-                    "write",
-                    intended_version=2,
-                    write_id="w2",
-                    parent_write_id="w1",
-                    start_ns=20,
-                    end_ns=30,
-                ),
-            ],
-            final_observation=final_observation(
-                [{"write_id": "w1", "version": 1}, {"write_id": "w2", "version": 2}]
-            ),
-        )
-        violating = History(
-            manifest=passing.manifest,
-            operations=[
-                passing.operations[0],
-                operation(
-                    "second_write",
-                    "write",
-                    intended_version=2,
-                    write_id="w2",
-                    parent_write_id="w1",
-                    start_ns=5,
-                    end_ns=15,
-                ),
-            ],
-            precondition=passing.precondition,
-        )
-        different_key = History(
-            manifest=passing.manifest,
-            operations=[
-                passing.operations[0],
-                operation(
-                    "second_write",
-                    "write",
-                    key="y",
-                    intended_version=2,
-                    write_id="w2",
-                    parent_write_id="w1",
-                    start_ns=20,
-                    end_ns=30,
-                ),
-            ],
-            precondition=passing.precondition,
-            final_observation=passing.final_observation,
-        )
-        self.assertEqual(Outcome.PASS, check_history(passing).outcome)
-        self.assertEqual(Outcome.VIOLATION, check_history(violating).outcome)
-        self.assertEqual(Outcome.HARNESS_ERROR, check_history(different_key).outcome)
-
-    def test_mw_does_not_use_post_heal_snapshot(self) -> None:
+    def test_mw_passes_when_predecessor_is_in_write_preimage(self) -> None:
         history = base_history(
             "MW",
             [
@@ -184,8 +125,6 @@ class CheckerTests(unittest.TestCase):
                     "write",
                     intended_version=1,
                     write_id="w1",
-                    start_ns=0,
-                    end_ns=10,
                 ),
                 operation(
                     "second_write",
@@ -193,8 +132,129 @@ class CheckerTests(unittest.TestCase):
                     intended_version=2,
                     write_id="w2",
                     parent_write_id="w1",
-                    start_ns=20,
-                    end_ns=30,
+                    write_base_observed=True,
+                    write_base_write_ids=("init", "w1"),
+                ),
+            ],
+        )
+        self.assertEqual(Outcome.PASS, check_history(history).outcome)
+
+    def test_mw_requires_one_logical_key(self) -> None:
+        history = base_history(
+            "MW",
+            [
+                operation("first_write", "write", intended_version=1, write_id="w1"),
+                operation(
+                    "second_write",
+                    "write",
+                    key="y",
+                    intended_version=2,
+                    write_id="w2",
+                    parent_write_id="w1",
+                    write_base_observed=True,
+                    write_base_write_ids=("init", "w1"),
+                ),
+            ],
+        )
+        self.assertEqual(Outcome.HARNESS_ERROR, check_history(history).outcome)
+
+    def test_mw_detects_missing_predecessor_in_write_preimage(self) -> None:
+        history = base_history(
+            "MW",
+            [
+                operation(
+                    "first_write",
+                    "write",
+                    intended_version=1,
+                    write_id="w1",
+                ),
+                operation(
+                    "second_write",
+                    "write",
+                    intended_version=2,
+                    write_id="w2",
+                    parent_write_id="w1",
+                    write_base_observed=True,
+                    write_base_write_ids=("init",),
+                ),
+            ],
+        )
+        self.assertEqual(Outcome.VIOLATION, check_history(history).outcome)
+
+    def test_mw_rejects_wrong_parent_dependency(self) -> None:
+        history = base_history(
+            "MW",
+            [
+                operation("first_write", "write", intended_version=1, write_id="w1"),
+                operation(
+                    "second_write",
+                    "write",
+                    intended_version=2,
+                    write_id="w2",
+                    parent_write_id="wrong-write",
+                    write_base_observed=True,
+                    write_base_write_ids=("init", "w1"),
+                ),
+            ],
+        )
+        self.assertEqual(Outcome.HARNESS_ERROR, check_history(history).outcome)
+
+    def test_mw_without_write_preimage_is_indeterminate(self) -> None:
+        history = base_history(
+            "MW",
+            [
+                operation("first_write", "write", intended_version=1, write_id="w1"),
+                operation(
+                    "second_write",
+                    "write",
+                    intended_version=2,
+                    write_id="w2",
+                    parent_write_id="w1",
+                ),
+            ],
+        )
+        self.assertEqual(Outcome.INDETERMINATE, check_history(history).outcome)
+
+    def test_mw_does_not_use_client_wall_clock_order_as_oracle(self) -> None:
+        history = base_history(
+            "MW",
+            [
+                operation(
+                    "first_write",
+                    "write",
+                    intended_version=1,
+                    write_id="w1",
+                    start_ns=10,
+                    end_ns=20,
+                ),
+                operation(
+                    "second_write",
+                    "write",
+                    intended_version=2,
+                    write_id="w2",
+                    parent_write_id="w1",
+                    start_ns=100,
+                    end_ns=110,
+                    write_base_observed=True,
+                    write_base_write_ids=("init",),
+                ),
+            ],
+        )
+        self.assertEqual(Outcome.VIOLATION, check_history(history).outcome)
+
+    def test_mw_does_not_use_post_heal_snapshot(self) -> None:
+        history = base_history(
+            "MW",
+            [
+                operation("first_write", "write", intended_version=1, write_id="w1"),
+                operation(
+                    "second_write",
+                    "write",
+                    intended_version=2,
+                    write_id="w2",
+                    parent_write_id="w1",
+                    write_base_observed=True,
+                    write_base_write_ids=("init", "w1"),
                 ),
             ],
             final_observation=final_observation(
@@ -213,31 +273,6 @@ class CheckerTests(unittest.TestCase):
             ],
         )
         self.assertEqual(Outcome.INDETERMINATE, check_history(history).outcome)
-
-    def test_mw_detects_overlapping_writes(self) -> None:
-        history = base_history(
-            "MW",
-            [
-                operation(
-                    "first_write",
-                    "write",
-                    intended_version=1,
-                    write_id="w1",
-                    start_ns=10,
-                    end_ns=30,
-                ),
-                operation(
-                    "second_write",
-                    "write",
-                    intended_version=2,
-                    write_id="w2",
-                    parent_write_id="w1",
-                    start_ns=20,
-                    end_ns=40,
-                ),
-            ],
-        )
-        self.assertEqual(Outcome.VIOLATION, check_history(history).outcome)
 
     def test_wfr_requires_same_key_and_read_dependency(self) -> None:
         passing = base_history(
@@ -386,6 +421,22 @@ class CheckerTests(unittest.TestCase):
             self.assertEqual(written_hash, compute_history_hash(history))
             loaded = read_history(path)
         self.assertEqual(written_hash, loaded.history_hash)
+
+    def test_history_hash_accepts_preimage_legacy_records(self) -> None:
+        history = base_history(
+            "RYW",
+            [
+                operation("write", "write", intended_version=1, write_id="w1"),
+                operation("read", "read", observed_version=1),
+            ],
+        )
+        payload = history.to_dict(include_hash=False)
+        for operation_payload in payload["operations"]:
+            operation_payload.pop("write_base_observed")
+            operation_payload.pop("write_base_write_ids")
+        payload["history_hash"] = compute_history_hash(payload)
+        loaded = History.from_dict(payload)
+        self.assertEqual([], validate_history(loaded))
         self.assertEqual(Outcome.PASS, check_history(loaded).outcome)
 
     def test_history_write_is_atomic_from_the_reader_perspective(self) -> None:

@@ -29,10 +29,11 @@ from that denominator because the registered subject operation was not a
 definitive consistency attempt. Completion is labelled **observed definitive
 completion rate**; it is not formal CAP availability.
 
-For MW, PASS and VIOLATION use the recorded write completion intervals. For
-WFR, they use the application version in the atomic write pre-image. They
-therefore test the Lecture 3 conditions directly when the required evidence is
-present. Post-recovery observations remain separate durability evidence.
+For MW, PASS and VIOLATION use the preceding write ID in the successive
+write's atomic pre-image. For WFR, they use the application version in that
+pre-image. They therefore test the Lecture 3 conditions directly when the
+required evidence is present. Post-recovery observations remain separate
+durability evidence.
 
 Latency uses `end_ns - start_ns` for one operation per property:
 

@@ -708,6 +708,14 @@ class MongoTrial:
                 and not isinstance(item.get("version"), bool)
             ]
             operation.write_base_version = max(previous_versions) if previous_versions else None
+            operation.write_base_write_ids = tuple(
+                str(item["write_id"])
+                for item in previous_updates
+                if isinstance(item, dict)
+                and isinstance(item.get("write_id"), str)
+                and item["write_id"]
+            )
+            operation.write_base_observed = True
             return previous
 
         return self._execute(operation, action)[0]

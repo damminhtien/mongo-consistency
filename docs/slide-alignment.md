@@ -19,9 +19,9 @@ source PDFs remain outside the repository at
 ## Definition and measurement boundary
 
 The report states the Lecture 3 definition before describing a schedule or
-checker. RYW and MR use successive client-visible read values. MW uses the
-recorded completion intervals of the two writes. WFR uses the application
-version in the atomic pre-image returned to the dependent write. The
+checker. RYW and MR use successive client-visible read values. MW checks
+whether the preceding write ID is present in the atomic pre-image of the
+successive write. WFR uses the application version in that pre-image. The
 post-recovery observer remains separate durability evidence.
 
 ## Method changes reflected in the final protocol

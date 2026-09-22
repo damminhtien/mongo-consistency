@@ -74,10 +74,10 @@ successful-only latency, rollback counts, and the matching RQ1 normal baseline.
 
 ## Consistency outcomes
 
-RYW and MR use direct client-visible version comparisons. MW uses the order of
-the recorded write completions, and WFR uses the application version in the
-atomic write pre-image. Post-recovery observations are separate durability
-evidence.
+RYW and MR use direct client-visible version comparisons. MW uses the
+preceding write ID in the successive write's atomic pre-image, and WFR uses
+the application version in that pre-image. Post-recovery observations are
+separate durability evidence.
 
 | Fault | Property | Histories | PASS | VIOLATION | INDETERMINATE |
 | --- | --- | ---: | ---: | ---: | ---: |
@@ -107,7 +107,7 @@ observed to have rolled back (8.13%).
 | Configuration × F3 × property | Repetitions | Observed result |
 | --- | ---: | --- |
 | C1 × RYW | 20 | The same stale-read violation occurred in 20/20 histories: acknowledged version 1 was followed by version 0. |
-| C1 × MW | 20 | The direct MW result follows the recorded completion order; an acknowledged write absent after recovery is reported separately as rollback evidence. |
+| C1 × MW | 20 | The direct MW result checks whether W1's write ID is present in W2's atomic pre-image; an acknowledged write absent after recovery is reported separately as rollback evidence. |
 | C6 × RYW | 20 | INDETERMINATE in 20/20 histories: the majority write to the isolated primary timed out, so the required read was not issued. |
 | C6 × MW | 20 | INDETERMINATE in 20/20 histories: the first majority write timed out, so dependent write `w2` was not issued. |
 

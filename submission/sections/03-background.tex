@@ -33,17 +33,17 @@ place on the same or a more recent value of \(x\) that was read
 RYW and MR are tested directly from successive versions returned to the
 subject client. The recorder also captures the evidence needed for the two
 write properties.
-The MW checker now uses the recorded completion intervals: it compares the end
-of the first acknowledged write with the start of the successive write. The
-WFR checker uses an atomic write pre-image and records the highest application
-version present immediately before the dependent write.
+For MW, the atomic pre-image of the successive write records the update
+identifiers already present at the member executing that write. The checker
+reports a violation when the preceding write identifier is absent from this
+pre-image. For WFR, the same pre-image records the highest application version
+present immediately before the dependent write.
 
 These measurements correspond to the course definitions. They do not use the
-post-recovery snapshot to infer completion order or the value at which the
-write took place. The post-recovery observer remains a separate durability
-and rollback measurement. If the required completion interval or write
-pre-image is missing, the checker returns INDETERMINATE rather than inventing
-a PASS or VIOLATION.
+post-recovery snapshot to infer the state used by a write. The post-recovery
+observer remains a separate durability and rollback measurement. If the
+required write pre-image is missing, the checker returns INDETERMINATE rather
+than inventing a PASS or VIOLATION.
 
 \subsection{MongoDB mechanisms}
 

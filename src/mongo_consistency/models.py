@@ -63,6 +63,8 @@ class OperationRecord:
     fault_state: dict[str, Any] = field(default_factory=dict)
     intended_version: int | None = None
     write_base_version: int | None = None
+    write_base_observed: bool = False
+    write_base_write_ids: tuple[str, ...] = ()
     write_id: str | None = None
     observed_version: int | None = None
     observed_document_exists: bool | None = None
@@ -88,6 +90,7 @@ class OperationRecord:
         payload["observed_versions"] = list(self.observed_versions)
         payload["observed_write_ids"] = list(self.observed_write_ids)
         payload["observed_updates"] = [dict(update) for update in self.observed_updates]
+        payload["write_base_write_ids"] = list(self.write_base_write_ids)
         if self.write_base_version is None:
             payload.pop("write_base_version")
         if self.topology_before is None:
@@ -104,6 +107,7 @@ class OperationRecord:
         )
         values["observed_versions"] = tuple(values.get("observed_versions", ()))
         values["observed_write_ids"] = tuple(values.get("observed_write_ids", ()))
+        values["write_base_write_ids"] = tuple(values.get("write_base_write_ids", ()))
         values["observed_updates"] = tuple(
             dict(update) for update in values.get("observed_updates", ())
         )

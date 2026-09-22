@@ -32,6 +32,12 @@
     "fault_state": {"type": "object"},
     "intended_version": {"type": ["integer", "null"], "minimum": 0},
     "write_base_version": {"type": ["integer", "null"], "minimum": 0},
+    "write_base_observed": {"type": "boolean"},
+    "write_base_write_ids": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    },
     "write_id": {"type": ["string", "null"]},
     "observed_document_exists": {"type": ["boolean", "null"]},
     "observed_version": {"type": ["integer", "null"], "minimum": 0},

@@ -31,9 +31,9 @@ generated document fragments.
 - Explain the property definitions and MongoDB mechanisms before presenting
   results.
 - State the course definition before the project operationalisation. For MW,
-  use the recorded completion interval; for WFR, use the version in the
-  atomic write pre-image. Keep post-recovery durability evidence separate from
-  the consistency result.
+  use the preceding write ID in the successive write's atomic pre-image; for
+  WFR, use the version in that pre-image. Keep post-recovery durability
+  evidence separate from the consistency result.
 - Describe the experiment as a property by configuration by scenario cube.
 - Put prediction statements in Background and Expectations and method details
   in Experimental Method. Results should report what happened and why it

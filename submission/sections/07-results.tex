@@ -44,8 +44,8 @@ G marks a property for which the setting was used as a prediction target; N
 marks a descriptive cell. P, V, U, I, PM, and HE mean PASS, VIOLATION,
 UNAVAILABLE, INDETERMINATE, PRECONDITION\_MISS, and HARNESS\_ERROR. Only P and
 V enter the resolved comparison. The dagger marks the MW and WFR columns whose
-direct course-definition checks use write completion intervals and atomic
-write pre-images, respectively.
+direct course-definition checks use write pre-image identifiers and write
+pre-image versions, respectively.
 \end{minipage}
 \end{table}
 
@@ -54,11 +54,11 @@ write pre-images, respectively.
 The RYW and MR schedules show the clearest separation between a completed
 regression and an unresolved dependency. Weak or non-causal settings can reach
 a lagging member and return an older value; the stronger target setting more
-often stops before a stale value is returned. MW is decided from the order of
-the recorded write completions. WFR is decided from the application version
-present in the atomic write pre-image. Histories without that evidence remain
-INDETERMINATE; the post-heal witness is used only for the separate durability
-analysis.
+often stops before a stale value is returned. MW is decided from whether the
+preceding write identifier is present in the successive write's atomic pre-image.
+WFR is decided from the application version present in that pre-image. Histories
+without that evidence remain INDETERMINATE; the post-heal witness is used only
+for the separate durability analysis.
 
 \subsection{Effect of failures and network partition}
 

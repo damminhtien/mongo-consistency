@@ -46,6 +46,18 @@ def compute_history_hash(history: History | dict[str, Any]) -> str:
     return hashlib.sha256(canonical_bytes(canonical_payload(history))).hexdigest()
 
 
+def _compute_legacy_history_hash(history: History) -> str:
+    """Compute the hash used before write pre-image fields were recorded."""
+
+    payload = history.to_dict(include_hash=False)
+    for operation in payload["operations"]:
+        if operation.get("write_base_observed") is False:
+            operation.pop("write_base_observed", None)
+        if operation.get("write_base_write_ids") == []:
+            operation.pop("write_base_write_ids", None)
+    return hashlib.sha256(canonical_bytes(payload)).hexdigest()
+
+
 def validate_history(history: History | dict[str, Any]) -> list[str]:
     """Return deterministic validation errors for a raw history."""
 
@@ -112,6 +124,8 @@ def validate_history(history: History | dict[str, Any]) -> list[str]:
             errors.append(f"operations[{index}].command_started must be boolean")
         if not isinstance(operation.response_received, bool):
             errors.append(f"operations[{index}].response_received must be boolean")
+        if not isinstance(operation.write_base_observed, bool):
+            errors.append(f"operations[{index}].write_base_observed must be boolean")
         if operation.observed_document_exists is not None and not isinstance(
             operation.observed_document_exists, bool
         ):
@@ -164,6 +178,7 @@ def validate_history(history: History | dict[str, Any]) -> list[str]:
         for field_name, values in (
             ("observed_versions", operation.observed_versions),
             ("observed_write_ids", operation.observed_write_ids),
+            ("write_base_write_ids", operation.write_base_write_ids),
         ):
             if not isinstance(values, tuple):
                 errors.append(f"operations[{index}].{field_name} must be a tuple")
@@ -174,6 +189,19 @@ def validate_history(history: History | dict[str, Any]) -> list[str]:
             errors.append(f"operations[{index}].observed_versions must contain non-negative integers")
         if any(not isinstance(write_id, str) or not write_id for write_id in operation.observed_write_ids):
             errors.append(f"operations[{index}].observed_write_ids must contain non-empty strings")
+        if any(
+            not isinstance(write_id, str) or not write_id
+            for write_id in operation.write_base_write_ids
+        ):
+            errors.append(
+                f"operations[{index}].write_base_write_ids "
+                "must contain non-empty strings"
+            )
+        if len(set(operation.write_base_write_ids)) != len(operation.write_base_write_ids):
+            errors.append(
+                f"operations[{index}].write_base_write_ids "
+                "must not contain duplicates"
+            )
         if operation.observed_versions and operation.observed_version is not None:
             if operation.observed_version != max(operation.observed_versions):
                 errors.append(
@@ -196,8 +224,15 @@ def validate_history(history: History | dict[str, Any]) -> list[str]:
             if time_value is not None and not isinstance(time_value, dict):
                 errors.append(f"operations[{index}].{time_field} must be an object or null")
     stored_hash = value.history_hash
-    if stored_hash and stored_hash != compute_history_hash(value):
-        errors.append("history_hash does not match canonical history")
+    if stored_hash:
+        valid_hashes = {
+            compute_history_hash(value),
+            _compute_legacy_history_hash(value),
+        }
+        if isinstance(history, dict):
+            valid_hashes.add(compute_history_hash(history))
+        if stored_hash not in valid_hashes:
+            errors.append("history_hash does not match canonical history")
     return errors
 
 

@@ -130,7 +130,7 @@ class SubmissionLayoutTests(unittest.TestCase):
             r"is guaranteed to take place on the same or a more recent value",
             normalized_background,
         )
-        self.assertIn("atomic write pre-image", background)
+        self.assertIn("atomic pre-image", background)
         self.assertNotIn(
             "A successor write must not become visible without its predecessor", background
         )
@@ -141,7 +141,7 @@ class SubmissionLayoutTests(unittest.TestCase):
         self.assertNotIn("project operationalisation in\nSection~2.1", method)
 
         results = (ROOT / "submission/sections/07-results.tex").read_text(encoding="utf-8")
-        self.assertIn("atomic write pre-image", results)
+        self.assertIn("atomic pre-image", results)
         self.assertIn("post-heal witness is used only", results)
 
         protocol = (ROOT / "docs/experimental-protocol.md").read_text(encoding="utf-8")

@@ -370,7 +370,7 @@ def check_mr(history: History) -> CheckerResult:
 
 
 def check_mw(history: History) -> CheckerResult:
-    """Check the Lecture 3 completion-order definition of monotonic writes."""
+    """Check monotonic writes from the state preceding the successive write."""
 
     selected, error = _preflight(history, "MW", ("first_write", "second_write"))
     if error:
@@ -381,52 +381,46 @@ def check_mw(history: History) -> CheckerResult:
     if same_process := _same_process(selected.values()):
         return same_process
     first, second = selected["first_write"], selected["second_write"]
-    if not first.response_received or not second.response_received:
-        return _result(
-            Outcome.INDETERMINATE,
-            "a write completion was not acknowledged by the subject client",
-            first_response_received=first.response_received,
-            second_response_received=second.response_received,
-        )
-    if not all(
-        isinstance(value, int) and not isinstance(value, bool)
-        for value in (first.start_ns, first.end_ns, second.start_ns, second.end_ns)
-    ):
-        return _result(
-            Outcome.INDETERMINATE,
-            "write completion timestamps are missing",
-            first_start_ns=first.start_ns,
-            first_end_ns=first.end_ns,
-            second_start_ns=second.start_ns,
-            second_end_ns=second.end_ns,
-        )
-    assert (
-        first.start_ns is not None
-        and first.end_ns is not None
-        and second.start_ns is not None
-        and second.end_ns is not None
-    )
-    if first.end_ns < first.start_ns or second.end_ns < second.start_ns:
+    if not first.write_id:
         return _result(
             Outcome.HARNESS_ERROR,
-            "write completion timestamps are not ordered within an operation",
-            first_start_ns=first.start_ns,
-            first_end_ns=first.end_ns,
-            second_start_ns=second.start_ns,
-            second_end_ns=second.end_ns,
+            "preceding write has no stable write identifier",
         )
-    if second.start_ns < first.end_ns:
+    if not second.write_id:
+        return _result(
+            Outcome.HARNESS_ERROR,
+            "successive write has no stable write identifier",
+        )
+    if second.parent_write_id != first.write_id:
+        return _result(
+            Outcome.HARNESS_ERROR,
+            "successive write does not identify the preceding write",
+            expected_parent_write_id=first.write_id,
+            actual_parent_write_id=second.parent_write_id,
+        )
+    if not second.response_received:
+        return _result(
+            Outcome.INDETERMINATE,
+            "successive write has no definitive client response",
+        )
+    if not second.write_base_observed:
+        return _result(
+            Outcome.INDETERMINATE,
+            "state immediately preceding the successive write was not recorded",
+            predecessor_write_id=first.write_id,
+        )
+    if first.write_id not in second.write_base_write_ids:
         return _result(
             Outcome.VIOLATION,
-            "successive write started before the preceding write completed",
-            first_end_ns=first.end_ns,
-            second_start_ns=second.start_ns,
+            "successive write took place before the preceding write was present",
+            predecessor_write_id=first.write_id,
+            write_base_write_ids=list(second.write_base_write_ids),
         )
     return _result(
         Outcome.PASS,
-        "preceding write completed before the successive write started",
-        first_end_ns=first.end_ns,
-        second_start_ns=second.start_ns,
+        "preceding write was present in the state used by the successive write",
+        predecessor_write_id=first.write_id,
+        write_base_write_ids=list(second.write_base_write_ids),
     )
 
 
