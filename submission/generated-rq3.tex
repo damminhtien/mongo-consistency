@@ -1,46 +1,44 @@
 \subsection{Mechanism contrasts (RQ3)}
 
-The protocol planned 8 matched-seed pairs per contrast. Six
-historical RQ1 records anchor the explanations; their outcomes are not replay
-denominators. A replay pair enters
-the mechanism denominator only when its raw histories satisfy every
-preregistered topology, route, setup-write, and semantic-prestate control.
-Control-invalid pairs remain listed in the analysis summary with their reasons
-and are excluded from all signature and outcome counts below. The analyzer
-recomputes pair validity from raw histories and checks it against the campaign
-manifest. Selection uses the first preregistered control-valid pair by pair ID;
-consistency outcomes do not affect validity or selection.
-Anchor IDs, raw hashes, canonical history hashes, routes, outcomes, and
-selection limits are in \texttt{configs/rq3-anchors.json} and
-\texttt{docs/rq3-historical-trace-selection.md}. Timestamp-component
-comparisons are descriptive and do not establish full term-aware OpTime order.
+RQ3 is a focused mechanism study that explains representative RQ1 and RQ2
+observations; it is not a third benchmark. The protocol planned 8
+matched-seed pairs per contrast, and the analyzer recomputes pair validity from
+the raw histories before deriving the observations below. M1: Control-valid pairs 8/8; M2: Control-valid pairs 8/8; M3: Control-valid pairs 8/8. The
+six registered RQ1 histories remain historical anchors rather than replay
+denominators. The four client-centric definitions used by the checker---read
+your-writes, monotonic reads, monotonic writes, and writes-follow-reads---are
+client properties from Lecture~3; MongoDB read concern, write concern, and
+causal sessions are the mechanisms used to interpret them.
 
 {\scriptsize
 \setlength{\tabcolsep}{3pt}
-\begin{longtable}{@{}p{1.1cm}p{2.4cm}p{5.8cm}p{6.9cm}@{}}
-\caption{RQ3 preregistered contrasts; counts use control-valid pairs only.}
+\begin{longtable}{@{}p{2.2cm}p{2.8cm}p{5.8cm}p{5.2cm}@{}}
+\caption{RQ3 focused mechanism contrasts; observations use control-valid pairs.}
 \label{tab:rq3-mechanisms}\\
 \toprule
-Contrast & Changed factor & Historical RQ1 anchor & Matched replay evidence \\
+Mechanism & Contrast & Observation & Interpretation / limitation \\
 \midrule
 \endfirsthead
-\caption[]{RQ3 preregistered contrasts (continued).}\\
+\caption[]{RQ3 focused mechanism contrasts (continued).}\\
 \toprule
-Contrast & Changed factor & Historical RQ1 anchor & Matched replay evidence \\
+Mechanism & Contrast & Observation & Interpretation / limitation \\
 \midrule
 \endhead
 \bottomrule
 \endfoot
-M1 (C5/C6) & causal session: off/on & C5 experiment-00089-C5-ryw, C6 experiment-00335-C6-ryw: C5 returned stale v0 without afterClusterTime. C6 sent W1's operation time as afterClusterTime but returned no value before NetworkTimeout. Both converged to v1 after healing. & Control-valid pairs 8/8; invalid 0. C5 stale v0 without afterClusterTime 8/8; C5 W1 operationTime component ahead of routed-member lastWrite 8/8; C6 afterClusterTime present/matches W1 operationTime/ahead of routed lastWrite: 8/8, 8/8, 8/8; C6 read responses successful/unavailable/indeterminate/not reached: 0/8, 8/8, 0/8, 0/8; error codes: NetworkTimeout: 8. Same actual subject route 8/8; selected replay m1-r01. \\
-M2 (C8/C5) & read concern: local/majority & C8 experiment-00019-C8-wfr, C5 experiment-00144-C5-wfr: C8 read v1 from the isolated former primary; C5 read v0. Both dependent writes and post-heal state converged to version 2. & Control-valid pairs 8/8; invalid 0. C8 local v1 / successful reads 8/8 / 8/8; C5 majority v0 / successful reads 8/8 / 8/8; W2 acknowledged C8/C5 3/8, 3/8; W2 on all final members C8/C5 8/8, 8/8; returned read version present after convergence C8/C5 0/8, 8/8; setup W1 command logs w:1 on mongo3 16/16 arms. Same actual subject route 8/8; selected replay m2-r01. \\
-M3 (C3/C6) & write concern: w:1/majority & C3 experiment-00001-C3-mw, C6 experiment-00086-C6-mw: C3 acknowledged W1 at w:1 and W1 was absent after the elected branch converged. C6 timed out with no response but W1 was present on all members after healing. & Control-valid pairs 8/8; invalid 0. C3 w:1 first-write acknowledged 8/8; acknowledged W1 absent from all converged members 8/8; C6 majority first-write acknowledged/time out 0/8, 8/8; W1 later present on all final members after timeout 0/8. Same actual subject route 8/8; selected replay m3-r01. \\
+causal session & C5 vs C6; off vs on & C5 returned stale v0 without afterClusterTime in 8/8; C6 carried afterClusterTime in 8/8, with no successful stale read and unavailable reads in 8/8. & Consistent with a causal-session lower bound preventing a stale successful read; the client-visible timeout does not prove internal server blocking. \\
+read concern & C8 vs C5; local vs majority & C8 local returned v1 in 8/8; C5 majority returned v0 in 8/8. The returned version was present in final state for C8/C5 in 0/8 and 8/8. & Consistent with local exposing the latest state at the selected instance and majority exposing a majority-committed state. The setup W1 was a protocol-defined w:1 stimulus, not independently observed command evidence; the trace supports a role/state observation rather than a universal route effect. \\
+write concern & C3 vs C6; w:1 vs majority & C3 acknowledged W1 at w:1 in 8/8; the acknowledged W1 was absent from all converged members in 8/8. C6 majority W1 timed out in 8/8; direct W1 presence after healing was observed in 0/8. & w:1 acknowledgement and majority acknowledgement expose different client outcomes under failover. A timeout leaves the write effect unresolved from the client response; it does not establish definite failure or internal waiting. \\
 \end{longtable}
 }
 
-The historical seeds differ. The causal lower bound constrains when a read may complete; a timeout does not establish an internal server wait. Historical limitation: The seeds differ. A timeout is no observed response, not proof of an internal server wait.
+The contrasts are finite, Docker-based observations. M2 is interpreted at the
+level of role-equivalent replica states and does not establish a general
+physical-member or route effect. M3's client-visible timeout does not reveal
+whether MongoDB waited internally, and direct presence after healing is a
+separate observation from acknowledgement. The repetitions do not prove a
+universal guarantee, and containers on one host do not reproduce a WAN failure
+model. Raw hashes, routes, pair controls, and selected histories remain in the
+analysis and reproduction artifacts.
 
-The historical setup W1 write concern is protocol-defined, not directly observed; the replay captures that command. WFR outcomes: C8 violations/indeterminate 3/8, 5/8; C5 passes/indeterminate 3/8, 5/8. These counts preserve the recorded read values and post-convergence observations. Historical limitation: The setup write concern is protocol-defined as w:1 but was not captured in the old command log. The seeds differ.
-
-The historical seeds and election paths differ. The C3/C6 comparison separates recorded acknowledgement from post-heal effect; a majority timeout does not mean the write failed. Historical limitation: The seeds and realized election paths differ. The timeout does not mean the write failed; interpret this as a mechanism-consistent trace, not a controlled causal estimate.
-
-\maybefigure[fig:rq3-causal-timeline]{submission/figures/rq3-causal-timeline.pdf}{First control-valid C5/C6 RYW pair; each arm is an independent fault episode.}
+\maybefigure[fig:rq3-causal-timeline]{submission/figures/rq3-causal-timeline.pdf}{C5/C6 causal-session timeline; each arm is an independent fault episode.}

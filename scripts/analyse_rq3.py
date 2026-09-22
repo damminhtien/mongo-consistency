@@ -1078,113 +1078,76 @@ def _render_report_section(
         anchor_manifest, _ = verify_anchor_manifest(ROOT)
         historical_anchors = _summarize_historical_anchors(anchor_manifest)
     specifications = {
-        "M1": ("C5/C6", "causal session: off/on"),
-        "M2": ("C8/C5", "read concern: local/majority"),
-        "M3": ("C3/C6", "write concern: w:1/majority"),
+        "M1": ("causal session", "C5 vs C6; off vs on"),
+        "M2": ("read concern", "C8 vs C5; local vs majority"),
+        "M3": ("write concern", "C3 vs C6; w:1 vs majority"),
     }
-    rows = []
-    notes: dict[str, str] = {}
-    anchors_by_contrast = {
-        pair["contrast_id"]: pair for pair in historical_anchors
-    }
+    rows: list[str] = []
+    validity: list[str] = []
     for contrast_id in ("M1", "M2", "M3"):
         planned_pairs = grouped[contrast_id]
         valid_pairs = _valid_pairs(planned_pairs)
         planned_n = len(planned_pairs)
         valid_n = len(valid_pairs)
-        invalid_n = planned_n - valid_n
         counts = _counts(valid_pairs, contrast_id)
-        left, changed = specifications[contrast_id]
+        mechanism, contrast = specifications[contrast_id]
+        validity.append(
+            f"{contrast_id}: Control-valid pairs {valid_n}/{planned_n}"
+        )
+
         if contrast_id == "M1":
-            successful = counts["C6_successful_read_responses"]
-            errors = ", ".join(
-                f"{code}: {count}"
-                for code, count in counts["C6_read_error_code_counts"].items()
-            ) or "none recorded"
-            evidence = (
-                f"C5 stale v0 without afterClusterTime "
+            observation = (
+                f"C5 returned stale v0 without afterClusterTime in "
                 f"{counts['C5_stale_success_without_after_cluster_time']}/{valid_n}; "
-                f"C5 W1 operationTime component ahead of routed-member lastWrite "
-                f"{counts['C5_write_time_ahead_of_routed_member_last_write']}/{valid_n}; "
-                f"C6 afterClusterTime present/matches W1 operationTime/ahead of routed "
-                f"lastWrite: {counts['C6_after_cluster_time_present']}/{valid_n}, "
-                f"{counts['C6_after_cluster_time_matches_write_time']}/{valid_n}, "
-                f"{counts['C6_after_cluster_time_ahead_of_routed_member_last_write']}/{valid_n}; "
-                f"C6 read responses successful/unavailable/indeterminate/not reached: "
-                f"{successful}/{valid_n}, {counts['C6_unavailable_reads']}/{valid_n}, "
-                f"{counts['C6_indeterminate_reads']}/{valid_n}, "
-                f"{counts['C6_read_not_reached']}/{valid_n}; error codes: {errors}."
+                f"C6 carried afterClusterTime in "
+                f"{counts['C6_after_cluster_time_present']}/{valid_n}, with no "
+                f"successful stale read and unavailable reads in "
+                f"{counts['C6_unavailable_reads']}/{valid_n}."
             )
-            notes[contrast_id] = (
-                "The historical seeds differ. The causal lower bound constrains when a "
-                "read may complete; a timeout does not establish an internal server wait."
+            interpretation = (
+                "Consistent with a causal-session lower bound preventing a stale "
+                "successful read; the client-visible timeout does not prove internal "
+                "server blocking."
             )
-            route_count = counts["same_actual_read_route_pairs"]
         elif contrast_id == "M2":
-            evidence = (
-                f"C8 local v1 / successful reads "
-                f"{counts['C8_local_read_v1']}/{valid_n} / "
-                f"{counts['C8_successful_read_responses']}/{valid_n}; "
-                f"C5 majority v0 / successful reads "
-                f"{counts['C5_majority_read_v0']}/{valid_n} / "
-                f"{counts['C5_successful_read_responses']}/{valid_n}; "
-                f"W2 acknowledged C8/C5 "
-                f"{counts['C8_W2_acknowledged']}/{valid_n}, "
-                f"{counts['C5_W2_acknowledged']}/{valid_n}; W2 on all final members "
-                f"C8/C5 {counts['C8_W2_present_on_all_final_members']}/{valid_n}, "
-                f"{counts['C5_W2_present_on_all_final_members']}/{valid_n}; "
-                f"returned read version present after convergence C8/C5 "
-                f"{counts['C8_read_version_present_in_final_state']}/{valid_n}, "
-                f"{counts['C5_read_version_present_in_final_state']}/{valid_n}; "
-                f"setup W1 command logs w:1 on mongo3 "
-                f"{counts['setup_w1_command_w1_mongo3_arms']}/{2 * valid_n} arms."
+            observation = (
+                f"C8 local returned v1 in {counts['C8_local_read_v1']}/{valid_n}; "
+                f"C5 majority returned v0 in {counts['C5_majority_read_v0']}/{valid_n}. "
+                f"The returned version was present in final state for C8/C5 in "
+                f"{counts['C8_read_version_present_in_final_state']}/{valid_n} and "
+                f"{counts['C5_read_version_present_in_final_state']}/{valid_n}."
             )
-            notes[contrast_id] = (
-                "The historical setup W1 write concern is protocol-defined, not "
-                "directly observed; the replay captures that command. "
-                f"WFR outcomes: C8 violations/indeterminate "
-                f"{counts['C8_WFR_violations']}/{valid_n}, "
-                f"{counts['C8_WFR_indeterminate']}/{valid_n}; C5 passes/indeterminate "
-                f"{counts['C5_WFR_passes']}/{valid_n}, "
-                f"{counts['C5_WFR_indeterminate']}/{valid_n}. These counts preserve "
-                "the recorded read values and post-convergence observations."
+            interpretation = (
+                "Consistent with local exposing the latest state at the selected "
+                "instance and majority exposing a majority-committed state. The "
+                "setup W1 was a protocol-defined w:1 stimulus, not independently "
+                "observed command evidence; the trace supports a role/state "
+                "observation rather than a universal route effect."
             )
-            route_count = counts["same_actual_read_route_pairs"]
         else:
-            evidence = (
-                f"C3 w:1 first-write acknowledged "
-                f"{counts['C3_w1_first_write_acknowledged']}/{valid_n}; acknowledged "
-                f"W1 absent from all converged members "
-                f"{counts['C3_acknowledged_w1_absent_from_all_converged_members']}/{valid_n}; "
-                f"C6 majority first-write acknowledged/time out "
-                f"{counts['C6_majority_first_write_acknowledged']}/{valid_n}, "
+            observation = (
+                f"C3 acknowledged W1 at w:1 in "
+                f"{counts['C3_w1_first_write_acknowledged']}/{valid_n}; the "
+                f"acknowledged W1 was absent from all converged members in "
+                f"{counts['C3_acknowledged_w1_absent_from_all_converged_members']}/{valid_n}. "
+                f"C6 majority W1 timed out in "
                 f"{counts['C6_majority_first_write_network_timeout']}/{valid_n}; "
-                f"W1 later present on all final members after timeout "
+                f"direct W1 presence after healing was observed in "
                 f"{counts['C6_w1_present_on_all_final_members_after_timeout']}/{valid_n}."
             )
-            notes[contrast_id] = (
-                "The historical seeds and election paths differ. The C3/C6 comparison "
-                "separates recorded acknowledgement from post-heal effect; a majority "
-                "timeout does not mean the write failed."
+            interpretation = (
+                "w:1 acknowledgement and majority acknowledgement expose different "
+                "client outcomes under failover. A timeout leaves the write effect "
+                "unresolved from the client response; it does not establish definite "
+                "failure or internal waiting."
             )
-            route_count = counts["same_actual_first_write_route_pairs"]
-        chosen = selections[contrast_id]
-        selected_text = chosen["pair_id"] if chosen is not None else "no valid exemplar"
-        anchor = anchors_by_contrast[contrast_id]
-        anchor_ids = ", ".join(
-            f"{item['configuration_id']} {item['trial_id']}"
-            for item in anchor["histories"]
-        )
-        anchor_text = f"{anchor_ids}: {anchor['interpretation']}"
-        replay_text = (
-            f"Control-valid pairs {valid_n}/{planned_n}; invalid {invalid_n}. "
-            f"{evidence} Same actual subject route {route_count}/{valid_n}; "
-            f"selected replay {selected_text}."
-        )
-        notes[contrast_id] += " Historical limitation: " + anchor["limitation"]
+
         rows.append(
-            f"{contrast_id} ({_latex_escape(left)}) & {_latex_escape(changed)} & "
-            f"{_latex_escape(anchor_text)} & {_latex_escape(replay_text)} \\\\"
+            " & ".join(
+                _latex_escape(cell)
+                for cell in (mechanism, contrast, observation, interpretation)
+            )
+            + r" \\"
         )
 
     m1_valid = _valid_pairs(grouped["M1"])
@@ -1193,38 +1156,34 @@ def _render_report_section(
         timeline_note = (
             "\\maybefigure[fig:rq3-causal-timeline]"
             "{submission/figures/rq3-causal-timeline.pdf}"
-            "{First control-valid C5/C6 RYW pair; each arm is an independent fault episode.}"
+            "{C5/C6 causal-session timeline; each arm is an independent fault episode.}"
         )
     repetitions = int(campaign["repetitions_per_contrast"])
+    validity_text = "; ".join(validity) + "."
     return rf"""\subsection{{Mechanism contrasts (RQ3)}}
 
-The protocol planned {repetitions} matched-seed pairs per contrast. Six
-historical RQ1 records anchor the explanations; their outcomes are not replay
-denominators. A replay pair enters
-the mechanism denominator only when its raw histories satisfy every
-preregistered topology, route, setup-write, and semantic-prestate control.
-Control-invalid pairs remain listed in the analysis summary with their reasons
-and are excluded from all signature and outcome counts below. The analyzer
-recomputes pair validity from raw histories and checks it against the campaign
-manifest. Selection uses the first preregistered control-valid pair by pair ID;
-consistency outcomes do not affect validity or selection.
-Anchor IDs, raw hashes, canonical history hashes, routes, outcomes, and
-selection limits are in \texttt{{configs/rq3-anchors.json}} and
-\texttt{{docs/rq3-historical-trace-selection.md}}. Timestamp-component
-comparisons are descriptive and do not establish full term-aware OpTime order.
+RQ3 is a focused mechanism study that explains representative RQ1 and RQ2
+observations; it is not a third benchmark. The protocol planned {repetitions}
+matched-seed pairs per contrast, and the analyzer recomputes pair validity from
+the raw histories before deriving the observations below. {validity_text} The
+six registered RQ1 histories remain historical anchors rather than replay
+denominators. The four client-centric definitions used by the checker---read
+your-writes, monotonic reads, monotonic writes, and writes-follow-reads---are
+client properties from Lecture~3; MongoDB read concern, write concern, and
+causal sessions are the mechanisms used to interpret them.
 
 {{\scriptsize
 \setlength{{\tabcolsep}}{{3pt}}
-\begin{{longtable}}{{@{{}}p{{1.1cm}}p{{2.4cm}}p{{5.8cm}}p{{6.9cm}}@{{}}}}
-\caption{{RQ3 preregistered contrasts; counts use control-valid pairs only.}}
+\begin{{longtable}}{{@{{}}p{{2.2cm}}p{{2.8cm}}p{{5.8cm}}p{{5.2cm}}@{{}}}}
+\caption{{RQ3 focused mechanism contrasts; observations use control-valid pairs.}}
 \label{{tab:rq3-mechanisms}}\\
 \toprule
-Contrast & Changed factor & Historical RQ1 anchor & Matched replay evidence \\
+Mechanism & Contrast & Observation & Interpretation / limitation \\
 \midrule
 \endfirsthead
-\caption[]{{RQ3 preregistered contrasts (continued).}}\\
+\caption[]{{RQ3 focused mechanism contrasts (continued).}}\\
 \toprule
-Contrast & Changed factor & Historical RQ1 anchor & Matched replay evidence \\
+Mechanism & Contrast & Observation & Interpretation / limitation \\
 \midrule
 \endhead
 \bottomrule
@@ -1233,11 +1192,14 @@ Contrast & Changed factor & Historical RQ1 anchor & Matched replay evidence \\
 \end{{longtable}}
 }}
 
-{_latex_escape(notes['M1'])}
-
-{_latex_escape(notes['M2'])}
-
-{_latex_escape(notes['M3'])}
+The contrasts are finite, Docker-based observations. M2 is interpreted at the
+level of role-equivalent replica states and does not establish a general
+physical-member or route effect. M3's client-visible timeout does not reveal
+whether MongoDB waited internally, and direct presence after healing is a
+separate observation from acknowledgement. The repetitions do not prove a
+universal guarantee, and containers on one host do not reproduce a WAN failure
+model. Raw hashes, routes, pair controls, and selected histories remain in the
+analysis and reproduction artifacts.
 
 {timeline_note}
 """
