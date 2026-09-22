@@ -9,7 +9,7 @@ import shutil
 from pathlib import Path
 from typing import Any
 
-from mongo_consistency.rq4 import ROOT, analyse
+from mongo_consistency.rq4 import PARTITION_SIGNATURES, ROOT, analyse
 
 
 def _latex_escape(value: Any) -> str:
@@ -100,45 +100,45 @@ def _metric_rows(rows: list[dict[str, str]]) -> str:
             f"{_latex_escape(row.get('property', ''))} & {counts} & "
             f"{_rate_percent(_number(row, 'definitive_completion_rate'))} & "
             f"{_milliseconds(_number(row, 'p50_ms'))}/"
-            f"{_milliseconds(_number(row, 'p95_ms'))} "
+            f"{_milliseconds(_number(row, 'p95_ms'))} & "
+            f"{_milliseconds(_number(row, 'resolved_p50_ms'))}/"
+            f"{_milliseconds(_number(row, 'resolved_p95_ms'))} "
             + r"\\"
         )
-    return "\n".join(rendered) or r"\multicolumn{6}{c}{\texttt{NO DATA}} \\"
+    return "\n".join(rendered) or r"\multicolumn{7}{c}{\texttt{NO DATA}} \\"
 
 
-def _partition_rows(rows: list[dict[str, str]]) -> tuple[str, dict[str, dict[str, int]]]:
-    grouped: dict[str, dict[str, int]] = {}
+def _partition_rows(
+    rows: list[dict[str, str]],
+) -> tuple[str, dict[tuple[str, str], dict[str, str]]]:
+    """Render only the balanced C1/C6 RYW and MW signature cells."""
+
+    grouped: dict[tuple[str, str], dict[str, str]] = {}
     for row in rows:
         if row.get("scenario") != "partition":
             continue
-        config = row.get("configuration_id", "")
-        counts = grouped.setdefault(
-            config,
-            {
-                outcome: 0
-                for outcome in ("PASS", "VIOLATION", "UNAVAILABLE", "INDETERMINATE")
-            },
-        )
-        for outcome in counts:
-            counts[outcome] += _integer(row, outcome)
+        key = (row.get("configuration_id", ""), row.get("property", ""))
+        if key in PARTITION_SIGNATURES:
+            grouped[key] = row
     rendered: list[str] = []
-    for config in ("C1", "C3", "C4", "C5", "C6"):
-        counts = grouped.get(config)
-        if counts is None:
+    for config, property_name in PARTITION_SIGNATURES:
+        row = grouped.get((config, property_name))
+        if row is None:
             rendered.append(
-                f"{config} & \\textemdash & \\texttt{{MISSING\\_CELL}} & "
-                f"\\texttt{{no RQ2 partition histories}} "
+                f"{config} & {property_name} & \\textemdash & \\texttt{{MISSING\\_CELL}} & "
+                f"\\texttt{{no RQ2 partition history}} & \\texttt{{NA}} "
                 + r"\\"
             )
             continue
-        total = sum(counts.values())
-        completion = (counts["PASS"] + counts["VIOLATION"]) / total if total else None
+        total = _integer(row, "history_count")
         values = "/".join(
-            str(counts[outcome])
+            str(_integer(row, outcome))
             for outcome in ("PASS", "VIOLATION", "UNAVAILABLE", "INDETERMINATE")
         )
+        completion = _number(row, "definitive_completion_rate")
         rendered.append(
-            f"{config} & {total} & {values} & {_rate_percent(completion)} "
+            f"{config} & {property_name} & {total} & {values} & {_rate_percent(completion)} & "
+            f"{_milliseconds(_number(row, 'p95_ms'))} "
             + r"\\"
         )
     return "\n".join(rendered), grouped
@@ -175,6 +175,20 @@ def _contrast_rows(
     return ("\n".join(rendered) or r"\multicolumn{5}{c}{\texttt{NO DATA}} \\"), by_key
 
 
+def _partition_signature_values(
+    rows: dict[tuple[str, str], dict[str, str]],
+    key: tuple[str, str],
+) -> tuple[str, str]:
+    row = rows.get(key)
+    if row is None:
+        return "NO_DATA", "NA"
+    counts = "/".join(
+        str(_integer(row, outcome))
+        for outcome in ("PASS", "VIOLATION", "UNAVAILABLE", "INDETERMINATE")
+    )
+    return counts, _rate_percent(_number(row, "definitive_completion_rate"))
+
+
 def _macro(name: str, value: str) -> str:
     return f"\\newcommand{{\\{name}}}{{{value}}}"
 
@@ -193,43 +207,30 @@ def write_report_section(
     partition_rows, partition_counts = _partition_rows(metrics)
     contrast_rows, _ = _contrast_rows(contrasts)
 
-    c1_partition = partition_counts.get("C1", {})
-    c6_partition = partition_counts.get("C6", {})
-    c1_total = sum(c1_partition.values())
-    c6_total = sum(c6_partition.values())
-    c1_completion = (
-        (c1_partition.get("PASS", 0) + c1_partition.get("VIOLATION", 0)) / c1_total
-        if c1_total
-        else None
+    c1_ryw_counts, c1_ryw_completion = _partition_signature_values(
+        partition_counts, ("C1", "RYW")
     )
-    c6_completion = (
-        (c6_partition.get("PASS", 0) + c6_partition.get("VIOLATION", 0)) / c6_total
-        if c6_total
-        else None
+    c6_ryw_counts, c6_ryw_completion = _partition_signature_values(
+        partition_counts, ("C6", "RYW")
+    )
+    c1_mw_counts, c1_mw_completion = _partition_signature_values(
+        partition_counts, ("C1", "MW")
+    )
+    c6_mw_counts, c6_mw_completion = _partition_signature_values(
+        partition_counts, ("C6", "MW")
     )
     macros = {
         "RQFourStatus": _latex_escape(summary.get("status", "NO_DATA")),
         "RQFourHistoryCount": str(summary.get("history_count", 0)),
         "RQFourMetricRowCount": str(summary.get("metric_row_count", 0)),
-        "RQFourPartitionCOneCounts": (
-            "/".join(
-                str(c1_partition.get(outcome, 0))
-                for outcome in ("PASS", "VIOLATION", "UNAVAILABLE", "INDETERMINATE")
-            )
-            if c1_partition
-            else "NO_DATA"
-        ),
-        "RQFourPartitionCOneCompletion": _rate_percent(c1_completion),
-        "RQFourPartitionCsixCounts": (
-            "/".join(
-                str(c6_partition.get(outcome, 0))
-                for outcome in ("PASS", "VIOLATION", "UNAVAILABLE", "INDETERMINATE")
-            )
-            if c6_partition
-            else "NO_DATA"
-        ),
-        "RQFourPartitionCsixCompletion": _rate_percent(c6_completion),
-        "RQFourPartitionCfiveStatus": "MISSING\\_CELL" if "C5" not in partition_counts else "DATA",
+        "RQFourPartitionCOneRYWCounts": c1_ryw_counts,
+        "RQFourPartitionCOneRYWCompletion": c1_ryw_completion,
+        "RQFourPartitionCsixRYWCounts": c6_ryw_counts,
+        "RQFourPartitionCsixRYWCompletion": c6_ryw_completion,
+        "RQFourPartitionCOneMWCounts": c1_mw_counts,
+        "RQFourPartitionCOneMWCompletion": c1_mw_completion,
+        "RQFourPartitionCsixMWCounts": c6_mw_counts,
+        "RQFourPartitionCsixMWCompletion": c6_mw_completion,
         "RQFourSelectedRows": metric_rows,
         "RQFourPartitionRows": partition_rows,
         "RQFourContrastRows": contrast_rows,
@@ -237,13 +238,15 @@ def write_report_section(
     section = "\n".join(_macro(name, value) for name, value in macros.items())
     section += r"""
 
-\subsection{RQ4: Consistency, completion, and latency costs}
+\subsection{RQ4: Client-visible outcomes under faults}
 
 RQ4 is an offline analysis of the immutable RQ1 and RQ2 histories. It adds no
 MongoDB run, workload, topology, or configuration. The analyzer classified
 \RQFourHistoryCount\ histories and produced \RQFourMetricRowCount\ configuration,
-scenario, and property cells. It asks how much observed client cost accompanies
-avoiding a completed consistency violation under the recorded schedules.
+scenario, and property cells. It asks: when a configuration does not expose a
+client-centric consistency violation under a fault, what client-visible outcome
+occurs instead: successful completion, waiting or timeout, an ambiguous
+outcome, or increased response time?
 
 For each cell, the violation rate is
 \(V=\mathrm{VIOLATION}/(\mathrm{PASS}+\mathrm{VIOLATION})\). The completion measure is
@@ -251,18 +254,21 @@ the observed definitive completion rate
 \(D=(\mathrm{PASS}+\mathrm{VIOLATION})/\mathrm{attempted}\), where attempted includes
 PASS, VIOLATION, UNAVAILABLE, and INDETERMINATE. It is not formal CAP
 availability. INDETERMINATE is retained as a separate client-visible outcome.
-Latency is measured for the registered critical operation of each property and
-reported with p50 and p95; p99 is not used for these small cells.
+All-attempt latency is the client-observed time from start to end of the
+registered critical operation, including valid timeout outcomes. Resolved
+latency uses only PASS and VIOLATION histories, so its sample is not silently
+mixed with waiting or ambiguous outcomes. Both are reported with p50 and p95;
+p99 is not used for these small cells.
 
 \begin{table}[ht]
 \centering
 \scriptsize
 \setlength{\tabcolsep}{3pt}
-\caption{RQ4 selected C5/C6 metrics; counts and observed completion.}
+\caption{RQ4 selected C5/C6 metrics; counts, observed completion, and separate latency samples.}
 \label{tab:rq4-selected-metrics}
-\begin{tabular}{@{}l l l r r r@{}}
+\begin{tabular}{@{}l l l r r r r@{}}
 \toprule
-Scenario & Config & Property & P/V/U/I & $D$ & p50/p95 (ms) \\
+Scenario & Config & Property & P/V/U/I & $D$ & All-attempt p50/p95 (ms) & Resolved p50/p95 (ms) \\
 \midrule
 \RQFourSelectedRows
 \bottomrule
@@ -273,25 +279,25 @@ Scenario & Config & Property & P/V/U/I & $D$ & p50/p95 (ms) \\
 \centering
 \scriptsize
 \setlength{\tabcolsep}{4pt}
-\caption{RQ4 outcome composition under the RQ2 partition. Rows aggregate the four property cells.}
+\caption{RQ4 paired signature outcomes under the RQ2 partition. Each row is one C1/C6 RYW or MW cell.}
 \label{tab:rq4-partition-outcomes}
-\begin{tabular}{@{}l r l r@{}}
+\begin{tabular}{@{}l l r l r r@{}}
 \toprule
-Config & $n$ & P/V/U/I & $D$ \\
+Config & Property & $n$ & P/V/U/I & $D$ & All-attempt p95 (ms) \\
 \midrule
 \RQFourPartitionRows
 \bottomrule
 \end{tabular}
 \end{table}
 
-The partition contrast is visible in the outcome composition. C1's P/V/U/I
-counts are \RQFourPartitionCOneCounts\ and its observed definitive completion
-is \RQFourPartitionCOneCompletion\  C6's P/V/U/I counts are
-\RQFourPartitionCsixCounts\ and its observed definitive completion is
-\RQFourPartitionCsixCompletion\  The C5 partition cell is
-\RQFourPartitionCfiveStatus: C5 was not included in
-the RQ2 partition campaign, so no C5/C6 partition latency or completion
-contrast is inferred.
+The paired F3 signatures show the same outcome pattern for RYW and MW. C1's
+RYW cell has P/V/U/I counts \RQFourPartitionCOneRYWCounts, and observed
+definitive completion \RQFourPartitionCOneRYWCompletion; its MW cell has
+\RQFourPartitionCOneMWCounts, and \RQFourPartitionCOneMWCompletion. C6's
+corresponding RYW cell has \RQFourPartitionCsixRYWCounts\ and
+\RQFourPartitionCsixRYWCompletion; its MW cell has
+\RQFourPartitionCsixMWCounts, and \RQFourPartitionCsixMWCompletion.
+These are paired signature cells, not an aggregate over four properties.
 
 \begin{table}[ht]
 \centering
@@ -308,12 +314,12 @@ Scenario & Property & Status & $\Delta p95$ (ms) & $\Delta D$ \\
 \end{tabular}
 \end{table}
 
-The figures retain the full configuration and scenario coverage. They are
+The figures retain the available configuration and scenario coverage. They are
 descriptive evidence for the tested schedules rather than a scalar ranking of
 configurations.
 
-\maybefigure[fig:rq4-outcomes-partition]{submission/figures/rq4_outcomes_partition.pdf}{RQ4 outcome composition under the RQ2 partition.}
-\maybefigure[fig:rq4-latency-completion]{submission/figures/rq4_latency_completion.pdf}{RQ4 critical-operation p95 latency against observed definitive completion.}
+\maybefigure[fig:rq4-outcomes-partition]{submission/figures/rq4_outcomes_partition.pdf}{RQ4 paired C1/C6 RYW and MW signature outcomes under the RQ2 partition.}
+\maybefigure[fig:rq4-latency-completion]{submission/figures/rq4_latency_completion.pdf}{RQ4 client-observed all-attempt p95 time against observed definitive completion.}
 \maybefigure[fig:rq4-c5-c6]{submission/figures/rq4_c5_c6_contrast.pdf}{RQ4 C5/C6 one-factor contrast under normal and RQ1 fault scenarios.}
 """
     section_path = submission_root / "generated-rq4.tex"

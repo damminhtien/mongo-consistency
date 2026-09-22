@@ -64,10 +64,11 @@ The front matter places a short acknowledgements section after the abstract.
 - Report fault timing by fault episode. Histories that share an episode are not
   independent fault injections.
 - Treat RQ4 as a derived analysis of immutable RQ1/RQ2 histories. Define
-  violation, observed definitive completion, indeterminate rate, and critical
-  operation latency before inspecting results. Use p50/p95 for the small
-  campaign cells and do not call observed definitive completion formal CAP
-  availability.
+  violation, observed definitive completion, indeterminate rate, and the
+  client-observed critical-operation time before inspecting results. Keep
+  all-attempt and resolved (PASS/VIOLATION) latency samples separate. Use
+  p50/p95 for the small campaign cells and do not call observed definitive
+  completion formal CAP availability.
 - Keep outcome composition visible for each configuration, scenario, and
   property. Use one-factor contrasts, especially C5 versus C6, and retain
   missing cells such as C5 under the RQ2 partition as missing evidence.

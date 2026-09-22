@@ -2,8 +2,10 @@
 
 RQ4 asks:
 
-> When MongoDB avoids a client-visible consistency violation, how much latency
-> and observed definitive completion does the client pay?
+> When a configuration does not expose a client-centric consistency violation
+> under a fault, what client-visible outcome occurs instead: successful
+> completion, waiting or timeout, an ambiguous outcome, or increased response
+> time?
 
 The analysis is derived from immutable raw histories. It makes no MongoDB
 connections and does not add a workload, topology, or configuration. The
@@ -17,7 +19,9 @@ For each configuration, scenario, and property, the analyzer writes:
 - `violation_rate = VIOLATION / (PASS + VIOLATION)`;
 - `definitive_completion_rate = (PASS + VIOLATION) / attempted`;
 - `indeterminate_rate = INDETERMINATE / attempted`; and
-- critical-operation p50 and p95 latency in milliseconds.
+- all-attempt critical-operation p50 and p95 latency in milliseconds; and
+- resolved critical-operation p50 and p95 latency for PASS and VIOLATION
+  histories only.
 
 `attempted` is the count of PASS, VIOLATION, UNAVAILABLE, and INDETERMINATE
 histories. PRECONDITION_MISS and HARNESS_ERROR stay visible but are excluded
@@ -34,9 +38,10 @@ Latency uses `end_ns - start_ns` for one operation per property:
 | MW | successor write W2 |
 | WFR | dependent write |
 
-A timeout with valid timestamps remains a latency observation. Its outcome
-remains UNAVAILABLE or INDETERMINATE according to the checker and is not
-reclassified as a definite failure.
+A timeout with valid timestamps remains in the all-attempt latency sample. Its
+outcome remains UNAVAILABLE or INDETERMINATE according to the checker and is
+not reclassified as a definite failure. The resolved sample is deliberately
+limited to PASS and VIOLATION histories so the two denominators remain visible.
 
 ## Scenarios and contrasts
 
@@ -46,8 +51,10 @@ schedules as `rq1_fault`. RQ2 F1, F2, and F3 become `secondary_crash`,
 `fault_deltas.csv` can report p95 and completion changes.
 
 `contrasts.csv` keeps the one-factor pairs C1/C2, C7/C3, C8/C4, and C5/C6. It
-does not rank configurations. The RQ2 partition campaign contains C1, C3, C4,
-and C6 only; C5/C6 partition rows are therefore emitted as `MISSING_CELL`.
+does not rank configurations. Its status distinguishes missing cells,
+complete p95 comparisons, partial latency, and pairs with no latency data. The
+RQ2 partition figure and table use the balanced C1/C6 RYW and MW signature
+cells; MR and WFR are not pooled into those comparisons.
 
 ## Reproduction
 
@@ -66,9 +73,9 @@ figures/rq4_latency_completion.pdf
 figures/rq4_c5_c6_contrast.pdf
 ```
 
-The primary figures show partition outcome composition, p95 latency against
-observed definitive completion, and the C5/C6 one-factor contrast. Claims stay
-conditional on the recorded schedules and sample sizes; p99 is intentionally
-not used for the small cells. The command also regenerates
+The primary figures show paired partition signature outcomes, client-observed
+all-attempt p95 time against observed definitive completion, and the C5/C6
+one-factor contrast. Claims stay conditional on the recorded schedules and
+sample sizes; p99 is intentionally not used for the small cells. The command also regenerates
 `submission/generated-rq4.tex` and copies the three RQ4 PDFs under
 `submission/figures/` so `make submission` includes the current report section.

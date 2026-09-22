@@ -42,6 +42,12 @@ CONTRASTS = (
     ("C8", "C4", "causal_session"),
     ("C5", "C6", "causal_session"),
 )
+PARTITION_SIGNATURES = (
+    ("C1", "RYW"),
+    ("C6", "RYW"),
+    ("C1", "MW"),
+    ("C6", "MW"),
+)
 
 
 def quantile(values: Iterable[float], probability: float) -> float | None:
@@ -201,6 +207,7 @@ def _empty_counts() -> dict[str, int]:
 def _aggregate(key: tuple[str, str, str], records: list[dict[str, Any]]) -> dict[str, Any]:
     counts = _empty_counts()
     latencies: list[float] = []
+    resolved_latencies: list[float] = []
     critical_operation = CRITICAL_STEPS.get(key[2])
     for record in records:
         outcome = str(record.get("outcome") or "HARNESS_ERROR")
@@ -209,6 +216,8 @@ def _aggregate(key: tuple[str, str, str], records: list[dict[str, Any]]) -> dict
         value = record.get("latency_ms")
         if outcome in OUTCOMES and isinstance(value, (int, float)) and value >= 0:
             latencies.append(float(value))
+            if outcome in {"PASS", "VIOLATION"}:
+                resolved_latencies.append(float(value))
     attempted = sum(counts[outcome] for outcome in OUTCOMES)
     decidable = counts["PASS"] + counts["VIOLATION"]
     return {
@@ -238,6 +247,17 @@ def _aggregate(key: tuple[str, str, str], records: list[dict[str, Any]]) -> dict
         ),
         "p50_ms": quantile(latencies, 0.50),
         "p95_ms": quantile(latencies, 0.95),
+        "resolved_latency_n": len(resolved_latencies),
+        "resolved_latency_missing": max(decidable - len(resolved_latencies), 0),
+        "resolved_latency_status": (
+            "NO_DATA"
+            if not resolved_latencies
+            else "COMPLETE"
+            if len(resolved_latencies) == decidable
+            else "PARTIAL"
+        ),
+        "resolved_p50_ms": quantile(resolved_latencies, 0.50),
+        "resolved_p95_ms": quantile(resolved_latencies, 0.95),
     }
 
 
@@ -281,6 +301,14 @@ def contrast_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 left = index.get((left_config, scenario, property_name))
                 right = index.get((right_config, scenario, property_name))
                 complete = left is not None and right is not None
+                if not complete:
+                    status = "MISSING_CELL"
+                elif left["p95_ms"] is None and right["p95_ms"] is None:
+                    status = "NO_LATENCY_DATA"
+                elif left["p95_ms"] is None or right["p95_ms"] is None:
+                    status = "LATENCY_PARTIAL"
+                else:
+                    status = "LATENCY_COMPLETE"
                 output.append(
                     {
                         "scenario": scenario,
@@ -288,7 +316,8 @@ def contrast_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
                         "left_config": left_config,
                         "right_config": right_config,
                         "factor": factor,
-                        "status": "COMPLETE" if complete else "MISSING_CELL",
+                        "cell_status": "CELL_PRESENT" if complete else "MISSING_CELL",
+                        "status": status,
                         "left_history_count": left["history_count"] if left else None,
                         "right_history_count": right["history_count"] if right else None,
                         "left_violation_rate": left["violation_rate"] if left else None,
@@ -335,12 +364,20 @@ def fault_delta_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if scenario not in fault_scenarios:
             continue
         baseline = index.get((row["configuration_id"], "normal", row["property"]))
+        if baseline is None:
+            status = "MISSING_BASELINE"
+        elif baseline["p95_ms"] is None and row["p95_ms"] is None:
+            status = "NO_LATENCY_DATA"
+        elif baseline["p95_ms"] is None or row["p95_ms"] is None:
+            status = "LATENCY_PARTIAL"
+        else:
+            status = "LATENCY_COMPLETE"
         output.append(
             {
                 "scenario": scenario,
                 "configuration_id": row["configuration_id"],
                 "property": row["property"],
-                "status": "COMPLETE" if baseline else "MISSING_BASELINE",
+                "status": status,
                 "normal_history_count": baseline["history_count"] if baseline else None,
                 "fault_history_count": row["history_count"],
                 "normal_p95_ms": baseline["p95_ms"] if baseline else None,
@@ -399,6 +436,11 @@ METRIC_FIELDS = [
     "latency_status",
     "p50_ms",
     "p95_ms",
+    "resolved_latency_n",
+    "resolved_latency_missing",
+    "resolved_latency_status",
+    "resolved_p50_ms",
+    "resolved_p95_ms",
 ]
 CONTRAST_FIELDS = [
     "scenario",
@@ -406,6 +448,7 @@ CONTRAST_FIELDS = [
     "left_config",
     "right_config",
     "factor",
+    "cell_status",
     "status",
     "left_history_count",
     "right_history_count",
@@ -478,42 +521,64 @@ def _render_pdf(path: Path, title: str, body: str, width: int, height: int) -> N
             raise RuntimeError(f"rsvg-convert failed for {path}: {completed.stderr.strip()}")
 
 
-def _partition_counts(rows: list[dict[str, Any]]) -> dict[str, dict[str, int]]:
+def _partition_counts(rows: list[dict[str, Any]]) -> dict[tuple[str, str], dict[str, int]]:
+    """Return outcome counts for the balanced C1/C6 RYW and MW signatures."""
+
     values = {
-        configuration: {outcome: 0 for outcome in OUTCOMES}
-        for configuration in CONFIGURATION_IDS
+        signature: {outcome: 0 for outcome in OUTCOMES}
+        for signature in PARTITION_SIGNATURES
     }
     for row in rows:
         if row["scenario"] != "partition":
             continue
-        configuration = row["configuration_id"]
-        if configuration not in values:
+        signature = (row["configuration_id"], row["property"])
+        if signature not in values:
             continue
         for outcome in OUTCOMES:
-            values[configuration][outcome] += int(row[outcome])
+            values[signature][outcome] += int(row[outcome])
     return values
 
 
 def _outcomes_partition_body(rows: list[dict[str, Any]]) -> tuple[str, int]:
     counts = _partition_counts(rows)
-    colors = {"PASS": "#15803d", "VIOLATION": "#dc2626", "UNAVAILABLE": "#d97706", "INDETERMINATE": "#7c3aed"}
-    left, top, bar_width, row_height = 150, 85, 700, 38
-    body = _svg_text(left, 68, "RQ2 F3 partition; counts aggregate the four properties", size=13, color="#475569")
+    colors = {
+        "PASS": "#15803d",
+        "VIOLATION": "#dc2626",
+        "UNAVAILABLE": "#d97706",
+        "INDETERMINATE": "#7c3aed",
+    }
+    left, top, bar_width, row_height = 190, 105, 660, 46
+    body = _svg_text(
+        left,
+        68,
+        "RQ2 F3 signature cells; each bar is one C1/C6 RYW or MW comparison",
+        size=13,
+        color="#475569",
+    )
     for offset, outcome in enumerate(OUTCOMES):
-        x = left + offset * 175
-        body += _svg_text(x + 80, 88, outcome, size=12, anchor="middle", color=colors[outcome])
+        x = left + offset * 165
+        body += _svg_text(
+            x + 70, 88, outcome, size=12, anchor="middle", color=colors[outcome]
+        )
     max_total = max((sum(values.values()) for values in counts.values()), default=0) or 1
-    for index, configuration in enumerate(CONFIGURATION_IDS):
+    for index, signature in enumerate(PARTITION_SIGNATURES):
         y = top + index * row_height
-        body += _svg_text(105, y + 22, configuration, size=14, anchor="end")
-        total = sum(counts[configuration].values())
+        configuration, property_name = signature
+        body += _svg_text(
+            left - 18,
+            y + 22,
+            f"{configuration} {property_name}",
+            size=14,
+            anchor="end",
+        )
+        total = sum(counts[signature].values())
         if not total:
             body += f'<rect x="{left}" y="{y + 3}" width="{bar_width}" height="24" fill="#f1f5f9" stroke="#cbd5e1"/>'
             body += _svg_text(left + bar_width / 2, y + 20, "NO DATA", size=12, anchor="middle", color="#64748b")
             continue
         cursor = left
         for outcome in OUTCOMES:
-            value = counts[configuration][outcome]
+            value = counts[signature][outcome]
             segment = bar_width * value / max_total
             if segment <= 0:
                 continue
@@ -522,22 +587,45 @@ def _outcomes_partition_body(rows: list[dict[str, Any]]) -> tuple[str, int]:
                 body += _svg_text(cursor + segment / 2, y + 20, value, size=11, anchor="middle", color="white")
             cursor += segment
         body += _svg_text(left + bar_width + 12, y + 20, f"n={total}", size=11, color="#475569")
-    body += _svg_text(540, top + 8 * row_height + 18, "Rows without a recorded F3 partition cell are shown as NO DATA.", size=12, anchor="middle", color="#475569")
-    return body, top + 8 * row_height + 45
+    body += _svg_text(
+        540,
+        top + len(PARTITION_SIGNATURES) * row_height + 18,
+        "Counts are not pooled across MR or WFR; missing signature cells remain NO DATA.",
+        size=12,
+        anchor="middle",
+        color="#475569",
+    )
+    return body, top + len(PARTITION_SIGNATURES) * row_height + 45
 
 
 def _latency_completion_body(rows: list[dict[str, Any]]) -> tuple[str, int]:
-    points = [
+    partition_rows = [
         row
         for row in rows
         if row["scenario"] == "partition"
-        and row["p95_ms"] is not None
         and row["definitive_completion_rate"] is not None
     ]
+    points = [row for row in partition_rows if row["p95_ms"] is not None]
+    unresolved = [row for row in partition_rows if row["p95_ms"] is None]
     width, height = 1120, 760
     left, right, top, bottom = 145, 70, 90, 105
     plot_width, plot_height = width - left - right, height - top - bottom
-    body = _svg_text(left, 67, "RQ2 F3 partition cells; red labels have an observed violation", size=13, color="#475569")
+    body = _svg_text(
+        left,
+        67,
+        "RQ2 F3 partition cells; client-observed time to the critical operation",
+        size=13,
+        color="#475569",
+    )
+    legend = (
+        ("#dc2626", "VIOLATION"),
+        ("#15803d", "decidable"),
+        ("#64748b", "unresolved/no p95"),
+    )
+    for index, (color, label) in enumerate(legend):
+        x = width - 315 + index * 105
+        body += f'<circle cx="{x:g}" cy="65" r="5" fill="{color}"/>'
+        body += _svg_text(x + 9, 69, label, size=10, color=color)
     body += f'<line x1="{left}" y1="{top}" x2="{left}" y2="{top + plot_height}" stroke="#334155"/><line x1="{left}" y1="{top + plot_height}" x2="{left + plot_width}" y2="{top + plot_height}" stroke="#334155"/>'
     for tick in range(6):
         value = tick / 5
@@ -557,11 +645,16 @@ def _latency_completion_body(rows: list[dict[str, Any]]) -> tuple[str, int]:
         body += f'<line x1="{x:g}" y1="{top + plot_height}" x2="{x:g}" y2="{top}" stroke="#e2e8f0"/>'
         body += _svg_text(x, top + plot_height + 18, f"{tick_value:g}", size=10, anchor="middle", color="#475569")
     top_rank = 0
-    for index, row in enumerate(points):
+    for row in points:
         x = left + plot_width * math.log10(float(row["p95_ms"]) + 1) / max_log_latency
         y = top + plot_height * (1 - float(row["definitive_completion_rate"]))
-        violation = float(row["violation_rate"] or 0) > 0
-        color = "#dc2626" if violation else "#15803d"
+        decidable = int(row["PASS"]) + int(row["VIOLATION"])
+        if int(row["VIOLATION"]) > 0:
+            color = "#dc2626"
+        elif decidable > 0:
+            color = "#15803d"
+        else:
+            color = "#64748b"
         label = f'{row["configuration_id"]}-{row["property"]}'
         body += f'<circle cx="{x:g}" cy="{y:g}" r="6" fill="{color}"/>'
         if y <= top + 8:
@@ -572,10 +665,23 @@ def _latency_completion_body(rows: list[dict[str, Any]]) -> tuple[str, int]:
             label_x = min(left + plot_width - 72, x + 9)
             label_y = y + 4
         body += _svg_text(label_x, label_y, label, size=11, color=color)
-    body += _svg_text(left + plot_width / 2, height - 48, f"critical-operation p95 latency (ms; log scale; max shown {max_latency:.2f})", size=13, anchor="middle")
+    unresolved_top = top + 20
+    for index, row in enumerate(unresolved):
+        x = left + plot_width - 130
+        y = unresolved_top + index * 18
+        label = f'{row["configuration_id"]}-{row["property"]} unresolved'
+        body += f'<circle cx="{x:g}" cy="{y:g}" r="6" fill="#64748b"/>'
+        body += _svg_text(x + 10, y + 4, label, size=10, color="#64748b")
+    body += _svg_text(
+        left + plot_width / 2,
+        height - 48,
+        f"client-observed p95 time to outcome (ms; all attempts; log scale; max shown {max_latency:.2f})",
+        size=13,
+        anchor="middle",
+    )
     axis_y = top + plot_height / 2
     body += f'<g transform="rotate(-90 48 {axis_y:g})">{_svg_text(48, axis_y, "definitive completion rate", size=13, anchor="middle")}</g>'
-    if not points:
+    if not partition_rows:
         body += _svg_text(width / 2, height / 2, "NO DATA", size=18, anchor="middle", color="#64748b")
     return body, height
 
@@ -602,8 +708,14 @@ def _contrast_body(contrasts: list[dict[str, Any]]) -> tuple[str, int]:
         y = top + index * row_height
         label = f'{row["scenario"]}/{row["property"]}'
         body += _svg_text(left - 12, y + 17, label, size=11, anchor="end")
-        if row["status"] != "COMPLETE":
-            body += _svg_text(left, y + 17, "NO DATA (C5 partition cell is not recorded)", size=11, color="#64748b")
+        if row["status"] != "LATENCY_COMPLETE":
+            body += _svg_text(
+                left,
+                y + 17,
+                row["status"].replace("_", " "),
+                size=11,
+                color="#64748b",
+            )
         for config, field, color in (("C5", "left_p95_ms", "#64748b"), ("C6", "right_p95_ms", "#2563eb")):
             value = row[field]
             if value is not None:
@@ -626,8 +738,8 @@ def generate_figures(figures_root: Path, rows: list[dict[str, Any]], contrasts: 
 
     figures_root.mkdir(parents=True, exist_ok=True)
     outputs = [
-        (figures_root / "rq4_outcomes_partition.pdf", _outcomes_partition_body(rows), "RQ4 outcome composition under partition"),
-        (figures_root / "rq4_latency_completion.pdf", _latency_completion_body(rows), "RQ4 latency versus definitive completion"),
+        (figures_root / "rq4_outcomes_partition.pdf", _outcomes_partition_body(rows), "RQ4 paired partition signature outcomes"),
+        (figures_root / "rq4_latency_completion.pdf", _latency_completion_body(rows), "RQ4 client-observed time versus completion"),
         (figures_root / "rq4_c5_c6_contrast.pdf", _contrast_body(contrasts), "RQ4 C5 versus C6 contrast"),
     ]
     paths: list[Path] = []
@@ -667,7 +779,8 @@ def analyse(
             "definitive_completion_rate": "(PASS + VIOLATION) / attempted",
             "indeterminate_rate": "INDETERMINATE / attempted",
             "attempted": "PASS + VIOLATION + UNAVAILABLE + INDETERMINATE; precondition and harness failures are excluded",
-            "latency": "critical operation end_ns - start_ns in milliseconds; timeout completion is retained when timestamps exist",
+            "all_attempt_latency": "critical operation end_ns - start_ns in milliseconds for every attempted outcome with valid timestamps; timeout outcomes are retained",
+            "resolved_latency": "critical operation end_ns - start_ns in milliseconds for PASS and VIOLATION outcomes only",
             "availability_label": "observed definitive completion rate",
         },
     }

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import csv
 import json
-import shutil
 import sys
 import tempfile
 import unittest
@@ -14,6 +13,8 @@ sys.path.insert(0, str(ROOT / "src"))
 from mongo_consistency.history import write_history
 from mongo_consistency.models import History, OperationRecord
 from mongo_consistency.rq4 import (
+    PARTITION_SIGNATURES,
+    _partition_counts,
     analyse,
     contrast_rows,
     fault_delta_rows,
@@ -82,6 +83,9 @@ class RQ4Tests(unittest.TestCase):
         self.assertEqual(1 / 3, row["indeterminate_rate"])
         self.assertEqual(4.0, row["p50_ms"])
         self.assertEqual(7.6, row["p95_ms"])
+        self.assertEqual(3.0, row["resolved_p50_ms"])
+        self.assertEqual(3.9, row["resolved_p95_ms"])
+        self.assertEqual(2, row["resolved_latency_n"])
 
     def test_loader_maps_experiment_and_rq2_partition_and_preserves_raw(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -126,14 +130,31 @@ class RQ4Tests(unittest.TestCase):
         contrasts = contrast_rows(rows)
         normal = next(row for row in contrasts if row["scenario"] == "normal" and row["property"] == "RYW" and row["left_config"] == "C5" and row["right_config"] == "C6")
         partition = next(row for row in contrasts if row["scenario"] == "partition" and row["property"] == "RYW" and row["left_config"] == "C5" and row["right_config"] == "C6")
-        self.assertEqual("COMPLETE", normal["status"])
+        self.assertEqual("CELL_PRESENT", normal["cell_status"])
+        self.assertEqual("LATENCY_COMPLETE", normal["status"])
         self.assertEqual(2.0, normal["delta_p95_ms"])
         self.assertEqual("MISSING_CELL", partition["status"])
         deltas = fault_delta_rows(rows)
         self.assertEqual(1, len(deltas))
         self.assertEqual(4.0, deltas[0]["delta_p95_ms"])
 
-    @unittest.skipUnless(shutil.which("rsvg-convert"), "rsvg-convert is required for PDF rendering")
+    def test_partition_counts_keep_signature_cells_balanced(self) -> None:
+        rows = metric_rows(
+            [
+                {"configuration_id": "C1", "scenario": "partition", "property": "RYW", "outcome": "VIOLATION", "latency_ms": 1.0},
+                {"configuration_id": "C1", "scenario": "partition", "property": "MW", "outcome": "VIOLATION", "latency_ms": 1.0},
+                {"configuration_id": "C1", "scenario": "partition", "property": "MR", "outcome": "PASS", "latency_ms": 1.0},
+                {"configuration_id": "C6", "scenario": "partition", "property": "RYW", "outcome": "INDETERMINATE", "latency_ms": None},
+                {"configuration_id": "C6", "scenario": "partition", "property": "MW", "outcome": "INDETERMINATE", "latency_ms": None},
+            ]
+        )
+        counts = _partition_counts(rows)
+        self.assertEqual(set(PARTITION_SIGNATURES), set(counts))
+        self.assertEqual(1, counts[("C1", "RYW")]["VIOLATION"])
+        self.assertEqual(1, counts[("C1", "MW")]["VIOLATION"])
+        self.assertEqual(1, counts[("C6", "RYW")]["INDETERMINATE"])
+        self.assertEqual(1, counts[("C6", "MW")]["INDETERMINATE"])
+
     def test_analyse_writes_csvs_and_figures(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
