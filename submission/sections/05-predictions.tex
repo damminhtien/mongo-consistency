@@ -1,122 +1,62 @@
-\subsubsection{Configuration matrix and registered expectations}
+\subsection{Configuration matrix and predictions}
 
-\subsubsection{Mechanisms and parameters}
-
-RQ1 varies read concern, write concern, and causal-session setting.
-Read concern governs which data state a read may return; write concern governs
-the acknowledgement condition for a write. In a causally consistent session,
-MongoDB documents combinations of these concerns with different client-centric
-guarantees \cite[slides 49 to 53]{cai-lecture-3}
-\cite{mongodb-read-concern,mongodb-write-concern,mongodb-read-preference,mongodb-causal-consistency,pymongo-sessions}.
-
-Both causal-session conditions use an explicit PyMongo session. The OFF
-condition sets causal consistency to false; it does not omit the session. Each
-test schedule selects a read preference and member to create the required
-observation. The runner records the requested member and the server that
-actually handled each operation; routing is not an independent factor in C1-C8.
-
-\paragraph{Parameters explored.}
+The eight configurations combine local or majority read concern, \texttt{w:1}
+or majority write concern, and causal sessions that are off or on. The
+configuration matrix changes these settings while the property schedule,
+logical document, and replica-set topology remain fixed.
 
 \begin{table}[ht]
 \centering
-\caption{Parameters varied or controlled by the test schedules.}
-\label{tab:parameters}
-\begin{tabular}{@{}p{0.21\textwidth}p{0.31\textwidth}p{0.36\textwidth}@{}}
-\toprule
-Parameter & Values & Role in the experiment \\
-\midrule
-Read concern & \texttt{local}, \texttt{majority} & Selects the read visibility condition in C1-C8. \\
-Write concern & \texttt{w:1}, \texttt{majority} & Selects the write acknowledgement condition in C1-C8. \\
-Causal session & off, on & Controls session dependency propagation; both conditions use one explicit session. \\
-Read preference / member & Schedule-directed primary or secondary & Reaches the intended member; the actual server and role are recorded. \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\paragraph{Configuration matrix.}
-
-\begin{table}[ht]
-\centering
-\caption{C1-C8 settings and registered prediction targets.}
+\small
+\setlength{\tabcolsep}{3pt}
+\caption{C1-C8 settings and properties expected under the target schedules.}
 \label{tab:configurations}
-\begin{tabular}{@{}lllll@{}}
+\begin{tabular}{@{}l l l l p{0.30\linewidth}@{}}
 \toprule
-ID & Read concern & Write concern & Causal session & Target properties \\
+Config. & Read concern & Write concern & Causal session & Expected properties \\
 \midrule
-C1 & local & \texttt{w:1} & off & none \\
-C2 & local & \texttt{w:1} & on & none \\
+C1 & local & \texttt{w:1} & off & Descriptive only \\
+C2 & local & \texttt{w:1} & on & Descriptive only \\
 C3 & majority & \texttt{w:1} & on & MR, WFR \\
 C4 & local & majority & on & MW \\
-C5 & majority & majority & off & none \\
+C5 & majority & majority & off & Descriptive only \\
 C6 & majority & majority & on & RYW, MR, MW, WFR \\
-C7 & majority & \texttt{w:1} & off & none \\
-C8 & local & majority & off & none \\
+C7 & majority & \texttt{w:1} & off & Descriptive only \\
+C8 & local & majority & off & Descriptive only \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\paragraph{Mechanism basis for the sentinel configurations.}
+C3 combines a majority read with a causal session, so the read and the
+dependent operation carry a lower bound through the session even though the
+write uses \texttt{w:1}. C4 gives the write a majority acknowledgement while
+keeping the read local, which makes it useful for the monotonic-write
+schedule. C6 combines majority read, majority write, and a causal session; it
+is the strongest setting in the matrix for the four tested dependencies.
 
-The RQ2 sentinel configurations were chosen to separate the mechanisms named
-in the lecture and MongoDB documentation. The table states the mechanism used
-in the prediction; it does not add a guarantee beyond the cited sources.
+The matrix gives the settings; the expectations explain what observations would
+contradict them. A target prediction is falsified only by a completed,
+decidable counterexample. An unavailable or indeterminate trial does not
+provide that comparison. C7 is deliberately descriptive for RYW: a completed
+stale read there is an observation of the setting, not a failed protected
+prediction.
 
-\begin{table}[ht]
-\centering
-\caption{Mechanism basis for C3, C4, and C6.}
-\label{tab:sentinel-mechanisms}
-\begin{tabular}{@{}p{0.08\textwidth}p{0.25\textwidth}p{0.38\textwidth}p{0.19\textwidth}@{}}
-\toprule
-Config. & Settings & Documented mechanism used in the prediction & Registered targets \\
-\midrule
-C3 & majority read, \texttt{w:1} write, causal session on & The session carries the observed operation time to dependent operations; the majority read selects a majority-committed view. & MR, WFR \\
-C4 & local read, majority write, causal session on & The majority write acknowledgement and session dependency are present, while the local read remains tied to the selected member's state. & MW \\
-C6 & majority read, majority write, causal session on & The read and write acknowledgement conditions are both majority based, and the causal session carries the dependency between operations. & RYW, MR, MW, WFR \\
-\bottomrule
-\end{tabular}
-\end{table}
+\subsection{Fault expectations}
 
-These rows explain why C3, C4, and C6 were selected as targets. In
-particular, majority read and majority write alone are not treated as a
-substitute for the causal-session mechanism when the question concerns a
-dependency between operations \cite[slides 49 to 53]{cai-lecture-3}
-\cite{mongodb-causal-consistency}.
-
-\paragraph{Configuration expectations.}
-
-Before the campaign, we registered which configurations would be tested as
-targets for each client-centric property. C3 targets MR and WFR, C4 targets
-MW, and C6 targets all four. A targeted history can still be UNAVAILABLE or
-INDETERMINATE when the schedule does not return the required value or complete
-the dependent operation; those outcomes do not test the prediction. A
-completed, decidable VIOLATION would contradict the prediction. For
-configurations without a target, the campaign records descriptive outcomes
-rather than a prediction test. C5 separates majority concerns from causal
-session state, so its concern settings alone are not treated as a causal
-session guarantee.
-
-We fixed these predictions before running the campaign. An acknowledgement
-does not prove that a write survives recovery:
-the independent observer checks the converged state, while the history retains
-the acknowledged operation and records any later rollback. The MongoDB
-documentation also distinguishes causal sessions and concern combinations,
-including the durability condition on majority reads and writes
-\cite{mongodb-causal-consistency}.
-
-\paragraph{Fault expectations.}
-
-Before the fault campaign, we made four predictions, labelled H2.1 through
-H2.4:
+The configuration campaign changes consistency settings while the schedule
+creates controlled replica divergence. The fault campaign asks whether the
+same behaviour persists when the topology itself changes.
 
 \begin{description}
-\item[H2.1] A secondary crash should reduce redundancy; operations that remain
-routable should not create a new consistency anomaly.
-\item[H2.2] A primary crash should appear as an election interval and possible
-temporary unavailability rather than as a completed invalid history.
-\item[H2.3] Isolating the former primary should expose differences between
-weak and majority write acknowledgement, including rollback of an acknowledged
-write on the isolated branch.
-\item[H2.4] Majority concerns with causal sessions may turn a would-be
-counterexample into a wait or an unresolved operation instead of a returned
-stale value.
+\item[F1, secondary loss] Removing one secondary should reduce redundancy
+without forcing an election. Operations that remain routable should not create
+a new consistency anomaly in the tested schedule.
+\item[F2, primary loss] Stopping the primary should produce an election
+interval and possible temporary unavailability. The scheduled calls after
+recovery should not form a completed invalid history; the election interval is
+not directly probed by a subject call.
+\item[F3, replication partition] Isolating the former primary from the
+majority side should separate a weak acknowledged write from a majority
+acknowledgement. A weak setting may return a stale or reordered value, while a
+stronger setting may wait or leave the dependent operation unresolved.
 \end{description}

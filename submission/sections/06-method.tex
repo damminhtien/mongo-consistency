@@ -1,124 +1,93 @@
-\subsection{Workloads, trials, and measurements}
+\subsection{Trial model and consistency checkers}
 
-\subsection{General testing methodology}
+One trial uses a unique document, one explicit PyMongo session, and a
+property-specific sequence of subject operations. The logical writer assigns
+integer versions. Each write records its parent write, and each dependent
+write records the version returned by its preceding read. The recorder keeps
+the requested member, actual server, observed role, concern settings, session
+state, operation status, operation time, and returned document state.
 
-Each trial uses a unique document and one explicit PyMongo session for all
-subject operations. A single logical writer assigns integer versions, and each
-update records its parent write and any read dependency. Setup writes and
-diagnostic reads are kept separate from the subject history. The recorder
-captures requested and actual server addresses, observed member roles, session
-and concern settings, command status, operation times, fault events, and
-returned document state. Timestamps help diagnose a history but do not replace
-the dependencies checked by the property checkers.
+The subject client issues the tested operations. An independent observer reads
+all three members after recovery without using the subject session. A
+restricted controller applies the fault and replication-path changes. The
+checker then asks, in order: what operation was attempted, what value or
+dependency was returned, and whether the final state contains the required
+predecessor. The four property checkers implement the definitions in Section~2.
 
-Three actors have separate roles. The subject client issues the tested
-operations. An independent topology and document observer connects directly to
-all members without using the subject session. A restricted fault controller
-changes MongoDB member availability and replication-network reachability. The
-observer and controller provide the independent checks used by the recorded
-histories; their setup and isolation checks are documented in Appendix~\ref{app:install}.
+For MW and WFR, the post-heal observer is a durable witness rather than an
+intermediate visibility sample. It can identify a persisted counterexample but
+cannot exclude a transient ordering anomaly before convergence.
 
-\subsection{Consistency property checkers}
+\subsection{Configuration campaign}
 
-The RYW checker compares a read with an earlier completed write by the same
-client. MR compares successive reads of the same key. MW checks whether a
-converged state containing a successor write also contains its predecessor.
-WFR checks whether a converged state containing a dependent write also
-contains the version returned by its preceding read. MW and WFR use one logical
-document so the checker can evaluate the declared dependency. For these two
-properties, the converged state is a durable witness rather than an
-intermediate visibility sample. A PASS means no durable counterexample was
-found in the registered history; it does not rule out a transient ordering
-violation before convergence.
+To isolate the effect of consistency settings, the first campaign runs the
+same property-specific schedules across all eight configurations. Ten
+repetitions per configuration and property form
+\(10\times8\times4=320\) normal controls. Thirty repetitions form
+\(30\times8\times4=960\) adversarial histories. Smoke and pilot histories are
+kept separate.
 
-After fault cleanup, the topology oracle requires one primary and two
-secondaries. The independent observer then checks that all three copies
-contain the same complete update list. Histories receive one of six outcomes:
-\texttt{PASS}, \texttt{VIOLATION}, \texttt{UNAVAILABLE},
-\texttt{INDETERMINATE}, \texttt{PRECONDITION\_MISS}, or
-\texttt{HARNESS\_ERROR}. Only PASS and VIOLATION enter the consistency rate.
-An unavailable operation or unresolved effect is not counted as a pass;
-precondition misses and harness errors remain separate.
-
-\subsection{Normal-operation scenario}
-
-The normal control runs each property schedule with the same configuration,
-session rules, and operation deadlines on a stable replica set. Ten repetitions
-were run for each of eight configurations and four properties, for 320
-controls. The smoke campaign and pilot are excluded. Normal controls are
-reported separately from adversarial histories.
-
-\subsection{RQ1 schedules and repetitions}
-
-RQ1 includes 30 adversarial repetitions for each of eight configurations and
-four properties, for 960 histories. Together with the 320 normal controls,
-this gives 1,280 RQ1 histories. The smoke campaign and pilot are not included
-in these totals.
-
-Each property uses a schedule that creates the state its checker needs:
+The schedules create the observation needed by each checker:
 
 \begin{description}
-\item[RYW] Isolate a secondary at version 0, write version 1 through the
-  subject session, and verify that a fresh replica has version 1 while the
-  isolated member remains at version 0. The subject then reads from the stale
-  secondary. A completed read of version 0 is a violation; a read that does
-  not complete is unavailable.
-\item[MR] Isolate a stale secondary before setup, create version 1, and confirm
-  that a fresh secondary has version 1 while the stale one has version 0. The
-  subject reads the fresh member and then the stale member in one session.
-\item[MW] Isolate the old primary and issue the first subject write there.
-  After the majority side elects a new primary, issue a dependent successor
-  write. The observer checks the complete document on all three members after
-  recovery.
-\item[WFR] Create version 1 on the isolated old branch as setup. The subject
-  reads that version, waits for the majority-side election, and issues a
-  dependent write on the new primary. The observer checks the final document
-  against the recorded read dependency.
+\item[RYW] Keep a secondary at version 0, acknowledge a write of version 1
+through the subject, and read from the stale secondary.
+\item[MR] Read version 1 from a fresh member and then read from a member that
+still exposes version 0 in the same client sequence.
+\item[MW] Write on an isolated branch, allow the majority side to elect, and
+issue a successor write after the topology change.
+\item[WFR] Read a version on an isolated branch, wait for the majority-side
+election, and issue a dependent write on the new primary.
 \end{description}
 
-The runner checks each precondition before starting the subject operation. It
-does not issue a dependent operation when its prerequisite failed or returned
-no concrete version.
+Every precondition is checked before the subject sequence begins. If a
+prerequisite fails or returns no concrete version, the dependent operation is
+not issued.
 
-\subsection{RQ2 fault scenarios}
+\maybefigure[fig:property-timelines]{submission/figures/property-timelines.pdf}{Property schedules used to create controlled replica divergence. Setup and recovery checks are omitted for clarity.}
 
-\subsubsection{Node failures}
+\subsection{Fault campaign}
 
-F1 stops one secondary while the primary and remaining secondary continue to
-serve the replica set. This removes redundancy without forcing an election. F2
-stops the primary and waits for the two remaining members to elect a new
-primary. No subject request is issued during this election barrier, so the
-scheduled-operation success rate does not measure availability during the
-election. The runner records election and recovery times, then verifies
-topology and data convergence after restart.
-
-\subsubsection{Network partition}
-
+The fault campaign crosses C1, C3, C4, and C6 with three topology conditions
+and the four property schedules. F1 stops one secondary. F2 stops the primary,
+waits for the remaining members to elect, and then resumes the scheduled calls.
 F3 blocks replication traffic between the former primary and the other two
-members while preserving the test client's route to the isolated member. The
-connected pair forms the majority side. Controller state, direct member
-access, observed roles, and version state verify the partition; a successful
-firewall command alone is not sufficient. Target members rotate across
-episodes. After healing, the runner checks stable topology and convergence
-across all three members.
+members while preserving the subject client's route to the isolated member.
 
-\subsection{RQ2 repetitions}
+The core design contains \(4\times3\times4\times8=384\) histories. Four F3
+signature cells receive twelve additional repetitions each, giving
+\RQTwoHistoryCount\ histories across \RQTwoFaultEpisodeCount\ shared fault
+episodes. Histories in one episode share a topology event and are not
+independent fault injections. Matching normal controls provide a descriptive
+baseline; no extra normal campaign is added.
 
-RQ2 crosses C1, C3, C4, and C6 with F1, F2, and F3 and all four properties for
-384 core histories. Four F3 signature cells received 12 additional
-repetitions each, for 432 histories in 36 shared fault episodes. Histories in
-one episode share a topology event and are not independent fault injections.
-RQ2 uses matching RQ1 normal controls as a descriptive baseline; it adds no
-normal trials.
+\subsection{Outcome classification and measurements}
 
-\subsection{Measurements}
+Each history is classified as PASS, VIOLATION, UNAVAILABLE, INDETERMINATE,
+PRECONDITION\_MISS, or HARNESS\_ERROR. Only PASS and VIOLATION are decidable
+consistency outcomes. UNAVAILABLE records a failed client operation, while
+INDETERMINATE records an unresolved effect or dependency. The other two
+classes identify histories that did not reach the intended test or were not
+valid harness executions.
 
-We report history outcomes, the consistency violation rate among PASS and
-VIOLATION histories, subject-operation success, history completion, and
-operation latency p50/p95 in the main report. RQ2 also reports acknowledged-write rollback,
-fault application, election, and recovery. Fault timing uses episodes as its
-unit. Timed-out operations remain in all-attempt latency quantiles when start
-and end times are available; RQ4 reports a separate PASS/VIOLATION latency
-sample for resolved histories. The full RQ2 p99 values remain in
-Appendix~\ref{app:full-results} and the machine-readable summaries.
-Figure~\ref{fig:property-timelines} shows the four property schedules.
+For a set of histories, the resolved violation rate is
+\[
+V=\frac{\#\mathrm{VIOLATION}}
+        {\#\mathrm{PASS}+\#\mathrm{VIOLATION}}.
+\]
+The decidable outcome rate is
+\[
+D=\frac{\#\mathrm{PASS}+\#\mathrm{VIOLATION}}
+        {\#\mathrm{PASS}+\#\mathrm{VIOLATION}
+        +\#\mathrm{UNAVAILABLE}+\#\mathrm{INDETERMINATE}}.
+\]
+The subject-operation success rate is
+\[
+S=\frac{\text{successful subject operations}}
+        {\text{attempted subject operations}}.
+\]
+
+D describes completion of the registered workload. It is not formal CAP
+availability. We report p50 and p95 operation latency, retain timed-out
+operations in all-attempt samples when their times are available, and use
+PASS/VIOLATION histories for resolved samples.

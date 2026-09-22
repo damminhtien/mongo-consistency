@@ -1,39 +1,19 @@
-\subsection{Database system and deployment}
+\subsection{System and deployment}
 
-\subsection{MongoDB overview}
+The selected database is MongoDB, deployed as a three-member replica set with
+one data-bearing primary and two data-bearing secondaries. Docker Compose
+provides a client network and a separate replication network. The experiment
+runner issues client operations, while a restricted fault controller changes
+member availability and replication-path reachability. A topology oracle and
+an independent observer verify the roles and final document state recorded in
+each history.
 
-The selected database is MongoDB, configured as a replica set with three
-data-bearing members. Replica-set election, replication, read concern, and write
-concern expose the consistency and failure behavior tested in this study
-\cite{mongodb-replication,mongodb-read-isolation,mongodb-write-concern}.
+\maybefigure[fig:architecture]{submission/figures/architecture.pdf}{Three-member MongoDB deployment with separate client and replication paths.}
 
-\subsection{Deployment architecture}
-
-The Compose deployment runs on one physical host. Three MongoDB containers
-`mongo1`, `mongo2`, and `mongo3` join a client network and a separate replica
-network. The experiment runner joins only the client network. A fault
-controller shares each MongoDB container's network namespace and changes
-replica-path reachability through a restricted control endpoint. The runner
-receives only the paths needed to write histories, figures, and setup
-metadata. The runtime boundary is checked separately; the recorded result is
-\texttt{results/validation/runner-isolation.json}.
-
-The default host ports are 27017, 27018, and 27019 for the three members; their
-database port inside each container is 27017. The default Compose subnets are
-172.19.0.0/16 for clients and 172.20.0.0/16 for replication. Environment
-overrides are defined in \texttt{compose.yaml}. The architecture figure shows
-the client and replication paths. Roles are elected and may change;
-trial records preserve requested routes, actual servers, and direct role
-observations rather than treating one setup snapshot as permanent topology.
-
-\maybefigure[fig:architecture]{submission/figures/architecture.pdf}{Three-member deployment and client and replication networks.}
-
-\subsection{Software and environment versions}
-
-Table~\ref{tab:environment-versions} is generated from the completed RQ1
-campaign manifest and the setup snapshot. The campaign image digest identifies
-the MongoDB image used for the recorded histories. The host operating-system
-release was not captured in the campaign manifests.
+The main campaigns used the software versions recorded in the campaign
+manifest. The detailed image digest, container ports, network subnets, setup
+commands, and runner-isolation evidence are retained in Appendices~\ref{app:configuration}
+and~\ref{app:install}.
 
 \begin{table}[ht]
 \centering
@@ -55,22 +35,3 @@ Image digest & {\footnotesize\texttt{\MongoImageDigest}} \\
 \bottomrule
 \end{tabular}
 \end{table}
-
-\subsection{Installation and replica-set initialization}
-
-Run \texttt{make setup} from the repository root. The setup script checks the
-pinned local tools and Compose configuration, verifies the Docker daemon,
-builds the runner and three fault controllers, and starts the three MongoDB
-members and controllers. It then issues \texttt{rs.initiate()} for replica set
-\texttt{rs0}, waits for a stable primary and two secondaries, probes the
-container-side Python and PyMongo versions, and records the image digest and
-member roles. The complete command sequence is in Appendix~\ref{app:install}.
-
-\subsection{Deployment verification}
-
-The topology oracle sends a direct \texttt{hello} command to each member. A
-stable setup requires one reachable primary and two reachable secondaries.
-Campaign histories retain role and server observations for each operation;
-the setup snapshot is provenance, not a substitute for trial-level checks.
-The setup view of the running containers is included with the installation
-evidence in Appendix~\ref{app:install}.

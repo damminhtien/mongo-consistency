@@ -66,7 +66,7 @@ class SubmissionLayoutTests(unittest.TestCase):
         abbreviations = (ROOT / "submission/sections/00-abbreviations.tex").read_text(
             encoding="utf-8"
         )
-        for abbreviation in ("C1-C8", "F1-F3", "H2.1-H2.4", "MR", "MW", "RC", "RQ", "RYW", "WC", "WFR"):
+        for abbreviation in ("C1-C8", "F1-F3", "MR", "MW", "RC", "RYW", "WC", "WFR"):
             self.assertIn(f"{abbreviation} &", abbreviations)
         listed = {
             line.split(" & ", 1)[0]
@@ -74,8 +74,7 @@ class SubmissionLayoutTests(unittest.TestCase):
             if " & " in line
         }
         self.assertTrue({"AI", "AY", "DSA5208", "ID", "NUS", "PDF", "RQ1/RQ2", "SHA-256"}.isdisjoint(listed))
-        self.assertIn("C denotes a configuration", abbreviations)
-        self.assertIn("H denotes a hypothesis", abbreviations)
+        self.assertIn("eight combinations of read concern", abbreviations)
 
     def test_sources_are_in_reader_order_and_have_two_questions(self) -> None:
         report = (ROOT / "submission/report.tex").read_text(encoding="utf-8")
@@ -93,8 +92,8 @@ class SubmissionLayoutTests(unittest.TestCase):
         self.assertEqual(positions, sorted(positions))
 
         introduction = (ROOT / "submission/sections/02-introduction.tex").read_text(encoding="utf-8")
-        self.assertIn("First, how do read concern, write", introduction)
-        self.assertIn("Second, how does the same client-visible", introduction)
+        self.assertIn("Q_1", introduction)
+        self.assertIn("Q_2", introduction)
         self.assertNotIn("RQ3", introduction)
         self.assertNotIn("RQ4", introduction)
 

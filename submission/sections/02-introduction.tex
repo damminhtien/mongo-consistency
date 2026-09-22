@@ -2,33 +2,40 @@
 
 \subsection{Problem and objective}
 
-Replicated storage can acknowledge an operation on one member while another
-member still exposes older state. The useful question is what the client sees
-at the next operation, not only whether the members eventually converge. This
-study measures that client view for read-your-writes (RYW), monotonic reads
-(MR), monotonic writes (MW), and writes-follow-reads (WFR).
+Replication improves availability and fault tolerance, but replicas can expose
+different states while an update is propagating. For an application, the
+important question is therefore not only whether replicas eventually converge.
+It is what a client can observe across successive operations.
 
-Each history uses one logical document, explicit version dependencies, a fixed
-schedule, and an offline checker. A completed history that contradicts its
-dependency is a violation. A failed operation or unresolved effect remains
-UNAVAILABLE or INDETERMINATE; neither outcome is counted as a pass. The
-definitions follow the course slides \cite[slides 37 to 44]{cai-lecture-3}.
+This project studies that client view in a three-member MongoDB replica set.
+The application assigns increasing versions to one logical document, so each
+trial has an explicit write or read dependency. The four properties are
+read-your-writes (RYW), monotonic reads (MR), monotonic writes (MW), and
+writes-follow-reads (WFR). Their definitions follow the course lectures
+\cite[slides 37 to 44]{cai-lecture-3}.
 
-\subsection{Questions and scope}
+\subsection{Study questions and approach}
 
-MongoDB is deployed as a three-data-bearing-member replica set in Docker
-Compose. The study asks two questions. First, how do read concern, write
-concern, and causal sessions affect the four properties under fixed schedules?
-Second, how does the same client-visible behaviour change under secondary
-failure, primary failover, and network partition? The configuration campaign
-uses C1 through C8. The fault campaign uses C1, C3, C4, and C6 and reuses
-matching normal controls as a descriptive baseline.
+The study asks two questions:
 
-Matched histories explain selected outcomes through recorded routes, operation
-times, fault events, and final member state. A separate offline summary reports
-completion and latency. These are evidence layers over the two questions, not
-additional questions.
+\[
+Q_1:\quad
+\text{How do read concern, write concern, and causal sessions affect these properties?}
+\]
 
-Findings are limited to the recorded software versions, schedules, C1-C8
-configuration matrix, and single-host container deployment. We did not measure
-production availability or behavior across geographically separated machines.
+\[
+Q_2:\quad
+\text{How does the behaviour change under node failure and network partition?}
+\]
+
+We first derive expectations from the configuration matrix. We then run
+property-specific schedules that create controlled replica divergence and
+classify each history with an offline checker. Finally, we repeat selected
+settings under a secondary crash, a primary election, and a replication-path
+partition. The fault campaign reuses matching normal controls as a descriptive
+baseline.
+
+The central result is that stronger consistency does not mean free success:
+weak settings can return a stale or reordered value, while stronger settings
+can withhold the operation and expose waiting, timeout, or unresolved
+completion instead.

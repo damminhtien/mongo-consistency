@@ -1,50 +1,50 @@
-\section{Background and Expectations}
+\section{Background and Predictions}
 
-\subsection{Client-centric consistency models}
+\subsection{Client-centric consistency}
 
-Let $v$ denote an integer application version allocated by the single logical
-writer. A write is written as $W_c(x,v)$ and a read as $R_c(x,v)$. The checker
-compares versions and explicit dependencies; response timestamps are used for
-latency and diagnosis only. Lamport scalar time can order events but does not by
-itself establish the application dependency required by these properties
-\cite[slides 17 to 20]{cai-lecture-1}.
+Let \(v\) denote an integer application version allocated by the single
+logical writer. A write is \(W_c(x,v)\) and a read is \(R_c(x,v)\). The
+properties concern the versions and dependencies observed by the client, not
+the order of wall-clock timestamps.
 
 \begin{description}
-\item[RYW] After client $c$ writes $W_c(x,v_w)$, a later read of $x$ must not
-return a version $v_r < v_w$.
-\item[MR] For successive reads of the same key by one client, the later
-returned version must not be lower than the earlier version.
+\item[RYW] After client \(c\) writes \(W_c(x,v_w)\), a later read of \(x\)
+must not return a version \(v_r < v_w\).
+\item[MR] Successive reads of the same key by one client must not move to a
+lower returned version.
 \item[MW] A successor write must not become visible without its predecessor
-under the registered one-document observation.
-\item[WFR] A write that depends on a version returned by a prior read must not
-be visible without that version.
+under the experiment's one-document observation.
+\item[WFR] A write that depends on a version returned by a preceding read must
+not become visible without that version.
 \end{description}
 
-The first two definitions are checked from the versions returned by client
-reads. For MW and WFR, the course definition is operationalised here with one
-logical document and an independent post-heal observer. The checker searches
-for a durable counterexample in the converged one-document history. A PASS
-means that the registered observation found no durable counterexample; it does
-not show that no transient ordering violation occurred before convergence.
-The raw histories contain command metadata and post-heal member snapshots, but
-no direct intermediate snapshot immediately after the successor or dependent
-write. This boundary follows the recorded evidence and the client-centric
-definitions in Lecture~3 \cite[slides 37 to 44]{cai-lecture-3}.
+RYW and MR are decided directly from values returned to the subject client.
+MW and WFR use a one-document post-heal observer to check whether a durable
+counterexample remains after the replica set converges. This operationalisation
+cannot sample every transient state between a write and recovery, so a PASS
+means that the registered durable counterexample was not observed.
 
-\subsection{MongoDB mechanisms and expectations}
+\subsection{MongoDB mechanisms}
 
-Read concern controls which data state a read may return. Write concern controls
-the acknowledgement condition for a write. A causal session carries a
-dependency from one operation to the next. These mechanisms interact, but they
-do not have the same client-visible effect. The expectations below use the
-course slides and the MongoDB documentation listed in the references.
+The experiment varies three mechanisms. Read concern affects which data state a
+read may return. Write concern affects when a write is acknowledged. A causal
+session carries an operation dependency from one client action to the next.
+Read preference and the selected member determine where the scheduled
+observation is attempted; the history records the server that actually handled
+the request.
 
-The configuration campaign varies these mechanisms while keeping the workload
-and topology schedule fixed. The fault campaign then changes the topology and
-records whether a client receives a value, waits, times out, or leaves an
-effect unresolved. A completed counterexample can falsify an expectation; an
-unresolved history cannot be relabelled as a pass.
+\[
+\text{read concern}\ \longrightarrow\ \text{which state may be returned}
+\]
+\[
+\text{write concern}\ \longrightarrow\ \text{when a write is acknowledged}
+\]
+\[
+\text{causal session}\ \longrightarrow\ \text{which dependency is carried forward}
+\]
+
+These mechanisms suggest different expectations for the four client-centric
+properties. The configuration matrix and those expectations are stated before
+the method.
 
 \input{submission/sections/05-predictions.tex}
-
-\maybefigure[fig:property-timelines]{submission/figures/property-timelines.pdf}{Schematic schedules for the four client-centric properties. Setup writes, topology preconditions, and recovery checks are omitted for clarity.}
