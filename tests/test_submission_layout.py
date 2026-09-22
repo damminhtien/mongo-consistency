@@ -239,7 +239,9 @@ class SubmissionLayoutTests(unittest.TestCase):
         self.assertNotIn("RQ1", abstract)
         self.assertNotIn("RQ2", abstract)
         self.assertIn("eight configurations labelled C1", introduction)
-        self.assertIn("hypotheses for RQ2, labelled H2.1 through H2.4", predictions)
+        self.assertIn("RQ2 fault predictions", predictions)
+        for hypothesis in ("H2.1", "H2.2", "H2.3", "H2.4"):
+            self.assertIn(rf"\item[{hypothesis}]", predictions)
 
     def test_report_sections_cover_project_requirements_in_order(self) -> None:
         ordered_sections = (
@@ -282,17 +284,18 @@ class SubmissionLayoutTests(unittest.TestCase):
             "Writes-follow-reads consistency",
         ):
             self.assertIn(rf"\subsection{{{property_name}}}", results)
-        for prefix in ("RYW", "MR", "MW", "WFR"):
-            for subsection in (
-                "prediction",
-                "experiment",
-                "rationale",
-                "results",
-                "explanation",
-            ):
-                self.assertIn(
-                    rf"\subsubsection{{{prefix} {subsection}}}", results
-                )
+        property_sections = {
+            "Read-your-writes consistency": ("predict", "schedule", "PASS", "VIOLATION"),
+            "Monotonic-reads consistency": ("predict", "schedule", "PASS", "VIOLATION"),
+            "Monotonic-writes consistency": ("predict", "schedule", "PASS", "VIOLATION"),
+            "Writes-follow-reads consistency": ("predict", "schedule", "PASS", "VIOLATION"),
+        }
+        for property_name, terms in property_sections.items():
+            start = results.index(rf"\subsection{{{property_name}}}")
+            next_section = results.find("\n\\subsection{", start + 1)
+            body = results[start:] if next_section == -1 else results[start:next_section]
+            for term in terms:
+                self.assertRegex(body, rf"(?i){re.escape(term)}")
 
         discussion = (ROOT / "submission/sections/08-discussion.tex").read_text(
             encoding="utf-8"
@@ -311,6 +314,7 @@ class SubmissionLayoutTests(unittest.TestCase):
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
         self.assertIn(".PHONY:", makefile)
         self.assertIn("check-docs", makefile)
+        self.assertIn("check-generated:", makefile)
         self.assertIn("setup", makefile)
         self.assertIn("submission:", makefile)
         self.assertIn("scripts/build_submission.py", makefile)
@@ -507,6 +511,8 @@ class SubmissionLayoutTests(unittest.TestCase):
     def test_ci_rebuilds_analysis_before_submission(self) -> None:
         workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
         self.assertLess(workflow.index("make analyse"), workflow.index("make submission"))
+        self.assertLess(workflow.index("make rq3-analyse"), workflow.index("make check-generated"))
+        self.assertLess(workflow.index("make rq4-analyse"), workflow.index("make check-generated"))
 
     def test_source_package_includes_raw_campaign_evidence(self) -> None:
         from tempfile import TemporaryDirectory

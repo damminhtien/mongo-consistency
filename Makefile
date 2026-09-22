@@ -1,6 +1,6 @@
 PYTHON ?= python3
 MC_SMOKE_MOUNT ?= ./results/smoke
-.PHONY: check-docs check-schemas check-release-ready submission test setup smoke pilot experiment experiment-fresh rq2 rq3 rq3-preflight rq3-analyse rq4-analyse analyse
+.PHONY: check-docs check-schemas check-release-ready check-generated submission test setup smoke pilot experiment experiment-fresh rq2 rq3 rq3-preflight rq3-analyse rq4-analyse analyse
 
 check-docs:
 	$(PYTHON) scripts/check_documentation.py
@@ -10,6 +10,9 @@ check-schemas:
 
 check-release-ready:
 	$(PYTHON) scripts/check_release_ready.py
+
+check-generated:
+	git diff --exit-code -- .
 
 submission:
 	$(PYTHON) scripts/build_submission.py

@@ -76,7 +76,7 @@ tracks remaining project and submission work.
 - [x] Rebuild every summary and figure from raw histories without MongoDB.
 - [x] Publish generated RQ2 outcome, availability, latency, rollback, election,
   and recovery results in the report and experiment notes.
-- [ ] Add generated-result drift checks to CI.
+- [x] Add generated-result drift checks to CI.
 - [x] Derive aggregate outcome counts and metrics in LaTeX from generated
   macros; retain representative traces from canonical histories.
 - [x] Render and visually inspect the final PDF after RQ1/RQ2 evidence is complete.

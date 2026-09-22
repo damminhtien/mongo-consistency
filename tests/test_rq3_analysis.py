@@ -13,11 +13,11 @@ sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import analyse_rq3
+
 from mongo_consistency.config import load_configurations
 from mongo_consistency.history import write_history
 from mongo_consistency.models import History
 from mongo_consistency.rq3 import TOPOLOGY_PLANS, pair_control
-
 
 FIXTURE_PATH = ROOT / "tests/fixtures/rq3/protocol-v2-pairs.json"
 CONTRASTS = {
@@ -113,7 +113,7 @@ class RQ3AnalysisTests(unittest.TestCase):
 
     def test_summary_excludes_invalid_pair_and_selects_first_valid_pair(self) -> None:
         fixtures = _fixture_pairs()
-        with tempfile.TemporaryDirectory(dir=ROOT / "tmp", prefix="rq3-analysis-") as tmp:
+        with tempfile.TemporaryDirectory(prefix="rq3-analysis-") as tmp:
             work_root = Path(tmp)
             raw_root = work_root / "raw/rq3"
             preflight_path = work_root / "raw/rq3-preflight.json"
@@ -214,7 +214,7 @@ class RQ3AnalysisTests(unittest.TestCase):
                             "property": property_name,
                             "adversarial": True,
                             "seed": pair_seed,
-                            "path": history_path.relative_to(ROOT).as_posix(),
+                            "path": history_path.relative_to(work_root).as_posix(),
                             "history_hash": history_hash,
                             "outcome": history.metadata.get("fixture_consistency_outcome", "PASS"),
                             "precondition_status": "SATISFIED",

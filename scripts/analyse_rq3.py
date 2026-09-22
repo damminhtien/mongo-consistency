@@ -35,11 +35,33 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def _history_path(record: dict[str, Any]) -> Path:
+def _display_path(path: Path) -> str:
+    """Use repository-relative paths when possible, including fixture paths otherwise."""
+
+    try:
+        return path.relative_to(ROOT).as_posix()
+    except ValueError:
+        return path.as_posix()
+
+
+def _history_path(record: dict[str, Any], *, input_root: Path | None = None) -> Path:
     value = Path(str(record["path"]))
     if value.is_absolute() and value.is_file():
         return value
-    return ROOT / value
+    candidates = []
+    if input_root is not None:
+        candidates.extend(
+            (
+                input_root.parent.parent / value,
+                input_root.parent / value,
+                input_root / value,
+            )
+        )
+    candidates.append(ROOT / value)
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    return candidates[-1]
 
 
 def _operation(history: dict[str, Any], operation_id: str) -> dict[str, Any]:
@@ -734,7 +756,7 @@ def _summary_and_report(
     }
     for field, path in frozen_hashes.items():
         if campaign.get(field) != _sha256(path):
-            raise ValueError(f"RQ3 campaign {field} does not match {path.relative_to(ROOT)}")
+            raise ValueError(f"RQ3 campaign {field} does not match {_display_path(path)}")
     if (
         campaign.get("runner_commit") != provenance.get("runner_commit")
         or provenance.get("runner_dirty") is not False
@@ -820,7 +842,7 @@ def _summary_and_report(
         ):
             raise ValueError(f"invalid RQ3 matched-pair identity for {trial_id!r}")
         seen_trials.add(trial_id)
-        path = _history_path(record)
+        path = _history_path(record, input_root=input_root)
         history_object = read_history(path)
         history = history_object.to_dict()
         if history_object.history_hash != record.get("history_hash"):
@@ -894,7 +916,7 @@ def _summary_and_report(
             ):
                 raise TypeError(f"RQ3 operation {operation_id} is missing topology snapshots: {path}")
         history["result"] = record.get("outcome")
-        history["source_path"] = path.relative_to(ROOT).as_posix()
+        history["source_path"] = _display_path(path)
         if configuration_id in records_by_pair[pair_id]:
             raise ValueError(f"{pair_id} contains a duplicate configuration arm")
         records_by_pair[pair_id][configuration_id] = history
@@ -1010,7 +1032,7 @@ def _summary_and_report(
     selection_manifest = {
         "schema_version": "rq3-selection.v2",
         "protocol_id": "rq3-protocol.v2",
-        "campaign_manifest": manifest_path.relative_to(ROOT).as_posix(),
+        "campaign_manifest": _display_path(manifest_path),
         "campaign_manifest_sha256": manifest_digest,
         "preflight_sha256": campaign["preflight_sha256"],
         "anchor_manifest_sha256": anchor_manifest_digest,
@@ -1038,28 +1060,26 @@ def _summary_and_report(
         _render_timeline(causal_pair, timeline_path)
     generated_artifacts = {
         "report_tex": {
-            "path": section_path.relative_to(ROOT).as_posix(),
+            "path": _display_path(section_path),
             "sha256": _sha256(section_path),
         },
     }
     if selections["M1"] is not None:
         generated_artifacts["timeline_pdf"] = {
-            "path": timeline_path.relative_to(ROOT).as_posix(),
+            "path": _display_path(timeline_path),
             "sha256": _sha256(timeline_path),
         }
     summary = {
         "schema_version": "rq3-analysis.v2",
         "protocol_id": "rq3-protocol.v2",
-        "campaign_manifest": manifest_path.relative_to(ROOT).as_posix(),
+        "campaign_manifest": _display_path(manifest_path),
         "campaign_manifest_sha256": manifest_digest,
         "preflight_sha256": campaign["preflight_sha256"],
         "anchor_manifest_sha256": anchor_manifest_digest,
         "historical_anchors": historical_anchors,
         "repetitions_per_contrast": campaign["repetitions_per_contrast"],
         "contrast_summaries": summary_contrasts,
-        "selection_manifest": (output_root / "selection-manifest.json")
-        .relative_to(ROOT)
-        .as_posix(),
+        "selection_manifest": _display_path(output_root / "selection-manifest.json"),
         "generated_artifacts": generated_artifacts,
     }
     (output_root / "summary.json").write_text(

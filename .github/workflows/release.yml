@@ -31,6 +31,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y \
+            librsvg2-bin \
             latexmk \
             lmodern \
             poppler-utils \
@@ -48,6 +49,7 @@ jobs:
           make analyse
           make rq3-analyse
           make rq4-analyse
+          make check-generated
           make check-release-ready
           make submission
 

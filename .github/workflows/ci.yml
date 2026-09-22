@@ -33,6 +33,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --no-install-recommends -y \
+            librsvg2-bin \
             latexmk \
             lmodern \
             poppler-utils \
@@ -54,8 +55,14 @@ jobs:
       - name: Rebuild analysis from raw histories
         run: make analyse
 
+      - name: Rebuild RQ3 report analysis
+        run: make rq3-analyse
+
       - name: Rebuild RQ4 report analysis
         run: make rq4-analyse
+
+      - name: Check generated result drift
+        run: make check-generated
 
       - name: Build Canvas submission package
         run: make submission
