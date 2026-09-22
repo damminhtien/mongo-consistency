@@ -10,15 +10,16 @@ state, operation status, operation time, and returned document state.
 The subject client issues the tested operations. An independent observer reads
 all three members after recovery without using the subject session. A
 restricted controller applies the fault and replication-path changes. The
-checker then asks, in order: what operation was attempted, what value or
-dependency was returned, and whether the final state contains the required
-predecessor. The four checkers evaluate the project operationalisation in
-Section~2.1.
+checker first verifies the attempted operations and their client-visible
+evidence. RYW and MR use the versions returned to the subject client. MW uses
+the recorded completion intervals, and WFR uses the application version in the
+atomic pre-image returned to the subject write. The four checkers evaluate the
+course definitions in Section~2.1.
 
-For MW and WFR, the post-heal observer is a durable witness rather than an
-intermediate visibility sample. Their PASS and VIOLATION labels describe the
-durable proxy only; they do not directly observe the temporal course
-definitions before convergence.
+The post-heal observer is not used to infer MW or WFR. It records whether
+acknowledged writes remain after recovery and whether replicas agree on the
+final update list. Those durability observations are reported separately from
+the client-centric consistency outcome.
 
 \subsection{Configuration campaign}
 

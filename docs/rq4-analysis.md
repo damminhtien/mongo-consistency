@@ -29,9 +29,10 @@ from that denominator because the registered subject operation was not a
 definitive consistency attempt. Completion is labelled **observed definitive
 completion rate**; it is not formal CAP availability.
 
-For MW and WFR, PASS and VIOLATION are outcomes of the durable post-recovery
-proxy defined in the protocol. They do not directly verify the full temporal
-course definitions from the lecture.
+For MW, PASS and VIOLATION use the recorded write completion intervals. For
+WFR, they use the application version in the atomic write pre-image. They
+therefore test the Lecture 3 conditions directly when the required evidence is
+present. Post-recovery observations remain separate durability evidence.
 
 Latency uses `end_ns - start_ns` for one operation per property:
 

@@ -16,6 +16,7 @@ from mongo_consistency.trial import classify_exception
 
 
 def operation(operation_id: str, kind: str, key: str = "x", **kwargs: object) -> OperationRecord:
+    kwargs.setdefault("session_id", "session-fixture")
     return OperationRecord(operation_id=operation_id, kind=kind, key=key, **kwargs)
 
 
@@ -92,17 +93,44 @@ class CheckerTests(unittest.TestCase):
         result = check_history(history)
         self.assertEqual(Outcome.VIOLATION, result.outcome)
 
-    def test_mw_requires_same_key_and_checks_one_snapshot(self) -> None:
+    def test_client_centric_properties_require_one_process_session(self) -> None:
+        ryw = base_history(
+            "RYW",
+            [
+                operation("write", "write", intended_version=1, write_id="w1"),
+                operation("read", "read", observed_version=1, session_id="other-session"),
+            ],
+        )
+        mr = base_history(
+            "MR",
+            [
+                operation("first_read", "read", observed_version=1),
+                operation("second_read", "read", observed_version=1, session_id="other-session"),
+            ],
+        )
+        self.assertEqual(Outcome.HARNESS_ERROR, check_history(ryw).outcome)
+        self.assertEqual(Outcome.HARNESS_ERROR, check_history(mr).outcome)
+
+    def test_mw_checks_completion_order_and_same_key(self) -> None:
         passing = base_history(
             "MW",
             [
-                operation("first_write", "write", intended_version=1, write_id="w1"),
+                operation(
+                    "first_write",
+                    "write",
+                    intended_version=1,
+                    write_id="w1",
+                    start_ns=0,
+                    end_ns=10,
+                ),
                 operation(
                     "second_write",
                     "write",
                     intended_version=2,
                     write_id="w2",
                     parent_write_id="w1",
+                    start_ns=20,
+                    end_ns=30,
                 ),
             ],
             final_observation=final_observation(
@@ -113,10 +141,17 @@ class CheckerTests(unittest.TestCase):
             manifest=passing.manifest,
             operations=[
                 passing.operations[0],
-                passing.operations[1],
+                operation(
+                    "second_write",
+                    "write",
+                    intended_version=2,
+                    write_id="w2",
+                    parent_write_id="w1",
+                    start_ns=5,
+                    end_ns=15,
+                ),
             ],
             precondition=passing.precondition,
-            final_observation=final_observation([{"write_id": "w2", "version": 2}]),
         )
         different_key = History(
             manifest=passing.manifest,
@@ -129,6 +164,8 @@ class CheckerTests(unittest.TestCase):
                     intended_version=2,
                     write_id="w2",
                     parent_write_id="w1",
+                    start_ns=20,
+                    end_ns=30,
                 ),
             ],
             precondition=passing.precondition,
@@ -138,17 +175,26 @@ class CheckerTests(unittest.TestCase):
         self.assertEqual(Outcome.VIOLATION, check_history(violating).outcome)
         self.assertEqual(Outcome.HARNESS_ERROR, check_history(different_key).outcome)
 
-    def test_mw_requires_stable_post_heal_topology(self) -> None:
+    def test_mw_does_not_use_post_heal_snapshot(self) -> None:
         history = base_history(
             "MW",
             [
-                operation("first_write", "write", intended_version=1, write_id="w1"),
+                operation(
+                    "first_write",
+                    "write",
+                    intended_version=1,
+                    write_id="w1",
+                    start_ns=0,
+                    end_ns=10,
+                ),
                 operation(
                     "second_write",
                     "write",
                     intended_version=2,
                     write_id="w2",
                     parent_write_id="w1",
+                    start_ns=20,
+                    end_ns=30,
                 ),
             ],
             final_observation=final_observation(
@@ -156,7 +202,7 @@ class CheckerTests(unittest.TestCase):
             ),
         )
         history.final_observation["topology"]["stable"] = False
-        self.assertEqual(Outcome.INDETERMINATE, check_history(history).outcome)
+        self.assertEqual(Outcome.PASS, check_history(history).outcome)
 
     def test_successful_read_without_a_concrete_version_is_indeterminate(self) -> None:
         history = base_history(
@@ -168,27 +214,30 @@ class CheckerTests(unittest.TestCase):
         )
         self.assertEqual(Outcome.INDETERMINATE, check_history(history).outcome)
 
-    def test_mw_rejects_disagreeing_converged_member_snapshots(self) -> None:
+    def test_mw_detects_overlapping_writes(self) -> None:
         history = base_history(
             "MW",
             [
-                operation("first_write", "write", intended_version=1, write_id="w1"),
+                operation(
+                    "first_write",
+                    "write",
+                    intended_version=1,
+                    write_id="w1",
+                    start_ns=10,
+                    end_ns=30,
+                ),
                 operation(
                     "second_write",
                     "write",
                     intended_version=2,
                     write_id="w2",
                     parent_write_id="w1",
+                    start_ns=20,
+                    end_ns=40,
                 ),
             ],
-            final_observation=final_observation(
-                [{"write_id": "w1", "version": 1}, {"write_id": "w2", "version": 2}]
-            ),
         )
-        history.final_observation["members"]["mongo3"]["updates"] = [
-            {"write_id": "w2", "version": 2}
-        ]
-        self.assertEqual(Outcome.INDETERMINATE, check_history(history).outcome)
+        self.assertEqual(Outcome.VIOLATION, check_history(history).outcome)
 
     def test_wfr_requires_same_key_and_read_dependency(self) -> None:
         passing = base_history(
@@ -202,6 +251,7 @@ class CheckerTests(unittest.TestCase):
                     write_id="w2",
                     depends_on_read_id="read",
                     depends_on_version=1,
+                    write_base_version=1,
                 ),
             ],
             final_observation=final_observation(
@@ -215,10 +265,17 @@ class CheckerTests(unittest.TestCase):
             manifest=passing.manifest,
             operations=[
                 passing.operations[0],
-                passing.operations[1],
+                operation(
+                    "write",
+                    "write",
+                    intended_version=2,
+                    write_id="w2",
+                    depends_on_read_id="read",
+                    depends_on_version=1,
+                    write_base_version=0,
+                ),
             ],
             precondition=passing.precondition,
-            final_observation=final_observation([{"write_id": "w2", "version": 2}]),
         )
         different_key = History(
             manifest=passing.manifest,
@@ -240,6 +297,23 @@ class CheckerTests(unittest.TestCase):
         self.assertEqual(Outcome.PASS, check_history(passing).outcome)
         self.assertEqual(Outcome.VIOLATION, check_history(violating).outcome)
         self.assertEqual(Outcome.HARNESS_ERROR, check_history(different_key).outcome)
+
+    def test_wfr_without_execution_value_is_indeterminate(self) -> None:
+        history = base_history(
+            "WFR",
+            [
+                operation("read", "read", observed_version=1),
+                operation(
+                    "write",
+                    "write",
+                    intended_version=2,
+                    write_id="w2",
+                    depends_on_read_id="read",
+                    depends_on_version=1,
+                ),
+            ],
+        )
+        self.assertEqual(Outcome.INDETERMINATE, check_history(history).outcome)
 
     def test_write_timeout_is_indeterminate_and_read_error_is_unavailable(self) -> None:
         write_timeout = base_history(

@@ -107,28 +107,48 @@ class SubmissionLayoutTests(unittest.TestCase):
         background = (ROOT / "submission/sections/03-background.tex").read_text(
             encoding="utf-8"
         )
+        normalized_background = " ".join(background.split())
         self.assertIn(r"\paragraph{Course definitions.}", background)
         self.assertIn(r"\paragraph{Operationalisation in this project.}", background)
-        self.assertRegex(background, r"completed before any\s+successive write")
-        self.assertIn("same or a more recent value", background)
-        self.assertIn("does not establish the full temporal definition", background)
+        self.assertIn(
+            r"effect of a write operation by a process on data item \(x\) will "
+            r"always be seen by a successive read operation on \(x\)",
+            normalized_background,
+        )
+        self.assertIn(
+            r"reads the value of a data item \(x\), any successive read operation "
+            r"on \(x\) by that process will always return that same value or a more "
+            r"recent value",
+            normalized_background,
+        )
+        self.assertIn(
+            r"completed before any successive write operation",
+            normalized_background,
+        )
+        self.assertIn(
+            r"following a previous read operation on \(x\) by the same process "
+            r"is guaranteed to take place on the same or a more recent value",
+            normalized_background,
+        )
+        self.assertIn("atomic write pre-image", background)
         self.assertNotIn(
             "A successor write must not become visible without its predecessor", background
         )
         self.assertNotIn("not become visible without that version", background)
 
         method = (ROOT / "submission/sections/06-method.tex").read_text(encoding="utf-8")
-        self.assertIn("project operationalisation in\nSection~2.1", method)
-        self.assertNotIn("implement the definitions in Section~2", method)
+        self.assertIn("course definitions in Section~2.1", method)
+        self.assertNotIn("project operationalisation in\nSection~2.1", method)
 
         results = (ROOT / "submission/sections/07-results.tex").read_text(encoding="utf-8")
-        self.assertIn("post-heal witness", results)
-        self.assertIn("full temporal course definitions", results)
+        self.assertIn("atomic write pre-image", results)
+        self.assertIn("post-heal witness is used only", results)
 
         protocol = (ROOT / "docs/experimental-protocol.md").read_text(encoding="utf-8")
         self.assertIn("## Course definitions and project operationalisation", protocol)
-        self.assertIn("durable MW-proxy\nviolation", protocol)
-        self.assertIn("durable\nWFR-proxy violation", protocol)
+        self.assertIn("write_base_version", protocol)
+        self.assertIn("direct MW checker reports PASS", protocol)
+        self.assertIn("direct WFR checker reports VIOLATION", protocol)
 
     def test_professor_slides_are_cited_and_web_references_have_urls(self) -> None:
         bibliography = (ROOT / "submission/report.bib").read_text(encoding="utf-8")

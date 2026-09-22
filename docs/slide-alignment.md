@@ -19,11 +19,10 @@ source PDFs remain outside the repository at
 ## Definition and measurement boundary
 
 The report states the Lecture 3 definition before describing a schedule or
-checker. RYW and MR use successive client-visible read values. MW and WFR use
-a post-recovery durable proxy because the histories do not contain an
-independent observer immediately after the second write. A proxy result must
-not be presented as a full observation of completion order or of the value on
-which a write took place.
+checker. RYW and MR use successive client-visible read values. MW uses the
+recorded completion intervals of the two writes. WFR uses the application
+version in the atomic pre-image returned to the dependent write. The
+post-recovery observer remains separate durability evidence.
 
 ## Method changes reflected in the final protocol
 

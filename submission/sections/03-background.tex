@@ -9,35 +9,41 @@ the order of wall-clock timestamps.
 
 \paragraph{Course definitions.}
 
-\begin{description}
-\item[RYW] The effect of a write on \(x\) by a process must be seen by a
-successive read of \(x\) by that same process.
-\item[MR] After a process reads a value of \(x\), every successive read of
-\(x\) by that process must return that value or a more recent one.
-\item[MW] A write operation by a process on \(x\) is completed before any
-successive write operation on \(x\) by that same process.
-\item[WFR] A write operation by a process on \(x\) following a previous read
-of \(x\) by that same process must take place on the same or a more recent
-value of \(x\) that was read.
-\end{description}
+\noindent
+The following statements use the definitions given in Lecture~3. They are
+separate from the project-specific checks described below.
 
-These are the client-centric definitions from Lecture~3
-\cite[slides 37 to 44]{cai-lecture-3}.
+\begin{description}
+\item[RYW] The effect of a write operation by a process on data item \(x\) will
+always be seen by a successive read operation on \(x\) by the same process
+\cite[slides 37 to 38]{cai-lecture-3}.
+\item[MR] If a process reads the value of a data item \(x\), any successive
+read operation on \(x\) by that process will always return that same value or a
+more recent value \cite[slides 41 to 42]{cai-lecture-3}.
+\item[MW] A write operation by a process on a data item \(x\) is completed
+before any successive write operation on \(x\) by the same process
+\cite[slides 43 to 44]{cai-lecture-3}.
+\item[WFR] A write operation by a process on a data item \(x\) following a
+previous read operation on \(x\) by the same process is guaranteed to take
+place on the same or a more recent value of \(x\) that was read
+\cite[slides 39 to 40]{cai-lecture-3}.
+\end{description}
 
 \paragraph{Operationalisation in this project.}
 RYW and MR are tested directly from successive versions returned to the
-subject client. The recorded histories do not contain an independent observer
-immediately after the second MW or WFR write. For MW, the post-recovery
-observer checks whether a retained successor write has its recorded predecessor
-in the converged update list. For WFR, it checks whether a retained dependent
-write has the exact version returned by the preceding read in that list.
+subject client. The recorder also captures the evidence needed for the two
+write properties.
+The MW checker now uses the recorded completion intervals: it compares the end
+of the first acknowledged write with the start of the successive write. The
+WFR checker uses an atomic write pre-image and records the highest application
+version present immediately before the dependent write.
 
-These are durable proxies, not full observations of the temporal definitions.
-They can expose a durable counterexample after recovery, but they cannot show
-whether the first write completed before its successor or whether the dependent
-write took place on the same or a more recent value at execution time. A MW or
-WFR PASS therefore means that no durable counterexample to the project proxy
-was observed; it does not establish the full temporal definition.
+These measurements correspond to the course definitions. They do not use the
+post-recovery snapshot to infer completion order or the value at which the
+write took place. The post-recovery observer remains a separate durability
+and rollback measurement. If the required completion interval or write
+pre-image is missing, the checker returns INDETERMINATE rather than inventing
+a PASS or VIOLATION.
 
 \subsection{MongoDB mechanisms}
 

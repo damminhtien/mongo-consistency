@@ -139,6 +139,7 @@ def validate_history(history: History | dict[str, Any]) -> list[str]:
             errors.append(f"operations[{index}] has observations without a successful response")
         for field_name, version in (
             ("intended_version", operation.intended_version),
+            ("write_base_version", operation.write_base_version),
             ("observed_version", operation.observed_version),
             ("depends_on_version", operation.depends_on_version),
         ):

@@ -174,6 +174,24 @@ def _same_key(operations: Iterable[OperationRecord]) -> CheckerResult | None:
     return None
 
 
+def _same_process(operations: Iterable[OperationRecord]) -> CheckerResult | None:
+    """Require the recorded operations to belong to one subject session."""
+
+    session_ids = {operation.session_id for operation in operations}
+    if len(session_ids) > 1:
+        return _result(
+            Outcome.HARNESS_ERROR,
+            "property history uses more than one subject session",
+            session_ids=sorted(str(session_id) for session_id in session_ids),
+        )
+    if None in session_ids:
+        return _result(
+            Outcome.INDETERMINATE,
+            "same-process evidence is missing because the subject session was not recorded",
+        )
+    return None
+
+
 def _read_version(operation: OperationRecord) -> int | None:
     if operation.observed_version is not None:
         return operation.observed_version
@@ -293,6 +311,8 @@ def check_ryw(history: History) -> CheckerResult:
     assert selected is not None
     if same_key := _same_key(selected.values()):
         return same_key
+    if same_process := _same_process(selected.values()):
+        return same_process
     write, read = selected["write"], selected["read"]
     if write.intended_version is None:
         return _result(Outcome.HARNESS_ERROR, "write has no intended logical version")
@@ -324,6 +344,8 @@ def check_mr(history: History) -> CheckerResult:
     assert selected is not None
     if same_key := _same_key(selected.values()):
         return same_key
+    if same_process := _same_process(selected.values()):
+        return same_process
     first, second = selected["first_read"], selected["second_read"]
     first_version, error = _require_version(first, "first_read")
     if error:
@@ -348,7 +370,7 @@ def check_mr(history: History) -> CheckerResult:
 
 
 def check_mw(history: History) -> CheckerResult:
-    """Check the project's durable post-recovery proxy for monotonic writes."""
+    """Check the Lecture 3 completion-order definition of monotonic writes."""
 
     selected, error = _preflight(history, "MW", ("first_write", "second_write"))
     if error:
@@ -356,50 +378,60 @@ def check_mw(history: History) -> CheckerResult:
     assert selected is not None
     if same_key := _same_key(selected.values()):
         return same_key
+    if same_process := _same_process(selected.values()):
+        return same_process
     first, second = selected["first_write"], selected["second_write"]
-    if not first.write_id or not second.write_id:
-        return _result(
-            Outcome.HARNESS_ERROR,
-            "both writes need stable write identifiers",
-            first_write_id=first.write_id,
-            second_write_id=second.write_id,
-        )
-    if second.parent_write_id != first.write_id:
-        return _result(
-            Outcome.HARNESS_ERROR,
-            "second write does not name the first write as its parent",
-            expected_parent=first.write_id,
-            actual_parent=second.parent_write_id,
-        )
-    updates, error = _final_updates(history)
-    if error:
-        return error
-    assert updates is not None
-    visible = _visible_ids(updates)
-    if second.write_id not in visible:
+    if not first.response_received or not second.response_received:
         return _result(
             Outcome.INDETERMINATE,
-            "the final converged state does not show the completed successor write",
-            visible_write_ids=sorted(visible),
-            successor_write_id=second.write_id,
+            "a write completion was not acknowledged by the subject client",
+            first_response_received=first.response_received,
+            second_response_received=second.response_received,
         )
-    if first.write_id not in visible:
+    if not all(
+        isinstance(value, int) and not isinstance(value, bool)
+        for value in (first.start_ns, first.end_ns, second.start_ns, second.end_ns)
+    ):
+        return _result(
+            Outcome.INDETERMINATE,
+            "write completion timestamps are missing",
+            first_start_ns=first.start_ns,
+            first_end_ns=first.end_ns,
+            second_start_ns=second.start_ns,
+            second_end_ns=second.end_ns,
+        )
+    assert (
+        first.start_ns is not None
+        and first.end_ns is not None
+        and second.start_ns is not None
+        and second.end_ns is not None
+    )
+    if first.end_ns < first.start_ns or second.end_ns < second.start_ns:
+        return _result(
+            Outcome.HARNESS_ERROR,
+            "write completion timestamps are not ordered within an operation",
+            first_start_ns=first.start_ns,
+            first_end_ns=first.end_ns,
+            second_start_ns=second.start_ns,
+            second_end_ns=second.end_ns,
+        )
+    if second.start_ns < first.end_ns:
         return _result(
             Outcome.VIOLATION,
-            "durable MW proxy observed a successor write without its predecessor",
-            visible_write_ids=sorted(visible),
-            predecessor_write_id=first.write_id,
-            successor_write_id=second.write_id,
+            "successive write started before the preceding write completed",
+            first_end_ns=first.end_ns,
+            second_start_ns=second.start_ns,
         )
     return _result(
         Outcome.PASS,
-        "durable MW proxy found both predecessor and successor writes after recovery",
-        visible_write_ids=sorted(visible),
+        "preceding write completed before the successive write started",
+        first_end_ns=first.end_ns,
+        second_start_ns=second.start_ns,
     )
 
 
 def check_wfr(history: History) -> CheckerResult:
-    """Check the project's durable post-recovery proxy for writes-follow-reads."""
+    """Check the Lecture 3 value-order definition of writes-follow-reads."""
 
     selected, error = _preflight(history, "WFR", ("read", "write"))
     if error:
@@ -407,9 +439,9 @@ def check_wfr(history: History) -> CheckerResult:
     assert selected is not None
     if same_key := _same_key(selected.values()):
         return same_key
+    if same_process := _same_process(selected.values()):
+        return same_process
     read, write = selected["read"], selected["write"]
-    if not write.write_id:
-        return _result(Outcome.HARNESS_ERROR, "dependent write has no stable write identifier")
     read_version, error = _require_version(read, "read")
     if error:
         return error
@@ -428,31 +460,24 @@ def check_wfr(history: History) -> CheckerResult:
             expected_version=read_version,
             actual_version=write.depends_on_version,
         )
-    updates, error = _final_updates(history)
-    if error:
-        return error
-    assert updates is not None
-    visible_ids = _visible_ids(updates)
-    if write.write_id not in visible_ids:
+    if write.write_base_version is None:
         return _result(
             Outcome.INDETERMINATE,
-            "the final converged state does not show the dependent write",
-            visible_write_ids=sorted(visible_ids),
-            dependent_write_id=write.write_id,
+            "the value observed by the dependent write was not recorded",
+            read_version=read_version,
         )
-    visible_versions = _visible_versions(updates)
-    if read_version not in visible_versions:
+    if write.write_base_version < read_version:
         return _result(
             Outcome.VIOLATION,
-            "durable WFR proxy observed a dependent write without its read version",
-            visible_versions=sorted(visible_versions),
+            "dependent write took place on an older value than the preceding read",
             read_version=read_version,
-            dependent_write_id=write.write_id,
+            write_base_version=write.write_base_version,
         )
     return _result(
         Outcome.PASS,
-        "durable WFR proxy found the read dependency and dependent write after recovery",
-        visible_versions=sorted(visible_versions),
+        "dependent write took place on the read value or a more recent value",
+        read_version=read_version,
+        write_base_version=write.write_base_version,
     )
 
 

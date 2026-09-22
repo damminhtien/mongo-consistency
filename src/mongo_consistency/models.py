@@ -62,6 +62,7 @@ class OperationRecord:
     fault_event_id: str | None = None
     fault_state: dict[str, Any] = field(default_factory=dict)
     intended_version: int | None = None
+    write_base_version: int | None = None
     write_id: str | None = None
     observed_version: int | None = None
     observed_document_exists: bool | None = None
@@ -87,6 +88,8 @@ class OperationRecord:
         payload["observed_versions"] = list(self.observed_versions)
         payload["observed_write_ids"] = list(self.observed_write_ids)
         payload["observed_updates"] = [dict(update) for update in self.observed_updates]
+        if self.write_base_version is None:
+            payload.pop("write_base_version")
         if self.topology_before is None:
             payload.pop("topology_before")
         if self.topology_after is None:

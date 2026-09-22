@@ -687,15 +687,28 @@ class MongoTrial:
         )
 
         def action() -> Any:
-            result = self._collection().update_one(
+            pymongo = __import__("pymongo")
+            previous = self._collection().find_one_and_update(
                 {"_id": self.document_id},
                 {"$push": {"updates": update}},
                 upsert=False,
                 session=self.session,
+                return_document=pymongo.ReturnDocument.BEFORE,
             )
-            if result.matched_count != 1:
+            if previous is None:
                 raise RuntimeError("logical document was not found")
-            return result
+            previous_updates = previous.get("updates")
+            if not isinstance(previous_updates, list):
+                raise RuntimeError("logical document has no update list")
+            previous_versions = [
+                int(item["version"])
+                for item in previous_updates
+                if isinstance(item, dict)
+                and isinstance(item.get("version"), int)
+                and not isinstance(item.get("version"), bool)
+            ]
+            operation.write_base_version = max(previous_versions) if previous_versions else None
+            return previous
 
         return self._execute(operation, action)[0]
 

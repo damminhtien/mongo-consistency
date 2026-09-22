@@ -32,7 +32,7 @@ occurred in MR histories and are excluded from the decidable comparison.
 \label{tab:prediction-observation}
 \begin{tabular}{@{}l*{4}{p{0.19\textwidth}}@{}}
 \toprule
-Config. & RYW & MR & MW & WFR \\
+Config. & RYW & MR & MW$^\dagger$ & WFR$^\dagger$ \\
 \midrule
 \RQOnePredictionObservationRows
 \bottomrule
@@ -43,7 +43,9 @@ Config. & RYW & MR & MW & WFR \\
 G marks a property for which the setting was used as a prediction target; N
 marks a descriptive cell. P, V, U, I, PM, and HE mean PASS, VIOLATION,
 UNAVAILABLE, INDETERMINATE, PRECONDITION\_MISS, and HARNESS\_ERROR. Only P and
-V enter the resolved comparison.
+V enter the resolved comparison. The dagger marks the MW and WFR columns whose
+direct course-definition checks use write completion intervals and atomic
+write pre-images, respectively.
 \end{minipage}
 \end{table}
 
@@ -52,10 +54,11 @@ V enter the resolved comparison.
 The RYW and MR schedules show the clearest separation between a completed
 regression and an unresolved dependency. Weak or non-causal settings can reach
 a lagging member and return an older value; the stronger target setting more
-often stops before a stale value is returned. MW and WFR are decided with the
-post-heal witness. Their PASS and VIOLATION counts are outcomes of the durable
-proxy in Section~2.1, not direct tests of the full temporal course definitions;
-unresolved histories remain outside the comparison.
+often stops before a stale value is returned. MW is decided from the order of
+the recorded write completions. WFR is decided from the application version
+present in the atomic write pre-image. Histories without that evidence remain
+INDETERMINATE; the post-heal witness is used only for the separate durability
+analysis.
 
 \subsection{Effect of failures and network partition}
 

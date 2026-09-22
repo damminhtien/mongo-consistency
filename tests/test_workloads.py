@@ -151,6 +151,7 @@ class FakeTrial:
         self.no_wfr_read_version = no_wfr_read_version
         self.precondition = {"status": "SATISFIED", "checks": []}
         self.operations: list[OperationRecord] = []
+        self.clock_ns = 0
         self.diagnostics: list[dict[str, Any]] = []
         self.fault_events: list[dict[str, Any]] = []
         self.final_observation: dict[str, Any] | None = None
@@ -219,6 +220,10 @@ class FakeTrial:
     ) -> OperationRecord:
         updates = observed_updates or []
         versions = [update["version"] for update in updates]
+        start_ns = self.clock_ns
+        self.clock_ns += 1
+        end_ns = self.clock_ns
+        self.clock_ns += 1
         return OperationRecord(
             operation_id=operation_id,
             kind=kind,
@@ -232,6 +237,8 @@ class FakeTrial:
             actual_role=self.oracle.roles[member],
             command_started=True,
             response_received=True,
+            start_ns=start_ns,
+            end_ns=end_ns,
             intended_version=intended_version,
             write_id=write_id,
             parent_write_id=parent_write_id,
@@ -303,6 +310,11 @@ class FakeTrial:
         recipients = [target for target in MEMBERS if target not in self.active_fault_members]
         if member in self.active_fault_members:
             recipients = [member]
+        current_versions = [
+            int(item["version"])
+            for item in self.oracle.documents[member]
+            if isinstance(item.get("version"), int)
+        ]
         for target in recipients:
             self.oracle.documents[target].append(dict(update))
         operation = self._operation(
@@ -315,6 +327,7 @@ class FakeTrial:
             depends_on_read_id=depends_on_read_id,
             depends_on_version=depends_on_version,
         )
+        operation.write_base_version = max(current_versions) if current_versions else None
         operation.fault_event_id = fault_event_id
         self.operations.append(operation)
         return operation
@@ -406,7 +419,7 @@ class WorkloadScheduleTests(unittest.TestCase):
             trial.timeline.index("election:mongo2"),
             trial.timeline.index("subject:write:w2:mongo2"),
         )
-        self.assertEqual(Outcome.VIOLATION, check_history(trial.history()).outcome)
+        self.assertEqual(Outcome.PASS, check_history(trial.history()).outcome)
 
     def test_wfr_requires_a_concrete_read_version_before_dependent_write(self) -> None:
         trial = self._run("WFR")

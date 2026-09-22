@@ -158,9 +158,10 @@ VIOLATION histories. `UNAVAILABLE`, `INDETERMINATE`, precondition misses, and
 harness errors remain separate. Valid timeout timestamps remain in the
 all-attempt sample; the resolved sample has its own denominator.
 
-For MW and WFR, PASS and VIOLATION refer to the durable post-recovery proxy in
-the protocol. They are not direct observations of the full temporal course
-definitions.
+For MW and WFR, PASS and VIOLATION use the course-definition evidence recorded
+by the runner: write completion intervals for MW and the atomic write
+pre-image for WFR. Post-recovery observations are reported separately as
+durability and rollback evidence.
 
 The analysis writes `results/summary/rq4/metrics.csv`, `contrasts.csv`, and
 `fault_deltas.csv`, plus three PDF figures under `figures/`. Rebuild it with

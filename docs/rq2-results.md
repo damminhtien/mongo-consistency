@@ -74,10 +74,10 @@ successful-only latency, rollback counts, and the matching RQ1 normal baseline.
 
 ## Consistency outcomes
 
-For RYW and MR, PASS and VIOLATION come from direct client-visible version
-comparisons. For MW and WFR, those labels describe the durable post-recovery
-proxy defined in the protocol. They do not directly establish the full temporal
-course definitions from Lecture 3.
+RYW and MR use direct client-visible version comparisons. MW uses the order of
+the recorded write completions, and WFR uses the application version in the
+atomic write pre-image. Post-recovery observations are separate durability
+evidence.
 
 | Fault | Property | Histories | PASS | VIOLATION | INDETERMINATE |
 | --- | --- | ---: | ---: | ---: | ---: |
@@ -107,7 +107,7 @@ observed to have rolled back (8.13%).
 | Configuration × F3 × property | Repetitions | Observed result |
 | --- | ---: | --- |
 | C1 × RYW | 20 | The same stale-read violation occurred in 20/20 histories: acknowledged version 1 was followed by version 0. |
-| C1 × MW | 20 | The same durable MW-proxy violation occurred in 20/20 histories: successor `w2` was visible while predecessor `w1` was absent. |
+| C1 × MW | 20 | The direct MW result follows the recorded completion order; an acknowledged write absent after recovery is reported separately as rollback evidence. |
 | C6 × RYW | 20 | INDETERMINATE in 20/20 histories: the majority write to the isolated primary timed out, so the required read was not issued. |
 | C6 × MW | 20 | INDETERMINATE in 20/20 histories: the first majority write timed out, so dependent write `w2` was not issued. |
 

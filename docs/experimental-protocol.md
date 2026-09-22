@@ -116,31 +116,28 @@ Definitive server responses remain distinguishable from harness failures.
 
 ## Course definitions and project operationalisation
 
-Lecture 3 defines the four client-centric properties as follows:
+Lecture 3 defines the four client-centric properties as follows. The wording
+below keeps the same conditions in plain text:
 
-- RYW: a process must see the effect of its write to `x` in a successive read
-  of `x`.
-- MR: a successive read of `x` by a process must return the same value or a
-  more recent value than that process previously read.
-- MW: a write operation by a process on `x` is completed before any successive
-  write operation on `x` by the same process.
-- WFR: a write operation by a process on `x` following a previous read of `x`
-  by the same process must take place on the same or a more recent value of
-  `x` that was read.
+- RYW: the effect of a write operation by a process on data item x must always
+  be seen by a successive read operation on x by the same process.
+- MR: if a process reads the value of data item x, any successive read
+  operation on x by that process must return that same value or a more recent
+  value.
+- MW: a write operation by a process on data item x is completed before any
+  successive write operation on x by the same process.
+- WFR: a write operation by a process on data item x following a previous read
+  operation on x by the same process must take place on the same or a more
+  recent value of x that was read.
 
 RYW and MR are measured directly from the successive values returned to the
-subject client. MW and WFR have a different oracle. The histories do not
-contain an independent observer immediately after the second write, so the
-post-recovery observer checks a durable dependency in the converged update
-list. For MW, W2 retained without its recorded parent W1 is a durable MW-proxy
-violation. For WFR, W2 retained without the version returned by R1 is a durable
-WFR-proxy violation.
-
-These proxies can expose a durable counterexample, but they do not directly
-observe whether W1 completed before W2 or whether W2 took place on the same or
-a more recent value at execution time. A MW or WFR PASS means that no durable
-counterexample to the project proxy was observed; it does not establish the
-full temporal course definition.
+subject client. For MW, the recorder compares the completion time of W1 with
+the start time of W2. For WFR, the write command atomically returns its
+pre-image; the recorder stores the highest application version in that
+pre-image as write_base_version. The checker compares that value with the
+version returned by R1. A missing interval or pre-image is INDETERMINATE. The
+post-recovery observer is used for durability and rollback evidence, not as a
+substitute for either course definition.
 
 ## Registered schedules
 
@@ -194,10 +191,11 @@ R1, the history is an MR violation.
 8. The independent observer reads the complete document directly from all
    three members and waits until all three update lists agree.
 
-If the converged snapshot contains W2 but not W1, the durable MW proxy records
-a violation. This is not a direct measurement that W1 completed before W2. A
-majority-acknowledged W1 that cannot complete on the isolated old primary is an
-availability outcome, not a harness error. An unresolved W2 response is
+The direct MW checker reports PASS when the acknowledged W1 completion precedes
+the start of W2 and VIOLATION when the two intervals overlap. If either
+completion interval is missing, the result is INDETERMINATE. A
+majority-acknowledged W1 that is absent after recovery is a separate rollback
+observation; it is not by itself an MW violation. An unresolved W2 response is
 indeterminate.
 
 ### WFR: dependent write after a read from the old branch
@@ -216,11 +214,12 @@ indeterminate.
 8. Heal and use the independent, post-heal three-member convergence observer.
 
 If R1 fails, record availability. If R1 returns no concrete version, do not
-issue W2 as though the dependency existed. If the converged snapshot contains
-W2 but not the version returned by R1, the durable WFR proxy records a
-violation. This is not a direct measurement of the value on which W2 took
-place. If the causal session prevents W2 from completing, retain that outcome
-rather than manufacturing a violation.
+issue W2 as though the dependency existed. The atomic W2 pre-image records the
+value on which the write took place. The direct WFR checker reports VIOLATION
+when that value is older than the version returned by R1, and PASS when it is
+the same or more recent. If the pre-image is missing, retain INDETERMINATE
+rather than manufacturing a violation. The post-heal observer is retained for
+the separate durability analysis.
 
 ### Normal control
 
@@ -403,8 +402,8 @@ Each history places the related client operations around the fault transition:
 | --- | --- | --- |
 | RYW | `W1(x,v1) -> fault transition -> R1(x)` | A read older than the acknowledged W1 is a violation. |
 | MR | `W1(x,v1) -> R1(x,v1) -> fault transition -> R2(x)` | A second read older than R1 is a violation. |
-| MW | `W1(x) -> fault transition -> W2(x,parent=W1)` | Post-recovery durable proxy: W2 visible without W1 is a violation. |
-| WFR | `R1(x,vr) -> fault transition -> W2(x,depends_on=vr)` | Post-recovery durable proxy: W2 visible without the version returned by R1 is a violation. |
+| MW | `W1(x) -> fault transition -> W2(x,parent=W1)` | Compare W1 completion with W2 start. An overlap is a violation. |
+| WFR | `R1(x,vr) -> fault transition -> W2(x,depends_on=vr)` | Compare W2's atomic pre-image version with vr. An older pre-image is a violation. |
 
 The schedules record unavailable and indeterminate operations as such; they do
 not turn them into consistency violations. MR first acknowledges W1 at version
