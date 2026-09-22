@@ -364,7 +364,7 @@ def _valid_root(root: Path) -> None:
     pilot_records: list[dict[str, object]] = []
     for configuration_number in range(1, 9):
         for property_name in EXPECTED_RQ2_CELLS:
-            for adversarial, repetitions in ((False, 1), (True, 1)):
+            for adversarial, repetitions in ((False, 1), (True, 3)):
                 for _ in range(repetitions):
                     pilot_records.append(
                         {
@@ -470,7 +470,7 @@ def _valid_root(root: Path) -> None:
         "status": "DATA",
         "campaign_summaries": {
             campaign: {"history_count": count}
-            for campaign, count in (("pilot", 64), ("experiment", 256), ("rq2", 432))
+            for campaign, count in (("pilot", 128), ("experiment", 256), ("rq2", 432))
         },
         "fault_episode_summaries": [
             {

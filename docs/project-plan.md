@@ -104,7 +104,7 @@ cache state is logged separately and never treated as ground truth.
    replication isolation; all 36 episodes converged.
 4. Validate the four schedules with checker fixtures and a 32-history smoke.
 5. Freeze predictions and protocol commits.
-6. Run the 64-history pilot; block main runs on harness errors, wrong routing,
+6. Run the 128-history pilot; block main runs on harness errors, wrong routing,
    cleanup failures, or more than 5% precondition misses for any property.
 7. Run the reduced RQ1 sequentially: 96 normal controls plus 160 adversarial
    histories, 256 in total.

@@ -17,7 +17,7 @@ else:
     from build_submission import BuildError, parse_metadata
 
 ROOT = Path(__file__).resolve().parents[1]
-EXPECTED_CAMPAIGNS = {"pilot": 64, "experiment": 256, "rq2": 432}
+EXPECTED_CAMPAIGNS = {"pilot": 128, "experiment": 256, "rq2": 432}
 RQ2_CONFIGURATIONS = {"C1", "C3", "C4", "C6"}
 EXPECTED_RQ2_CELLS = {property_name: RQ2_CONFIGURATIONS for property_name in ("RYW", "MR", "MW", "WFR")}
 RQ2_CONDITIONS = ("F1", "F2", "F3")
@@ -46,7 +46,7 @@ RQ2_EPISODE_PLAN = {
     }
     for repetition in range(9, 21)
 }
-EXPECTED_SUMMARY_COUNTS = {"pilot": 64, "experiment": 256, "rq2": 432}
+EXPECTED_SUMMARY_COUNTS = {"pilot": 128, "experiment": 256, "rq2": 432}
 RQ3_CONTRASTS = {
     "M1": {
         "campaign": "rq3-m1",
@@ -145,7 +145,7 @@ def _check_campaign(root: Path, campaign: str, expected_count: int, errors: list
             configuration_id = f"C{configuration_number}"
             for property_name in EXPECTED_RQ2_CELLS:
                 repetitions_by_mode = (
-                    ((False, 1), (True, 1))
+                    ((False, 1), (True, 3))
                     if campaign == "pilot"
                     else ((False, 3), (True, 5))
                 )

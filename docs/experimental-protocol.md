@@ -291,11 +291,11 @@ eight trials per property make even one precondition miss a gate failure.
 
 ### Pilot
 
-Run one adversarial repetition per configuration/property cell and one normal
-control per cell:
+Run three adversarial repetitions per configuration/property cell and one
+normal control per cell:
 
 ```text
-8 x 4 x 1 + 8 x 4 x 1 = 64 histories
+8 x 4 x 3 + 8 x 4 x 1 = 128 histories
 ```
 
 The pilot validates the frozen harness and estimates schedule stability. Pilot

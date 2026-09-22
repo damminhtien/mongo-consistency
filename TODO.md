@@ -61,7 +61,7 @@ tracks remaining project and submission work.
   are separate from the clean, frozen main campaign and are not RQ1 outcomes.
 - [x] Freeze predictions and protocol before RQ1; the campaign manifest records
   prediction commit `b79b567` and protocol commit `c7e3cf9`.
-- [ ] Run the 64-history pilot; require zero harness errors and precondition
+- [ ] Run the 128-history pilot; require zero harness errors and precondition
   misses at or below 5% per property.
 - [ ] Run reduced sequential RQ1: 96 normal controls plus 160 adversarial
   histories, 256 in total.

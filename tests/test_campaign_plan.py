@@ -19,7 +19,7 @@ class CampaignPlanTests(unittest.TestCase):
     def test_campaign_counts_match_locked_design(self) -> None:
         self.assertEqual(96, len(campaign_cases("normal", self.configurations, self.campaign)))
         self.assertEqual(32, len(campaign_cases("pilot", self.configurations, self.campaign)))
-        self.assertEqual(32, len(adversarial_cases("pilot", self.configurations, self.campaign)))
+        self.assertEqual(96, len(adversarial_cases("pilot", self.configurations, self.campaign)))
         self.assertEqual(96, len(campaign_cases("experiment", self.configurations, self.campaign)))
         self.assertEqual(160, len(adversarial_cases("experiment", self.configurations, self.campaign)))
 
