@@ -1,6 +1,6 @@
 PYTHON ?= python3
 MC_SMOKE_MOUNT ?= ./results/smoke
-.PHONY: check-docs check-schemas check-release-ready check-generated check-runner-isolation submission test setup smoke pilot experiment experiment-fresh rq2 rq3 rq3-preflight rq3-analyse rq4-analyse analyse
+.PHONY: check-docs check-schemas check-release-ready check-generated check-runner-isolation check-submission-artifacts submission test setup smoke pilot experiment experiment-fresh rq2 rq3 rq3-preflight rq3-analyse rq4-analyse analyse
 
 check-docs:
 	$(PYTHON) scripts/check_documentation.py
@@ -16,6 +16,9 @@ check-generated:
 
 check-runner-isolation:
 	$(PYTHON) scripts/check_runner_isolation.py
+
+check-submission-artifacts:
+	PYTHONPATH=src:scripts $(PYTHON) scripts/check_submission_artifacts.py
 
 submission:
 	$(PYTHON) scripts/build_submission.py

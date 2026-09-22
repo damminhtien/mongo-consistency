@@ -511,6 +511,7 @@ def write_generated_analysis(path: Path, root: Path) -> None:
         "RQTwoOutcomeRows": "",
         "RQTwoMetricRows": "",
         "RQTwoEpisodeRows": "",
+        "RQTwoFaultSummaryRows": "",
     }
     macros["RQTwoStatus"] = rq2_manifest_status
     macros["RQTwoFthreeSuccessfulLatencyHighMs"] = "--"
@@ -603,6 +604,7 @@ def write_generated_analysis(path: Path, root: Path) -> None:
         outcome_rows: list[str] = []
         metric_rows: list[str] = []
         episode_table_rows: list[str] = []
+        fault_summary_rows: list[str] = []
         for fault in rq2_faults:
             for configuration in rq2_configurations:
                 for property_name in rq2_properties:
@@ -754,11 +756,32 @@ def write_generated_analysis(path: Path, root: Path) -> None:
                 f"{converged_count} & "
                 f"{second_value((episode.get('recovery_ms') or {}).get('p50'))} \\\\"
             )
+            fault_outcome_values = [
+                int(fault_outcomes.get(outcome, 0) or 0)
+                for outcome in ("PASS", "VIOLATION", "UNAVAILABLE", "INDETERMINATE")
+            ]
+            operation_successful = count_value(
+                fault_summary, "operation_successful_count"
+            )
+            operation_attempted = count_value(
+                fault_summary, "operation_attempted_count"
+            )
+            fault_summary_rows.append(
+                f"{fault} & {count_value(fault_summary, 'history_count')} & "
+                f"{count_value(episode, 'episode_count')} & "
+                f"{'/'.join(map(str, fault_outcome_values))} & "
+                f"{operation_successful}/{operation_attempted} "
+                f"({percent_value(fault_summary.get('operation_success_rate'))}\\%) & "
+                f"{percent_value(fault_summary.get('history_completion_rate'))}\\% & "
+                f"{millisecond_value((fault_summary.get('latency_ms') or {}).get('p50'))}/"
+                f"{millisecond_value((fault_summary.get('latency_ms') or {}).get('p95'))} \\\\"
+            )
         rq2_raw_macros.update(
             {
                 "RQTwoOutcomeRows": "\n".join(outcome_rows),
                 "RQTwoMetricRows": "\n".join(metric_rows),
                 "RQTwoEpisodeRows": "\n".join(episode_table_rows),
+                "RQTwoFaultSummaryRows": "\n".join(fault_summary_rows),
             }
         )
     else:
@@ -1106,6 +1129,44 @@ def validate_figure_inputs(root: Path) -> None:
         )
 
 
+def validate_pdf_text(text: str) -> None:
+    """Reject unresolved report placeholders from the compiled PDF text."""
+
+    if "NO DATA:" in text or "NO_DATA" in text:
+        raise BuildError(
+            "Compiled report contains an unresolved NO DATA placeholder"
+        )
+
+
+def validate_pdf_artifact(path: Path) -> None:
+    """Check that a compiled report is readable and contains no placeholders."""
+
+    if not path.is_file() or path.stat().st_size == 0:
+        raise BuildError(f"Compiled report PDF is missing or empty: {path}")
+    pdftotext = find_tool("pdftotext")
+    if not pdftotext:
+        raise BuildError(
+            "pdftotext is required to verify the compiled report PDF"
+        )
+    try:
+        completed = subprocess.run(
+            [pdftotext, "-layout", str(path), "-"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=60,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise BuildError(f"Could not inspect the compiled report PDF: {error}") from error
+    if completed.returncode:
+        raise BuildError(
+            f"pdftotext failed for the compiled report PDF: {_command_tail(completed.stderr)}"
+        )
+    validate_pdf_text(completed.stdout)
+
+
 def build(root: Path) -> tuple[Path, Path, Path]:
     """Build and validate the PDF, archive, and manifest."""
 
@@ -1123,6 +1184,7 @@ def build(root: Path) -> tuple[Path, Path, Path]:
     check_documents(root, root)
     validate_figure_inputs(root)
     report_path = compile_report(root, build_root, values)
+    validate_pdf_artifact(report_path)
 
     package_root = build_root / "package"
     package_root.mkdir()

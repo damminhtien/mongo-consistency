@@ -359,6 +359,11 @@ def _rq3_valid_root(root: Path) -> None:
         ),
         encoding="utf-8",
     )
+    generated_appendix = submission / "generated-rq3-appendix.tex"
+    generated_appendix.write_text(
+        analyse_rq3._render_appendix_section(grouped_rows, selected_pairs),
+        encoding="utf-8",
+    )
     timeline_path = submission / "figures/rq3-causal-timeline.pdf"
     timeline_path.write_bytes(b"%PDF-1.4\n" + b"synthetic timeline fixture\n" * 32 + b"%%EOF\n")
     summary = {
@@ -376,6 +381,10 @@ def _rq3_valid_root(root: Path) -> None:
             "report_tex": {
                 "path": "submission/generated-rq3.tex",
                 "sha256": _sha256(generated_tex),
+            },
+            "appendix_tex": {
+                "path": "submission/generated-rq3-appendix.tex",
+                "sha256": _sha256(generated_appendix),
             },
             "timeline_pdf": {
                 "path": "submission/figures/rq3-causal-timeline.pdf",

@@ -36,7 +36,7 @@ Metric & Normal controls & Adversarial histories \\
 Consistency violation rate & \ControlConsistencyViolationRate & \ConsistencyViolationRate \\
 Operation success rate & \ControlOperationSuccessRate & \OperationSuccessRate \\
 History completion rate & \ControlHistoryCompletionRate & \HistoryCompletionRate \\
-Latency p50 / p95 / p99 (ms) & \ControlLatencyMedian / \ControlLatencyHigh / \ControlLatencyTail & \LatencyMedian / \LatencyHigh / \LatencyTail \\
+Latency p50 / p95 (ms) & \ControlLatencyMedian / \ControlLatencyHigh & \LatencyMedian / \LatencyHigh \\
 Election p50 (ms) & \ControlElectionMedian & \ElectionMedian \\
 Recovery p50 (ms) & \ControlRecoveryMedian & \RecoveryMedian \\
 \bottomrule
@@ -49,7 +49,7 @@ controls from adversarial histories.
 
 \begin{table}[ht]
 \centering
-\scriptsize
+\small
 \setlength{\tabcolsep}{3pt}
 \caption{Predicted guarantees and observed outcomes by configuration and property.}
 \label{tab:rq1-prediction-observation}
@@ -70,6 +70,7 @@ N does not predict a violation in every repetition.
 \end{minipage}
 \end{table}
 \FloatBarrier
+\maybefigure[fig:prediction-observation]{submission/figures/prediction-observation.pdf}{Predicted guarantees and RQ1 observed outcomes.}
 
 \subsection{Read-your-writes consistency}
 
@@ -131,7 +132,7 @@ with causal consistency disabled. The later read returned an older version:
 
 \begin{table}[ht]
 \centering
-\scriptsize
+\small
 \setlength{\tabcolsep}{4pt}
 \caption{Recorded MR trace from C7; both reads used majority read concern.}
 \label{tab:rq1-mr-trace}
@@ -236,8 +237,7 @@ The RQ2 campaign recorded
 \RQTwoOperationSuccessfulCount/\RQTwoOperationAttemptedCount\ successful
 scheduled operations (\RQTwoOperationSuccessPercent\%) and a history
 completion rate of \RQTwoHistoryCompletionPercent\%. Its all-attempt latency
-p50/p95/p99 was \RQTwoLatencyMedianMs/\RQTwoLatencyHighMs/\RQTwoLatencyTailMs
-ms. The independent observer checked
+p50/p95 was \RQTwoLatencyMedianMs/\RQTwoLatencyHighMs ms. The independent observer checked
 \RQTwoRollbackCheckedWriteCount\ acknowledged writes and found
 \RQTwoRolledBackWriteCount\ rollbacks (\RQTwoRollbackPercent\%).
 
@@ -252,67 +252,25 @@ was \RQTwoFthreeLatencyHighMs\ ms across
 operations, p95 was \RQTwoFthreeSuccessfulLatencyHighMs\ ms, with a different
 denominator.
 
-{\scriptsize
-\setlength{\tabcolsep}{3pt}
-\begin{longtable}{@{}l l l c r p{0.20\textwidth} c@{}}
-\caption{RQ2 target and outcomes by fault, configuration, and property.}
-\label{tab:rq2-outcomes}\\
+\begin{table}[ht]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\caption{RQ2 fault-level summary. Latency uses all timed attempts and reports p50/p95 only.}
+\label{tab:rq2-summary}
+\begin{tabular}{@{}l r r l l l l@{}}
 \toprule
-Fault & Config & Property & Target & $n$ & P/V/U/I/PM/HE & Ops S/A \\
+Fault & Histories & Episodes & P/V/U/I & Operation success & Completion & p50/p95 (ms) \\
 \midrule
-\endfirsthead
-\caption[]{RQ2 target and outcomes by fault, configuration, and property (continued).}\\
-\toprule
-Fault & Config & Property & Target & $n$ & P/V/U/I/PM/HE & Ops S/A \\
-\midrule
-\endhead
-\midrule
-\multicolumn{7}{r}{Continued on next page}\\
-\endfoot
+\RQTwoFaultSummaryRows
 \bottomrule
-\endlastfoot
-\RQTwoOutcomeRows
-\end{longtable}
-}
-
-{\scriptsize
-\setlength{\tabcolsep}{3pt}
-\begin{longtable}{@{}l l l r r r r@{}}
-\caption{RQ2 latency and acknowledged-write rollback by fault, configuration, and property.}
-\label{tab:rq2-latency-rollback}\\
-\toprule
-Fault & Config & Property & All-attempt latency p50/p95/p99 (ms) & Ack writes & Checked/rolled back & Rollback (\%) \\
-\midrule
-\endfirsthead
-\caption[]{RQ2 latency and acknowledged-write rollback (continued).}\\
-\toprule
-Fault & Config & Property & All-attempt latency p50/p95/p99 (ms) & Ack writes & Checked/rolled back & Rollback (\%) \\
-\midrule
-\endhead
-\midrule
-\multicolumn{7}{r}{Continued on next page}\\
-\endfoot
-\bottomrule
-\endlastfoot
-\RQTwoMetricRows
-\end{longtable}
-}
+\end{tabular}
+\end{table}
 
 Fault-episode timing uses episodes as the unit; histories sharing an episode
-are not independent injections. Every recorded fault action was applied and
-every episode converged.
-
-{\small
-\begin{longtable}{@{}lrrrrrr@{}}
-\caption{RQ2 election and recovery by fault episode. Times are p50 seconds.}
-\label{tab:rq2-episodes}\\
-\toprule
-Fault & Episodes & Applied & Elections & Election p50 & Converged & Recovery p50 \\
-\midrule
-\RQTwoEpisodeRows
-\bottomrule
-\end{longtable}
-}
+are not independent injections. The full configuration-property matrices,
+rollback counts, p99 values, and episode timings are in
+Appendix~\ref{app:full-results}.
 
 \input{submission/generated-rq4.tex}
 
@@ -320,7 +278,3 @@ The focused RQ3 contrasts below explain representative RQ1 and RQ2 outcomes
 through causal-session, read-concern, and write-concern mechanisms.
 \FloatBarrier
 \input{submission/generated-rq3.tex}
-
-\maybefigure[fig:outcome-heatmap]{submission/figures/outcome-heatmap.pdf}{Outcome heatmap by configuration and property.}
-\maybefigure[fig:prediction-observation]{submission/figures/prediction-observation.pdf}{Predicted guarantees and RQ1 observed outcomes.}
-\maybefigure[fig:latency]{submission/figures/latency.pdf}{Operation latency quantiles by RQ1 condition; pilot excluded.}

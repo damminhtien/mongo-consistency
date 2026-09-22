@@ -574,7 +574,7 @@ def _outcomes_partition_body(rows: list[dict[str, Any]]) -> tuple[str, int]:
         total = sum(counts[signature].values())
         if not total:
             body += f'<rect x="{left}" y="{y + 3}" width="{bar_width}" height="24" fill="#f1f5f9" stroke="#cbd5e1"/>'
-            body += _svg_text(left + bar_width / 2, y + 20, "NO DATA", size=12, anchor="middle", color="#64748b")
+            body += _svg_text(left + bar_width / 2, y + 20, "no recorded cell", size=12, anchor="middle", color="#64748b")
             continue
         cursor = left
         for outcome in OUTCOMES:
@@ -590,7 +590,7 @@ def _outcomes_partition_body(rows: list[dict[str, Any]]) -> tuple[str, int]:
     body += _svg_text(
         540,
         top + len(PARTITION_SIGNATURES) * row_height + 18,
-        "Counts are not pooled across MR or WFR; missing signature cells remain NO DATA.",
+        "Counts are not pooled across MR or WFR; unrecorded cells are left unfilled.",
         size=12,
         anchor="middle",
         color="#475569",
@@ -682,7 +682,7 @@ def _latency_completion_body(rows: list[dict[str, Any]]) -> tuple[str, int]:
     axis_y = top + plot_height / 2
     body += f'<g transform="rotate(-90 48 {axis_y:g})">{_svg_text(48, axis_y, "definitive completion rate", size=13, anchor="middle")}</g>'
     if not partition_rows:
-        body += _svg_text(width / 2, height / 2, "NO DATA", size=18, anchor="middle", color="#64748b")
+        body += _svg_text(width / 2, height / 2, "no recorded partition cells", size=18, anchor="middle", color="#64748b")
     return body, height
 
 
@@ -709,10 +709,14 @@ def _contrast_body(contrasts: list[dict[str, Any]]) -> tuple[str, int]:
         label = f'{row["scenario"]}/{row["property"]}'
         body += _svg_text(left - 12, y + 17, label, size=11, anchor="end")
         if row["status"] != "LATENCY_COMPLETE":
+            status_label = {
+                "NO_LATENCY_DATA": "not compared",
+                "MISSING_CELL": "not recorded",
+            }.get(row["status"], row["status"].replace("_", " "))
             body += _svg_text(
                 left,
                 y + 17,
-                row["status"].replace("_", " "),
+                status_label,
                 size=11,
                 color="#64748b",
             )
@@ -727,7 +731,7 @@ def _contrast_body(contrasts: list[dict[str, Any]]) -> tuple[str, int]:
         body += _svg_text(left + bar_width + 170, y + 17, f"Delta L95={delta:.2f} ms" if delta is not None else "Delta L95=NA", size=10, color="#475569")
         body += _svg_text(left + bar_width + 170, y + 30, f"Delta D={completion:+.3f}" if completion is not None else "Delta D=NA", size=10, color="#475569")
     if not visible:
-        body += _svg_text(width / 2, 210, "NO C5/C6 latency pairs", size=18, anchor="middle", color="#64748b")
+        body += _svg_text(width / 2, 210, "no recorded C5/C6 latency pairs", size=18, anchor="middle", color="#64748b")
     footer_y = top + max(len(visible), 1) * row_height + 36
     body += _svg_text(width / 2, footer_y, "Bars use the critical operation only; no p99 is reported for these small cells.", size=12, anchor="middle", color="#475569")
     return body, footer_y + 30

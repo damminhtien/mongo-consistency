@@ -67,6 +67,9 @@ jobs:
       - name: Build Canvas submission package
         run: make submission
 
+      - name: Check submission artifact contract
+        run: make check-submission-artifacts
+
       - name: Verify submission outputs
         run: |
           test -s output/pdf/mongo-consistency-report.pdf

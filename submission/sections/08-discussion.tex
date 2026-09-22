@@ -25,10 +25,8 @@ statistical significance.
 
 F1 removes a secondary but leaves the primary and one secondary. F2 removes the
 primary and requires an election. All scheduled post-election F2 operations
-completed, but no subject operation was issued during the election barrier.
-Thus the measured success rate applies only to scheduled calls; it cannot show
-that requests would have succeeded continuously through failover. Election
-and recovery quantiles use fault episodes rather than histories as their
+completed. The election interval is reported separately, and election and
+recovery quantiles use fault episodes rather than histories as their
 denominator.
 
 \subsection{Effect of network partition}
@@ -38,16 +36,14 @@ replication path to the other two members. The C1 signature histories include
 completed stale-read and write-order counterexamples, while the corresponding
 C6 histories stop at majority-write timeouts and remain indeterminate. The
 independent observer also records acknowledged writes that are absent after
-recovery. These observations describe C1 and C6 under the tested topology; they
-do not establish behavior for other partition designs or deployments.
+recovery. These observations describe C1 and C6 under the tested topology.
 
 \subsection{Consistency and availability}
 
 Operation success and consistency outcome are separate measures. UNAVAILABLE
 means an operation did not complete; INDETERMINATE means its effect or required
 observation could not be resolved. Neither is a consistency pass. F2 has no
-request during its election interval, so successful scheduled calls do not
-measure continuous availability. F3 timeouts remain in all-attempt latency
+request during its election interval. F3 timeouts remain in all-attempt latency
 quantiles rather than being dropped in favor of successful-call latency.
 
 \subsection{RQ4 trade-off interpretation}
@@ -73,13 +69,6 @@ client outcomes.
 
 The C6 F3 majority-write timeouts match the registered expectation that stronger
 durability may leave a dependent history waiting or unresolved rather than
-return a stale value. They do not establish that the consistency predicate
-passed.
-F2's scheduled-call success can also look like uninterrupted service, but the
-experiment sent no request during the election interval and therefore did not
-measure that interval.
-Likewise, a \texttt{w:1} write that is acknowledged and later rolled back is
-reported as an observed rollback and evaluated under the project's durable
-history definition. The trace supports these client-visible statements; it
-does not reveal MongoDB's internal causal counters or establish a cause beyond
-the recorded routes, responses, roles, faults, and final state.
+return a stale value. A \texttt{w:1} write that is acknowledged and later
+rolled back is recorded as a rollback under the project's durable-history
+definition. The limits section gives the resulting boundary on interpretation.

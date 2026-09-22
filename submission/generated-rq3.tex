@@ -1,13 +1,13 @@
 \subsection{Mechanism contrasts (RQ3)}
 
 RQ3 is mechanism evidence for representative RQ1 and RQ2 observations, not a
-separate benchmark. It uses 8 matched-seed pairs per contrast;
+separate benchmark. It uses matched-seed pairs for three registered contrasts;
 pair validity is recomputed from the raw histories before the table is built.
-Valid pair counts: M1: Control-valid pairs 8/8; M2: Control-valid pairs 8/8; M3: Control-valid pairs 8/8. The six registered RQ1 histories are historical anchors, not
+The six registered RQ1 histories are historical anchors, not
 RQ3 replay denominators. The factors are interpreted through the client-centric
 definitions from Lecture~3 and the cited MongoDB documentation.
 
-{\scriptsize
+{\small
 \setlength{\tabcolsep}{3pt}
 \begin{longtable}{@{}p{3.0cm}p{7.8cm}p{5.0cm}@{}}
 \caption{RQ3 mechanism evidence; observations use control-valid pairs.}
@@ -23,15 +23,14 @@ Factor changed & Observed mechanism signature & Limitation \\
 \endhead
 \bottomrule
 \endfoot
-causal session: C5 versus C6, off versus on & C5 returned stale v0 without afterClusterTime in 8/8; C6 carried afterClusterTime in 8/8, with no successful stale read and unavailable reads in 8/8. & The timeout is client-visible and does not reveal internal waiting; the contrast is consistent with a causal-session lower bound, not a universal guarantee. \\
-read concern: C8 versus C5, local versus majority & C8 local returned v1 in 8/8; C5 majority returned v0 in 8/8. The returned version was present in final state for C8/C5 in 0/8 and 8/8. & The setup W1 was a protocol-defined w:1 stimulus, not an independently observed command. The trace supports a role/state comparison, not a general route effect. \\
-write concern: C3 versus C6, w:1 versus majority & C3 acknowledged W1 at w:1 in 8/8; the acknowledged W1 was absent from all converged members in 8/8. C6 majority W1 timed out in 8/8; direct W1 presence after healing was observed in 0/8. & A timeout leaves the write effect unresolved from the client response; it does not establish definite failure or internal waiting. Final presence is a separate observation from acknowledgement. \\
+causal session: C5 versus C6, off versus on & C5 returned stale v0 without afterClusterTime in all valid pairs; C6 carried afterClusterTime in all valid pairs, with no successful stale read and unavailable reads in all valid pairs. & The timeout is client-visible and does not reveal internal waiting; the contrast is consistent with a causal-session lower bound, not a universal guarantee. \\
+read concern: C8 versus C5, local versus majority & C8 local returned v1 in all valid pairs; C5 majority returned v0 in all valid pairs. The returned version was present in final state for C8/C5 in no valid pairs and all valid pairs. & The setup W1 was a protocol-defined w:1 stimulus, not an independently observed command. The trace supports a role/state comparison, not a general route effect. \\
+write concern: C3 versus C6, w:1 versus majority & C3 acknowledged W1 at w:1 in all valid pairs; the acknowledged W1 was absent from all converged members in all valid pairs. C6 majority W1 timed out in all valid pairs; direct W1 presence after healing was observed in no valid pairs. & A timeout leaves the write effect unresolved from the client response; it does not establish definite failure or internal waiting. Final presence is a separate observation from acknowledgement. \\
 \end{longtable}
 }
 
-These are finite Docker observations. They do not estimate a causal effect or
-generalise beyond the registered topology and schedules. Raw hashes, routes,
-pair controls, and selected histories remain in the analysis and reproduction
-artifacts.
+These observations are finite and schedule-specific. The pair-control audit,
+selected history identities, and raw hashes are in Appendix~\ref{app:full-results}
+and the reproduction artifacts.
 
 \maybefigure[fig:rq3-causal-timeline]{submission/figures/rq3-causal-timeline.pdf}{C5/C6 causal-session timeline; each arm is an independent fault episode.}

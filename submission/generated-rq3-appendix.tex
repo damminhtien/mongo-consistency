@@ -1,0 +1,66 @@
+\subsection{RQ3 pair-control audit}
+\label{app:rq3-audit}
+
+The main RQ3 table uses the phrase all valid pairs so that the mechanism
+comparison remains readable. This appendix retains the pair counts, selected
+pair identities, and signature counts used to generate it. The full raw
+histories and complete SHA-256 values remain in
+\texttt{results/analysis/rq3/summary.json} and
+\texttt{results/analysis/rq3/selection-manifest.json}.
+
+\begin{table}[ht]
+\centering
+\small
+\caption{RQ3 pair-control counts.}
+\label{tab:rq3-pair-controls}
+\begin{tabular}{@{}l p{0.40\linewidth} r r r@{}}
+\toprule
+Contrast & Factor & Planned & Valid & Invalid \\
+\midrule
+M1 & C5 versus C6, causal session & 8 & 8 & 0 \\
+M2 & C8 versus C5, read concern & 8 & 8 & 0 \\
+M3 & C3 versus C6, write concern & 8 & 8 & 0 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{longtable}{@{}l l p{0.35\linewidth} p{0.24\linewidth}@{}}
+\caption{Selected RQ3 history identities; the final column is a SHA-256 prefix.}
+\label{tab:rq3-selected-histories}\\
+\toprule
+Contrast & Config & Trial ID & SHA-256 prefix \\
+\midrule
+\endfirsthead
+\caption[]{Selected RQ3 history identities (continued).}\\
+\toprule
+Contrast & Config & Trial ID & SHA-256 prefix \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+M1 & C5 & \texttt{rq3-m1-00001-C5-ryw} & \texttt{15a79f38308e43b5...} \\
+M1 & C6 & \texttt{rq3-m1-00002-C6-ryw} & \texttt{e49b3ad758c02193...} \\
+M2 & C8 & \texttt{rq3-m2-00001-C8-wfr} & \texttt{7797629eca818d99...} \\
+M2 & C5 & \texttt{rq3-m2-00002-C5-wfr} & \texttt{ddaf986baa345fbd...} \\
+M3 & C3 & \texttt{rq3-m3-00001-C3-mw} & \texttt{6c23b81f953a68d0...} \\
+M3 & C6 & \texttt{rq3-m3-00002-C6-mw} & \texttt{4798d3fb3465d97d...} \\
+\end{longtable}
+
+\begin{longtable}{@{}l p{0.25\linewidth} p{0.61\linewidth}@{}}
+\caption{RQ3 signature counts recomputed from control-valid pairs.}
+\label{tab:rq3-signature-counts}\\
+\toprule
+Contrast & Selected pair & Signature counts \\
+\midrule
+\endfirsthead
+\caption[]{RQ3 signature counts (continued).}\\
+\toprule
+Contrast & Selected pair & Signature counts \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+M1 & \texttt{m1-r01} & C5\_stale\_success\_without\_after\_cluster\_time=8, C5\_write\_time\_ahead\_of\_routed\_member\_last\_write=8, C6\_after\_cluster\_time\_ahead\_of\_routed\_member\_last\_write=8, C6\_after\_cluster\_time\_matches\_write\_time=8, C6\_after\_cluster\_time\_present=8, C6\_indeterminate\_reads=0, C6\_nonstale\_successful\_reads=0, C6\_read\_attempted=8, C6\_read\_error\_code\_counts=\{'NetworkTimeout': 8\}, C6\_read\_not\_reached=0, C6\_stale\_successful\_reads=0, C6\_successful\_read\_responses=0, C6\_successful\_reads\_without\_version=0, C6\_unavailable\_reads=8, same\_actual\_read\_route\_pairs=8 \\
+M2 & \texttt{m2-r01} & C5\_W2\_acknowledged=3, C5\_W2\_non\_success=5, C5\_W2\_present\_on\_all\_final\_members=8, C5\_WFR\_indeterminate=5, C5\_WFR\_passes=3, C5\_majority\_read\_v0=8, C5\_read\_version\_present\_in\_final\_state=8, C5\_successful\_read\_responses=8, C8\_W2\_acknowledged=3, C8\_W2\_non\_success=5, C8\_W2\_present\_on\_all\_final\_members=8, C8\_WFR\_indeterminate=5, C8\_WFR\_violations=3, C8\_local\_read\_v1=8, C8\_read\_version\_present\_in\_final\_state=0, C8\_successful\_read\_responses=8, same\_actual\_read\_route\_pairs=8, setup\_w1\_command\_w1\_mongo3\_arms=16 \\
+M3 & \texttt{m3-r01} & C3\_acknowledged\_w1\_absent\_from\_all\_converged\_members=8, C3\_converged\_final\_observations=8, C3\_w1\_first\_write\_acknowledged=8, C6\_converged\_final\_observations=8, C6\_majority\_first\_write\_acknowledged=0, C6\_majority\_first\_write\_network\_timeout=8, C6\_w1\_present\_on\_all\_final\_members\_after\_timeout=0, same\_actual\_first\_write\_route\_pairs=8 \\
+\end{longtable}

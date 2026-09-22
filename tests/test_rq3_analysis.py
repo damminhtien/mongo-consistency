@@ -268,6 +268,7 @@ class RQ3AnalysisTests(unittest.TestCase):
                 output_root / "summary.json",
                 output_root / "selection-manifest.json",
                 submission_root / "generated-rq3.tex",
+                submission_root / "generated-rq3-appendix.tex",
                 submission_root / "figures/rq3-causal-timeline.pdf",
             )
             first_outputs = [path.read_bytes() for path in generated_paths]
@@ -294,9 +295,13 @@ class RQ3AnalysisTests(unittest.TestCase):
             self.assertEqual("m3-r01", summary["contrast_summaries"]["M3"]["selected_pair"]["pair_id"])
             selection = json.loads((output_root / "selection-manifest.json").read_text())
             report = (submission_root / "generated-rq3.tex").read_text(encoding="utf-8")
+            appendix = (submission_root / "generated-rq3-appendix.tex").read_text(encoding="utf-8")
             self.assertEqual("rq3-selection.v2", selection["schema_version"])
             self.assertEqual(summary["preflight_sha256"], selection["preflight_sha256"])
-            self.assertIn("Control-valid pairs 7/8", report)
+            self.assertNotIn("Control-valid pairs", report)
+            self.assertNotIn("8/8", report)
+            self.assertIn("Planned & Valid & Invalid", appendix)
+            self.assertIn("7 & 1", appendix)
             self.assertNotIn("post-hoc", report)
             self.assertNotIn("permutation", report)
             self.assertEqual(48, len(manifest["records"]))

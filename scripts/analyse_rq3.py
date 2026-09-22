@@ -1048,9 +1048,12 @@ def _summary_and_report(
         encoding="utf-8",
     )
     generated_section = _render_report_section(grouped, selections, campaign, historical_anchors)
+    generated_appendix = _render_appendix_section(grouped, selections)
     section_path = submission_root / "generated-rq3.tex"
+    appendix_path = submission_root / "generated-rq3-appendix.tex"
     section_path.parent.mkdir(parents=True, exist_ok=True)
     section_path.write_text(generated_section, encoding="utf-8")
+    appendix_path.write_text(generated_appendix, encoding="utf-8")
     timeline_path = submission_root / "figures/rq3-causal-timeline.pdf"
     if selections["M1"] is not None:
         causal_pair = next(
@@ -1062,6 +1065,10 @@ def _summary_and_report(
         "report_tex": {
             "path": _display_path(section_path),
             "sha256": _sha256(section_path),
+        },
+        "appendix_tex": {
+            "path": _display_path(appendix_path),
+            "sha256": _sha256(appendix_path),
         },
     }
     if selections["M1"] is not None:
@@ -1103,25 +1110,28 @@ def _render_report_section(
         "M3": "write concern: C3 versus C6, w:1 versus majority",
     }
     rows: list[str] = []
-    validity: list[str] = []
+
+    def frequency(count: int, valid_n: int) -> str:
+        if valid_n <= 0 or count == 0:
+            return "no valid pairs"
+        if count == valid_n:
+            return "all valid pairs"
+        return "some valid pairs"
+
     for contrast_id in ("M1", "M2", "M3"):
         planned_pairs = grouped[contrast_id]
         valid_pairs = _valid_pairs(planned_pairs)
-        planned_n = len(planned_pairs)
         valid_n = len(valid_pairs)
         counts = _counts(valid_pairs, contrast_id)
-        validity.append(
-            f"{contrast_id}: Control-valid pairs {valid_n}/{planned_n}"
-        )
 
         if contrast_id == "M1":
             signature = (
                 f"C5 returned stale v0 without afterClusterTime in "
-                f"{counts['C5_stale_success_without_after_cluster_time']}/{valid_n}; "
+                f"{frequency(counts['C5_stale_success_without_after_cluster_time'], valid_n)}; "
                 f"C6 carried afterClusterTime in "
-                f"{counts['C6_after_cluster_time_present']}/{valid_n}, with no "
+                f"{frequency(counts['C6_after_cluster_time_present'], valid_n)}, with no "
                 f"successful stale read and unavailable reads in "
-                f"{counts['C6_unavailable_reads']}/{valid_n}."
+                f"{frequency(counts['C6_unavailable_reads'], valid_n)}."
             )
             limitation = (
                 "The timeout is client-visible and does not reveal internal "
@@ -1130,11 +1140,11 @@ def _render_report_section(
             )
         elif contrast_id == "M2":
             signature = (
-                f"C8 local returned v1 in {counts['C8_local_read_v1']}/{valid_n}; "
-                f"C5 majority returned v0 in {counts['C5_majority_read_v0']}/{valid_n}. "
+                f"C8 local returned v1 in {frequency(counts['C8_local_read_v1'], valid_n)}; "
+                f"C5 majority returned v0 in {frequency(counts['C5_majority_read_v0'], valid_n)}. "
                 f"The returned version was present in final state for C8/C5 in "
-                f"{counts['C8_read_version_present_in_final_state']}/{valid_n} and "
-                f"{counts['C5_read_version_present_in_final_state']}/{valid_n}."
+                f"{frequency(counts['C8_read_version_present_in_final_state'], valid_n)} and "
+                f"{frequency(counts['C5_read_version_present_in_final_state'], valid_n)}."
             )
             limitation = (
                 "The setup W1 was a protocol-defined w:1 stimulus, not an "
@@ -1144,13 +1154,13 @@ def _render_report_section(
         else:
             signature = (
                 f"C3 acknowledged W1 at w:1 in "
-                f"{counts['C3_w1_first_write_acknowledged']}/{valid_n}; the "
+                f"{frequency(counts['C3_w1_first_write_acknowledged'], valid_n)}; the "
                 f"acknowledged W1 was absent from all converged members in "
-                f"{counts['C3_acknowledged_w1_absent_from_all_converged_members']}/{valid_n}. "
+                f"{frequency(counts['C3_acknowledged_w1_absent_from_all_converged_members'], valid_n)}. "
                 f"C6 majority W1 timed out in "
-                f"{counts['C6_majority_first_write_network_timeout']}/{valid_n}; "
+                f"{frequency(counts['C6_majority_first_write_network_timeout'], valid_n)}; "
                 f"direct W1 presence after healing was observed in "
-                f"{counts['C6_w1_present_on_all_final_members_after_timeout']}/{valid_n}."
+                f"{frequency(counts['C6_w1_present_on_all_final_members_after_timeout'], valid_n)}."
             )
             limitation = (
                 "A timeout leaves the write effect unresolved from the client "
@@ -1175,18 +1185,16 @@ def _render_report_section(
             "{submission/figures/rq3-causal-timeline.pdf}"
             "{C5/C6 causal-session timeline; each arm is an independent fault episode.}"
         )
-    repetitions = int(campaign["repetitions_per_contrast"])
-    validity_text = "Valid pair counts: " + "; ".join(validity) + "."
     return rf"""\subsection{{Mechanism contrasts (RQ3)}}
 
 RQ3 is mechanism evidence for representative RQ1 and RQ2 observations, not a
-separate benchmark. It uses {repetitions} matched-seed pairs per contrast;
+separate benchmark. It uses matched-seed pairs for three registered contrasts;
 pair validity is recomputed from the raw histories before the table is built.
-{validity_text} The six registered RQ1 histories are historical anchors, not
+The six registered RQ1 histories are historical anchors, not
 RQ3 replay denominators. The factors are interpreted through the client-centric
 definitions from Lecture~3 and the cited MongoDB documentation.
 
-{{\scriptsize
+{{\small
 \setlength{{\tabcolsep}}{{3pt}}
 \begin{{longtable}}{{@{{}}p{{3.0cm}}p{{7.8cm}}p{{5.0cm}}@{{}}}}
 \caption{{RQ3 mechanism evidence; observations use control-valid pairs.}}
@@ -1206,13 +1214,121 @@ Factor changed & Observed mechanism signature & Limitation \\
 \end{{longtable}}
 }}
 
-These are finite Docker observations. They do not estimate a causal effect or
-generalise beyond the registered topology and schedules. Raw hashes, routes,
-pair controls, and selected histories remain in the analysis and reproduction
-artifacts.
+These observations are finite and schedule-specific. The pair-control audit,
+selected history identities, and raw hashes are in Appendix~\ref{{app:full-results}}
+and the reproduction artifacts.
 
 {timeline_note}
 """
+
+
+def _render_appendix_section(
+    grouped: dict[str, list[dict[str, Any]]],
+    selections: dict[str, Any],
+) -> str:
+    """Render RQ3 counts and selected identities omitted from the main text."""
+
+    specifications = {
+        "M1": "C5 versus C6, causal session",
+        "M2": "C8 versus C5, read concern",
+        "M3": "C3 versus C6, write concern",
+    }
+    audit_rows: list[str] = []
+    identity_rows: list[str] = []
+    signature_rows: list[str] = []
+    for contrast_id in ("M1", "M2", "M3"):
+        planned_pairs = grouped[contrast_id]
+        valid_pairs = _valid_pairs(planned_pairs)
+        invalid_pairs = [
+            pair for pair in planned_pairs if not pair.get("control_valid", False)
+        ]
+        audit_rows.append(
+            f"{contrast_id} & {specifications[contrast_id]} & {len(planned_pairs)} & "
+            f"{len(valid_pairs)} & {len(invalid_pairs)} \\\\"
+        )
+        selected = selections.get(contrast_id)
+        if isinstance(selected, dict):
+            pair_id = str(selected.get("pair_id", "unavailable"))
+            for history in selected.get("histories", []):
+                if not isinstance(history, dict):
+                    continue
+                configuration = _latex_escape(history.get("configuration_id", ""))
+                trial_id = _latex_escape(history.get("trial_id", "unavailable"))
+                digest = _latex_escape(str(history.get("sha256", ""))[:16] or "unavailable")
+                identity_rows.append(
+                    f"{contrast_id} & {configuration} & "
+                    f"\\texttt{{{trial_id}}} & \\texttt{{{digest}...}} \\\\"
+                )
+        else:
+            pair_id = "unavailable"
+        counts = _counts(valid_pairs, contrast_id)
+        count_text = ", ".join(
+            f"{key}={value}" for key, value in sorted(counts.items())
+        )
+        signature_rows.append(
+            f"{contrast_id} & \\texttt{{{_latex_escape(pair_id)}}} & "
+            f"{_latex_escape(count_text)} \\\\"
+        )
+
+    return r"""\subsection{RQ3 pair-control audit}
+\label{app:rq3-audit}
+
+The main RQ3 table uses the phrase all valid pairs so that the mechanism
+comparison remains readable. This appendix retains the pair counts, selected
+pair identities, and signature counts used to generate it. The full raw
+histories and complete SHA-256 values remain in
+\texttt{results/analysis/rq3/summary.json} and
+\texttt{results/analysis/rq3/selection-manifest.json}.
+
+\begin{table}[ht]
+\centering
+\small
+\caption{RQ3 pair-control counts.}
+\label{tab:rq3-pair-controls}
+\begin{tabular}{@{}l p{0.40\linewidth} r r r@{}}
+\toprule
+Contrast & Factor & Planned & Valid & Invalid \\
+\midrule
+""" + "\n".join(audit_rows) + r"""
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{longtable}{@{}l l p{0.35\linewidth} p{0.24\linewidth}@{}}
+\caption{Selected RQ3 history identities; the final column is a SHA-256 prefix.}
+\label{tab:rq3-selected-histories}\\
+\toprule
+Contrast & Config & Trial ID & SHA-256 prefix \\
+\midrule
+\endfirsthead
+\caption[]{Selected RQ3 history identities (continued).}\\
+\toprule
+Contrast & Config & Trial ID & SHA-256 prefix \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+""" + "\n".join(identity_rows) + r"""
+\end{longtable}
+
+\begin{longtable}{@{}l p{0.25\linewidth} p{0.61\linewidth}@{}}
+\caption{RQ3 signature counts recomputed from control-valid pairs.}
+\label{tab:rq3-signature-counts}\\
+\toprule
+Contrast & Selected pair & Signature counts \\
+\midrule
+\endfirsthead
+\caption[]{RQ3 signature counts (continued).}\\
+\toprule
+Contrast & Selected pair & Signature counts \\
+\midrule
+\endhead
+\bottomrule
+\endlastfoot
+""" + "\n".join(signature_rows) + r"""
+\end{longtable}
+"""
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)

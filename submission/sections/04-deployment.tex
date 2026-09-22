@@ -10,14 +10,12 @@ concern expose the consistency and failure behavior tested in this study
 \subsection{Deployment architecture}
 
 The Compose deployment runs on one physical host. Three MongoDB containers
-(`mongo1`, `mongo2`, and `mongo3`) join a client network and a separate replica
+`mongo1`, `mongo2`, and `mongo3` join a client network and a separate replica
 network. The experiment runner joins only the client network. A fault
 controller shares each MongoDB container's network namespace and changes
 replica-path reachability through a restricted control endpoint. The runner
-receives only the results, figures, and setup-provenance mounts. The Compose
-definition contains no Docker socket or credential mount, and the runtime
-boundary is checked by
-\texttt{scripts/check\_runner\_isolation.py}. The saved result is
+receives only the paths needed to write histories, figures, and setup
+metadata. The runtime boundary is checked separately; the recorded result is
 \texttt{results/validation/runner-isolation.json}.
 
 The default host ports are 27017, 27018, and 27019 for the three members; their
@@ -53,7 +51,7 @@ Docker Engine & \texttt{\DockerEngineVersion} \\
 Docker Compose & \texttt{\DockerComposeVersion} \\
 Docker VM kernel & \texttt{\DockerKernelVersion} \\
 Host OS release & \HostOSVersion \\
-Image digest & {\scriptsize\texttt{\MongoImageDigest}} \\
+Image digest & {\footnotesize\texttt{\MongoImageDigest}} \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -74,13 +72,5 @@ The topology oracle sends a direct \texttt{hello} command to each member. A
 stable setup requires one reachable primary and two reachable secondaries.
 Campaign histories retain role and server observations for each operation;
 the setup snapshot is provenance, not a substitute for trial-level checks.
-The setup view of the running containers is shown in
-Figure~\ref{fig:docker-desktop-running}.
-
-\begin{figure}[ht]
-\centering
-\includegraphics[width=0.82\linewidth]{submission/evidence/docker-desktop-running.png}
-\caption{Docker Desktop container list showing the experiment runner, three MongoDB members, and fault controllers running.}
-\label{fig:docker-desktop-running}
-\end{figure}
-\FloatBarrier
+The setup view of the running containers is included with the installation
+evidence in Appendix~\ref{app:install}.

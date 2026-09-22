@@ -42,6 +42,7 @@ make rq3-analyse
 make analyse
 make rq4-analyse
 make submission
+make check-submission-artifacts
 make check-release-ready
 \end{verbatim}
 
@@ -51,8 +52,16 @@ image digest. Analysis validates and recomputes outcomes from canonical raw
 histories before building the report. The release-readiness check also
 requires complete team metadata.
 
-\section{Additional Results}
-\label{app:additional-results}
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.88\linewidth]{submission/evidence/docker-desktop-running.png}
+\caption{Docker Desktop showing the runner, MongoDB members, and fault controllers used for the recorded setup.}
+\label{fig:docker-desktop-running}
+\end{figure}
+\FloatBarrier
+
+\section{Full Experimental Results}
+\label{app:full-results}
 
 Machine-readable results are under \texttt{results/summary/}; canonical
 histories and manifests are under \texttt{results/raw/}. The RQ2 episode table
@@ -62,10 +71,80 @@ separate all-attempt and resolved critical-operation p50/p95 latency from the
 RQ1/RQ2 histories and writes
 \texttt{results/summary/rq4/metrics.csv}, \texttt{contrasts.csv}, and
 \texttt{fault\_deltas.csv}.
-The following factorial figure is descriptive and does not claim statistical
-significance.
+
+\subsection{Full RQ2 matrices}
+
+The main report uses the fault-level summary in Table~\ref{tab:rq2-summary}.
+These tables retain the configuration-property rows, p99 values, rollback
+counts, and episode timing used to derive that summary.
+
+{\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{longtable}{@{}l l l c r p{0.20\textwidth} c@{}}
+\caption{RQ2 target and outcomes by fault, configuration, and property.}
+\label{tab:rq2-outcomes}\\
+\toprule
+Fault & Config & Property & Target & $n$ & P/V/U/I/PM/HE & Ops S/A \\
+\midrule
+\endfirsthead
+\caption[]{RQ2 target and outcomes by fault, configuration, and property (continued).}\\
+\toprule
+Fault & Config & Property & Target & $n$ & P/V/U/I/PM/HE & Ops S/A \\
+\midrule
+\endhead
+\midrule
+\multicolumn{7}{r}{Continued on next page}\\
+\endfoot
+\bottomrule
+\endlastfoot
+\RQTwoOutcomeRows
+\end{longtable}
+}
+
+{\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{longtable}{@{}l l l r r r r@{}}
+\caption{RQ2 latency and acknowledged-write rollback by fault, configuration, and property.}
+\label{tab:rq2-latency-rollback}\\
+\toprule
+Fault & Config & Property & All-attempt latency p50/p95/p99 (ms) & Ack writes & Checked/rolled back & Rollback (\%) \\
+\midrule
+\endfirsthead
+\caption[]{RQ2 latency and acknowledged-write rollback (continued).}\\
+\toprule
+Fault & Config & Property & All-attempt latency p50/p95/p99 (ms) & Ack writes & Checked/rolled back & Rollback (\%) \\
+\midrule
+\endhead
+\midrule
+\multicolumn{7}{r}{Continued on next page}\\
+\endfoot
+\bottomrule
+\endlastfoot
+\RQTwoMetricRows
+\end{longtable}
+}
+
+\begin{longtable}{@{}lrrrrrr@{}}
+\caption{RQ2 election and recovery by fault episode. Times are p50 seconds.}
+\label{tab:rq2-episodes}\\
+\toprule
+Fault & Episodes & Applied & Elections & Election p50 & Converged & Recovery p50 \\
+\midrule
+\RQTwoEpisodeRows
+\bottomrule
+\end{longtable}
+
+\input{submission/generated-rq3-appendix.tex}
+\input{submission/generated-rq4-appendix.tex}
+
+\subsection{Additional figures}
+
+The following figures are retained for audit and interpretation. They are
+descriptive views of the registered histories, not additional experiments.
 
 \maybefigure[fig:factorial-interactions]{submission/figures/factorial-interactions.pdf}{Descriptive factorial contrasts for RQ1 adversarial histories.}
+\maybefigure[fig:outcome-heatmap]{submission/figures/outcome-heatmap.pdf}{Outcome heatmap by configuration and property.}
+\maybefigure[fig:latency]{submission/figures/latency.pdf}{Operation latency quantiles by RQ1 condition; pilot excluded.}
 \FloatBarrier
 
 \section{Source Structure and Requirement Map}
@@ -102,7 +181,7 @@ Results and explanation & Section 5 \\
 Prediction-to-observation comparison & Section 6.1 \\
 Limitations & Section 7 \\
 Sources and AI use & References; AI Usage Statement \\
-Source code and reproduction instructions & Section 8; Appendices B and D \\
+Source code and reproduction instructions & Section 8; Appendices B--D \\
 \bottomrule
 \end{tabular}
 \end{center}

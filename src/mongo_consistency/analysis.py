@@ -755,9 +755,9 @@ def _timeline_body() -> tuple[str, int]:
 
 def _architecture_body() -> tuple[str, int]:
     body = _svg_box(45, 125, 170, 55, "runner", "#dcfce7")
-    body += _svg_box(330, 75, 180, 55, "mongo1 / primary", "#dbeafe")
-    body += _svg_box(330, 155, 180, 55, "mongo2 / secondary", "#dbeafe")
-    body += _svg_box(330, 235, 180, 55, "mongo3 / secondary", "#dbeafe")
+    body += _svg_box(330, 75, 180, 55, "mongo1", "#dbeafe")
+    body += _svg_box(330, 155, 180, 55, "mongo2", "#dbeafe")
+    body += _svg_box(330, 235, 180, 55, "mongo3", "#dbeafe")
     body += _svg_box(700, 125, 210, 55, "fault controllers", "#fee2e2")
     body += _svg_arrow(215, 145, 330, 102, "client_net")
     body += _svg_arrow(215, 152, 330, 182)
@@ -765,7 +765,8 @@ def _architecture_body() -> tuple[str, int]:
     body += _svg_arrow(510, 102, 700, 145, "replica_net control")
     body += _svg_arrow(510, 182, 700, 152)
     body += _svg_arrow(510, 262, 700, 160)
-    body += _svg_text(500, 355, "Client access is retained while replica-path traffic is controlled.", anchor="middle", color="#475569")
+    body += _svg_text(500, 345, "Member names are stable; each trial observes one elected primary and two secondaries.", anchor="middle", size=13, color="#475569")
+    body += _svg_text(500, 370, "Client access is retained while replica-path traffic is controlled.", anchor="middle", size=13, color="#475569")
     return body, 400
 
 

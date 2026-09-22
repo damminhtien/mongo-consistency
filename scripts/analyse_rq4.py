@@ -262,22 +262,7 @@ p99 is not used for these small cells.
 
 \begin{table}[ht]
 \centering
-\scriptsize
-\setlength{\tabcolsep}{3pt}
-\caption{RQ4 selected C5/C6 metrics; counts, observed completion, and separate latency samples.}
-\label{tab:rq4-selected-metrics}
-\begin{tabular}{@{}l l l r r r r@{}}
-\toprule
-Scenario & Config & Property & P/V/U/I & $D$ & All-attempt p50/p95 (ms) & Resolved p50/p95 (ms) \\
-\midrule
-\RQFourSelectedRows
-\bottomrule
-\end{tabular}
-\end{table}
-
-\begin{table}[ht]
-\centering
-\scriptsize
+\small
 \setlength{\tabcolsep}{4pt}
 \caption{RQ4 paired signature outcomes under the RQ2 partition. Each row is one C1/C6 RYW or MW cell.}
 \label{tab:rq4-partition-outcomes}
@@ -301,7 +286,7 @@ These are paired signature cells, not an aggregate over four properties.
 
 \begin{table}[ht]
 \centering
-\scriptsize
+\small
 \setlength{\tabcolsep}{4pt}
 \caption{RQ4 C5/C6 one-factor contrasts. Deltas are C6 minus C5.}
 \label{tab:rq4-c5-c6}
@@ -318,13 +303,39 @@ The figures retain the available configuration and scenario coverage. They are
 descriptive evidence for the tested schedules rather than a scalar ranking of
 configurations.
 
-\maybefigure[fig:rq4-outcomes-partition]{submission/figures/rq4_outcomes_partition.pdf}{RQ4 paired C1/C6 RYW and MW signature outcomes under the RQ2 partition.}
 \maybefigure[fig:rq4-latency-completion]{submission/figures/rq4_latency_completion.pdf}{RQ4 client-observed all-attempt p95 time against observed definitive completion.}
+"""
+    appendix_section = r"""
+\subsection{RQ4 detailed metrics}
+\label{app:rq4-details}
+
+The main text reports the balanced partition signatures and one-factor
+contrasts. This table retains the selected C5/C6 cells with separate
+all-attempt and resolved latency samples.
+
+\begin{table}[ht]
+\centering
+\small
+\setlength{\tabcolsep}{3pt}
+\caption{RQ4 selected C5/C6 metrics; counts, observed completion, and separate latency samples.}
+\label{tab:rq4-selected-metrics}
+\begin{tabular}{@{}l l l r r r r@{}}
+\toprule
+Scenario & Config & Property & P/V/U/I & $D$ & All-attempt p50/p95 (ms) & Resolved p50/p95 (ms) \\
+\midrule
+\RQFourSelectedRows
+\bottomrule
+\end{tabular}
+\end{table}
+
+\maybefigure[fig:rq4-outcomes-partition]{submission/figures/rq4_outcomes_partition.pdf}{RQ4 paired C1/C6 RYW and MW signature outcomes under the RQ2 partition.}
 \maybefigure[fig:rq4-c5-c6]{submission/figures/rq4_c5_c6_contrast.pdf}{RQ4 C5/C6 one-factor contrast under normal and RQ1 fault scenarios.}
 """
     section_path = submission_root / "generated-rq4.tex"
     section_path.parent.mkdir(parents=True, exist_ok=True)
     section_path.write_text(section.rstrip() + "\n", encoding="utf-8")
+    appendix_path = submission_root / "generated-rq4-appendix.tex"
+    appendix_path.write_text(appendix_section.strip() + "\n", encoding="utf-8")
 
     figure_names = (
         "rq4_outcomes_partition.pdf",

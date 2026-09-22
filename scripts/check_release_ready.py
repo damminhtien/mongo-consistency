@@ -577,6 +577,7 @@ def _check_rq3(root: Path, errors: list[str]) -> None:
         from mongo_consistency.rq3_anchors import verify_anchor_manifest
         from scripts.analyse_rq3 import (
             _counts,
+            _render_appendix_section,
             _render_report_section,
             _row_for_pair,
             _summarize_historical_anchors,
@@ -994,6 +995,7 @@ def _check_rq3(root: Path, errors: list[str]) -> None:
         generated_artifacts = summary.get("generated_artifacts")
         expected_artifacts = {
             "report_tex": "submission/generated-rq3.tex",
+            "appendix_tex": "submission/generated-rq3-appendix.tex",
             "timeline_pdf": "submission/figures/rq3-causal-timeline.pdf",
         }
         if not isinstance(generated_artifacts, dict) or set(generated_artifacts) != set(expected_artifacts):
@@ -1106,6 +1108,23 @@ def _check_rq3(root: Path, errors: list[str]) -> None:
             else:
                 if tex != expected_tex:
                     errors.append("rq3: generated report TeX differs from its raw-derived rendering")
+    appendix_tex_path = root / "submission/generated-rq3-appendix.tex"
+    try:
+        appendix_tex = appendix_tex_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as error:
+        errors.append(f"rq3: generated appendix TeX is missing or unreadable: {error}")
+    else:
+        if selection is not None and isinstance(selection.get("selected_pairs"), dict):
+            try:
+                expected_appendix = _render_appendix_section(
+                    valid_pair_rows,
+                    selection["selected_pairs"],
+                )
+            except (KeyError, TypeError, ValueError) as error:
+                errors.append(f"rq3: cannot regenerate appendix TeX from raw histories: {error}")
+            else:
+                if appendix_tex != expected_appendix:
+                    errors.append("rq3: generated appendix TeX differs from its raw-derived rendering")
     results_tex = root / "submission/sections/07-results.tex"
     try:
         results_source = results_tex.read_text(encoding="utf-8")

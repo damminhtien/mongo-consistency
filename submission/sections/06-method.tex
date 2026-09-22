@@ -15,11 +15,8 @@ Three actors have separate roles. The subject client issues the tested
 operations. An independent topology and document observer connects directly to
 all members without using the subject session. A restricted fault controller
 changes MongoDB member availability and replication-network reachability. The
-Compose configuration mounts only the results, figures, and setup-provenance
-paths into the runner; it does not mount a Docker socket or Docker credential
-directory. The runtime isolation check in
-\texttt{results/validation/runner-isolation.json} records the corresponding
-container and environment checks.
+observer and controller provide the independent checks used by the recorded
+histories; their setup and isolation checks are documented in Appendix~\ref{app:install}.
 
 \subsection{Consistency property checkers}
 
@@ -118,9 +115,10 @@ normal trials.
 
 We report history outcomes, the consistency violation rate among PASS and
 VIOLATION histories, subject-operation success, history completion, and
-operation latency p50/p95/p99. RQ2 also reports acknowledged-write rollback,
+operation latency p50/p95 in the main report. RQ2 also reports acknowledged-write rollback,
 fault application, election, and recovery. Fault timing uses episodes as its
 unit. Timed-out operations remain in all-attempt latency quantiles when start
 and end times are available; RQ4 reports a separate PASS/VIOLATION latency
-sample for resolved histories. Figure~\ref{fig:property-timelines} shows the
-four property schedules.
+sample for resolved histories. The full RQ2 p99 values remain in
+Appendix~\ref{app:full-results} and the machine-readable summaries.
+Figure~\ref{fig:property-timelines} shows the four property schedules.

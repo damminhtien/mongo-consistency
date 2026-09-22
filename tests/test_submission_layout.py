@@ -12,6 +12,7 @@ from scripts.build_submission import (
     REQUIRED_SUBMISSION_FILES,
     parse_metadata,
     validate_figure_inputs,
+    validate_pdf_text,
     write_generated_analysis,
     write_generated_metadata,
 )
@@ -350,6 +351,7 @@ class SubmissionLayoutTests(unittest.TestCase):
         self.assertIn(".PHONY:", makefile)
         self.assertIn("check-docs", makefile)
         self.assertIn("check-runner-isolation", makefile)
+        self.assertIn("check-submission-artifacts", makefile)
         self.assertIn("check-generated:", makefile)
         self.assertIn("setup", makefile)
         self.assertIn("submission:", makefile)
@@ -373,6 +375,13 @@ class SubmissionLayoutTests(unittest.TestCase):
             figure.parent.mkdir(parents=True)
             figure.write_bytes(b"placeholder fixture")
             validate_figure_inputs(root)
+
+    def test_compiled_pdf_rejects_unresolved_data_placeholders(self) -> None:
+        validate_pdf_text("A complete report contains no unresolved placeholders.")
+        with self.assertRaisesRegex(BuildError, "NO DATA placeholder"):
+            validate_pdf_text("Figure box: NO DATA: missing figure")
+        with self.assertRaisesRegex(BuildError, "NO DATA placeholder"):
+            validate_pdf_text("Table row: NO_DATA")
 
     def test_source_manifest_has_explicit_package_roots(self) -> None:
         source = (ROOT / "scripts/build_submission.py").read_text(encoding="utf-8")
