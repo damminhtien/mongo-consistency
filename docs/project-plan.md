@@ -175,7 +175,8 @@ The analysis writes `results/summary/rq4/metrics.csv`, `contrasts.csv`, and
 `fault_deltas.csv`, plus three PDF figures under `figures/`. Rebuild it with
 `make analyse RQ=rq4`. The main partition figure and table use the balanced
 C1/C6 RYW and MW signature cells; no aggregate over the four properties is
-used. C5/C6 partition rows remain absent rather than inferred.
+used. C5/C6 partition cells remain missing in the contrast output rather than
+being inferred.
 
 ## Current RQ1 status
 
