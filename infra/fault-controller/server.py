@@ -9,7 +9,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Any
 
 CHAIN = "MONGO_CONSISTENCY"
-INTERFACE = os.environ.get("REPLICA_INTERFACE", "eth0")
+REPLICA_SUBNET = os.environ.get("REPLICA_SUBNET", "172.20.0.0/16")
 MEMBER = os.environ.get("MEMBER", "unknown")
 PORT = int(os.environ.get("CONTROL_PORT", "29092"))
 
@@ -21,6 +21,29 @@ def iptables(*arguments: str, check: bool = True) -> subprocess.CompletedProcess
         text=True,
         check=check,
     )
+
+
+def interface_for_subnet(subnet: str) -> str:
+    """Resolve the replica interface from the route table in this namespace."""
+
+    result = subprocess.run(
+        ["ip", "route", "show", "exact", subnet],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(result.stderr.strip() or f"cannot inspect route for {subnet}")
+    for line in result.stdout.splitlines():
+        fields = line.split()
+        if "dev" in fields:
+            index = fields.index("dev")
+            if index + 1 < len(fields) and fields[index + 1]:
+                return fields[index + 1]
+    raise RuntimeError(f"no interface found for replica subnet {subnet}")
+
+
+INTERFACE = os.environ.get("REPLICA_INTERFACE") or interface_for_subnet(REPLICA_SUBNET)
 
 
 def ensure_chain() -> None:

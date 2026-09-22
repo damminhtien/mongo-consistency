@@ -125,12 +125,17 @@ class HarnessLayoutTests(unittest.TestCase):
         self.assertIn("wait_for_stable", workloads)
         self.assertIn("wait_for_document_convergence", topology)
         self.assertIn('"cleanup_status"', workloads)
-        self.assertIn("eth0", controller)
+        self.assertIn("interface_for_subnet", controller)
+        self.assertIn('os.environ.get("REPLICA_INTERFACE") or interface_for_subnet', controller)
         for member in (1, 2, 3):
             section = compose.split(f"  fault-controller-{member}:\n", 1)[1]
             if member < 3:
                 section = section.split("\n  fault-controller-", 1)[0]
-            self.assertIn("REPLICA_INTERFACE: eth0", section)
+            self.assertIn(
+                "REPLICA_SUBNET: ${MC_REPLICA_SUBNET:-172.20.0.0/16}",
+                section,
+            )
+        self.assertNotIn("REPLICA_INTERFACE:", compose)
         self.assertIn('iptables("-A", CHAIN, "-j", "DROP")', controller)
         self.assertIn('add_jump("INPUT")', controller)
         self.assertIn('add_jump("OUTPUT")', controller)

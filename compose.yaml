@@ -111,7 +111,7 @@ services:
     environment:
       MEMBER: mongo1
       CONTROL_PORT: "29091"
-      REPLICA_INTERFACE: eth0
+      REPLICA_SUBNET: ${MC_REPLICA_SUBNET:-172.20.0.0/16}
     depends_on:
       mongo1: {condition: service_healthy}
     healthcheck:
@@ -133,7 +133,7 @@ services:
     environment:
       MEMBER: mongo2
       CONTROL_PORT: "29092"
-      REPLICA_INTERFACE: eth0
+      REPLICA_SUBNET: ${MC_REPLICA_SUBNET:-172.20.0.0/16}
     depends_on:
       mongo2: {condition: service_healthy}
     healthcheck:
@@ -155,7 +155,7 @@ services:
     environment:
       MEMBER: mongo3
       CONTROL_PORT: "29093"
-      REPLICA_INTERFACE: eth0
+      REPLICA_SUBNET: ${MC_REPLICA_SUBNET:-172.20.0.0/16}
     depends_on:
       mongo3: {condition: service_healthy}
     healthcheck:
