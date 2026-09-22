@@ -1,0 +1,116 @@
+\newcommand{\RQFourStatus}{DATA}
+\newcommand{\RQFourHistoryCount}{1712}
+\newcommand{\RQFourMetricRowCount}{112}
+\newcommand{\RQFourPartitionCOneCounts}{16/40/0/0}
+\newcommand{\RQFourPartitionCOneCompletion}{100.0\%}
+\newcommand{\RQFourPartitionCsixCounts}{16/0/0/40}
+\newcommand{\RQFourPartitionCsixCompletion}{28.6\%}
+\newcommand{\RQFourPartitionCfiveStatus}{MISSING\_CELL}
+\newcommand{\RQFourSelectedRows}{normal & C5 & RYW & 10/0/0/0 & 100.0\% & 1.15/2.34 \\
+normal & C5 & MR & 10/0/0/0 & 100.0\% & 1.20/2.08 \\
+normal & C5 & MW & 10/0/0/0 & 100.0\% & 6.09/69.41 \\
+normal & C5 & WFR & 10/0/0/0 & 100.0\% & 6.04/681.30 \\
+normal & C6 & RYW & 10/0/0/0 & 100.0\% & 1.15/1.56 \\
+normal & C6 & MR & 10/0/0/0 & 100.0\% & 1.22/2.83 \\
+normal & C6 & MW & 10/0/0/0 & 100.0\% & 6.36/9.13 \\
+normal & C6 & WFR & 10/0/0/0 & 100.0\% & 5.67/9.06 \\
+rq1\_fault & C5 & RYW & 0/29/0/1 & 96.7\% & 1.03/1.56 \\
+rq1\_fault & C5 & MR & 0/28/0/0 & 100.0\% & 1.09/2.13 \\
+rq1\_fault & C5 & MW & 0/0/0/30 & 0.0\% & NA/NA \\
+rq1\_fault & C5 & WFR & 16/0/0/14 & 53.3\% & 1912.39/4999.42 \\
+rq1\_fault & C6 & RYW & 0/0/29/1 & 0.0\% & 4999.03/5000.33 \\
+rq1\_fault & C6 & MR & 0/0/27/0 & 0.0\% & 4998.82/5000.73 \\
+rq1\_fault & C6 & MW & 0/0/0/30 & 0.0\% & NA/NA \\
+rq1\_fault & C6 & WFR & 20/0/0/10 & 66.7\% & 1883.11/5000.50 \\}
+\newcommand{\RQFourPartitionRows}{C1 & 56 & 16/40/0/0 & 100.0\% \\
+C3 & 32 & 32/0/0/0 & 100.0\% \\
+C4 & 32 & 32/0/0/0 & 100.0\% \\
+C5 & \textemdash & \texttt{MISSING\_CELL} & \texttt{no RQ2 partition histories} \\
+C6 & 56 & 16/0/0/40 & 28.6\% \\}
+\newcommand{\RQFourContrastRows}{normal & RYW & COMPLETE & -0.78 & 0.0\% \\
+normal & MR & COMPLETE & 0.75 & 0.0\% \\
+normal & MW & COMPLETE & -60.28 & 0.0\% \\
+normal & WFR & COMPLETE & -672.24 & 0.0\% \\
+rq1\_fault & RYW & COMPLETE & 4998.77 & -96.7\% \\
+rq1\_fault & MR & COMPLETE & 4998.60 & -100.0\% \\
+rq1\_fault & MW & COMPLETE & NA & 0.0\% \\
+rq1\_fault & WFR & COMPLETE & 1.09 & 13.3\% \\}
+
+\subsection{RQ4: Consistency, completion, and latency costs}
+
+RQ4 is an offline analysis of the immutable RQ1 and RQ2 histories. It adds no
+MongoDB run, workload, topology, or configuration. The analyzer classified
+\RQFourHistoryCount\ histories and produced \RQFourMetricRowCount\ configuration,
+scenario, and property cells. It asks how much observed client cost accompanies
+avoiding a completed consistency violation under the recorded schedules.
+
+For each cell, the violation rate is
+\(V=\mathrm{VIOLATION}/(\mathrm{PASS}+\mathrm{VIOLATION})\). The completion measure is
+the observed definitive completion rate
+\(D=(\mathrm{PASS}+\mathrm{VIOLATION})/\mathrm{attempted}\), where attempted includes
+PASS, VIOLATION, UNAVAILABLE, and INDETERMINATE. It is not formal CAP
+availability. INDETERMINATE is retained as a separate client-visible outcome.
+Latency is measured for the registered critical operation of each property and
+reported with p50 and p95; p99 is not used for these small cells.
+
+\begin{table}[ht]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\caption{RQ4 selected C5/C6 metrics; counts and observed completion.}
+\label{tab:rq4-selected-metrics}
+\begin{tabular}{@{}l l l r r r@{}}
+\toprule
+Scenario & Config & Property & P/V/U/I & $D$ & p50/p95 (ms) \\
+\midrule
+\RQFourSelectedRows
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[ht]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{4pt}
+\caption{RQ4 outcome composition under the RQ2 partition. Rows aggregate the four property cells.}
+\label{tab:rq4-partition-outcomes}
+\begin{tabular}{@{}l r l r@{}}
+\toprule
+Config & $n$ & P/V/U/I & $D$ \\
+\midrule
+\RQFourPartitionRows
+\bottomrule
+\end{tabular}
+\end{table}
+
+The partition contrast is visible in the outcome composition. C1's P/V/U/I
+counts are \RQFourPartitionCOneCounts\ and its observed definitive completion
+is \RQFourPartitionCOneCompletion\  C6's P/V/U/I counts are
+\RQFourPartitionCsixCounts\ and its observed definitive completion is
+\RQFourPartitionCsixCompletion\  The C5 partition cell is
+\RQFourPartitionCfiveStatus: C5 was not included in
+the RQ2 partition campaign, so no C5/C6 partition latency or completion
+contrast is inferred.
+
+\begin{table}[ht]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{4pt}
+\caption{RQ4 C5/C6 one-factor contrasts. Deltas are C6 minus C5.}
+\label{tab:rq4-c5-c6}
+\begin{tabular}{@{}l l l r r@{}}
+\toprule
+Scenario & Property & Status & $\Delta p95$ (ms) & $\Delta D$ \\
+\midrule
+\RQFourContrastRows
+\bottomrule
+\end{tabular}
+\end{table}
+
+The figures retain the full configuration and scenario coverage. They are
+descriptive evidence for the tested schedules rather than a scalar ranking of
+configurations.
+
+\maybefigure[fig:rq4-outcomes-partition]{submission/figures/rq4_outcomes_partition.pdf}{RQ4 outcome composition under the RQ2 partition.}
+\maybefigure[fig:rq4-latency-completion]{submission/figures/rq4_latency_completion.pdf}{RQ4 critical-operation p95 latency against observed definitive completion.}
+\maybefigure[fig:rq4-c5-c6]{submission/figures/rq4_c5_c6_contrast.pdf}{RQ4 C5/C6 one-factor contrast under normal and RQ1 fault scenarios.}

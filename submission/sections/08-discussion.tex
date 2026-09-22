@@ -50,6 +50,22 @@ request during its election interval, so successful scheduled calls do not
 measure continuous availability. F3 timeouts remain in all-attempt latency
 quantiles rather than being dropped in favor of successful-call latency.
 
+\subsection{RQ4 trade-off interpretation}
+
+RQ4 treats consistency, observed definitive completion, and critical-operation
+latency as separate client-visible measures. Under the tested partition,
+C1's P/V/U/I counts were \RQFourPartitionCOneCounts\ and its observed
+definitive completion was \RQFourPartitionCOneCompletion\  C6's counts were
+\RQFourPartitionCsixCounts\ and its observed definitive completion was
+\RQFourPartitionCsixCompletion\  The C5 partition cell is
+\RQFourPartitionCfiveStatus\ because C5 was not run in the RQ2 partition
+campaign. These rows support a conditional trade-off statement for the
+recorded schedule; they do not rank configurations or establish universal
+availability. The C5/C6 normal and RQ1 fault deltas in
+Table~\ref{tab:rq4-c5-c6} report the latency and completion changes while
+holding the registered one-factor contrast fixed. RQ3 supplies mechanism
+evidence for selected traces; RQ4 reports the observed client cost.
+
 \subsection{Unexpected behavior and interpretation}
 
 The C6 F3 majority-write timeouts match the registered expectation that stronger

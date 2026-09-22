@@ -69,4 +69,6 @@ figures/rq4_c5_c6_contrast.pdf
 The primary figures show partition outcome composition, p95 latency against
 observed definitive completion, and the C5/C6 one-factor contrast. Claims stay
 conditional on the recorded schedules and sample sizes; p99 is intentionally
-not used for the small cells.
+not used for the small cells. The command also regenerates
+`submission/generated-rq4.tex` and copies the three RQ4 PDFs under
+`submission/figures/` so `make submission` includes the current report section.
