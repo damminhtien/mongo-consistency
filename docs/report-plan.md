@@ -83,9 +83,10 @@ The front matter places a short acknowledgements section after the abstract.
 - Read the replay manifest from `results/raw/rq3/campaign-manifest.json` and the
   topology rehearsal from `results/raw/rq3-preflight.json`. Record the
   `rq3-anchor-selection.v1`, `rq3-campaign.v2`, `rq3-preflight.v2`,
-  `rq3-analysis.v2`, and `rq3-selection.v2` schema versions. Until the six
-  anchors verify and the eight-pair-per-contrast replay passes its controls,
-  report RQ3 as pending and make no mechanism-result claims.
+  `rq3-analysis.v2`, and `rq3-selection.v2` schema versions. The six anchors
+  verify, and the eight-pair-per-contrast replay passes its topology and route
+  controls; report its raw-derived observations with control-valid counts and
+  keep the missing student IDs as a release-package blocker.
 - Identify the host operating-system release as not recorded when describing
   campaign provenance. Do not replace historical provenance with the current
   machine's state.

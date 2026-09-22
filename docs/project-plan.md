@@ -121,8 +121,8 @@ cache state is logged separately and never treated as ground truth.
    partition signature cells. The completed campaign has 432 histories across
    36 episodes; its generated report and detailed results are in
    [rq2-results.md](rq2-results.md) and the submission Results section.
-9. Verify the six historical RQ1 anchors, run ten topology rehearsals, then run
-   the 48-history RQ3 replay and analyze control-valid pairs.
+9. [x] Verify the six historical RQ1 anchors, run ten topology rehearsals, then
+   run the 48-history RQ3 replay and analyze control-valid pairs.
 10. Rebuild analysis, plots, LaTeX macros, PDF, and reproduction archive from
     canonical raw histories.
 11. Audit the clean-clone path, generated artifacts, staged diff, and final
@@ -142,8 +142,8 @@ fixture and malformed-history tests; exact property schedules; live smoke;
 frozen provenance; clean pilot; complete RQ1 and RQ2 manifests; offline analysis;
 RQ3 anchor hashes and replay controls; rendered and inspected PDF;
 reproducible archive; and CI checks. A passing unit suite does not substitute
-for live schedule evidence. The focused RQ3 replay and its topology rehearsal
-have not yet run.
+for live schedule evidence. The focused RQ3 replay completed 48 histories after all ten topology rehearsal
+cycles passed; raw-derived analysis and the submission PDF were rebuilt.
 
 The grouped RQ2 campaign completed on 20 September 2026 from clean runner and
 protocol commit `3c35e94`: 432 histories across 36 fault episodes, with all

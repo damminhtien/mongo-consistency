@@ -75,8 +75,9 @@ matched-seed replay pairs per contrast (48 new histories). The anchors are
 registered in `configs/rq3-anchors.json`; they provide context, not replay
 outcomes or probability estimates. Each replay pair checks its named topology
 and actual routes, and the analyzer derives control validity from raw histories
-separately from consistency outcomes. The v2 preflight and replay campaign
-have not yet been run. The preflight records ten topology rehearsals in
+separately from consistency outcomes. The v2 preflight passed all ten topology
+rehearsals and the replay campaign completed all 48 histories with every pair
+control-valid. The preflight is recorded in
 `results/raw/rq3-preflight.json`; the campaign lives under `results/raw/rq3/`
 with an `rq3-campaign.v2` manifest. Analysis writes
 `results/analysis/rq3/summary.json` (`rq3-analysis.v2`) and

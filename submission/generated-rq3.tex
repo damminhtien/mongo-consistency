@@ -1,61 +1,46 @@
 \subsection{Mechanism contrasts (RQ3)}
 
-The study replays 8 matched-seed pairs per contrast. Each arm is a
-separate history and fault episode, so the seed and schedule are matched while
-the physical injections are independent. The counts below include every
-planned pair; topology matches are reported explicitly. The term and role
-snapshots are direct observations \cite{mongodb-replset-status}. The
-interpretations are consistent with documented causal-session, read-concern,
-and write-concern behavior
-\cite{mongodb-causal-consistency,mongodb-read-concern,mongodb-write-concern};
-they do not expose MongoDB's internal wait or replication state. Same-named
-member matching was preregistered; the supplementary role/state isomorphism
-audit is post-hoc and treats symmetric replica names as interchangeable labels.
-The three contrasts were motivated by six retrospective RQ1 anchor histories;
-their routes, outcomes, hashes, and selection limits are documented in
-\texttt{docs/rq3-historical-trace-selection.md}. Those anchors are not included
-in the replay denominators.
-The retained member lastWrite and majority-commit values include timestamp
-components but omit each OpTime's term, so timestamp-component comparisons below
-do not establish full term-aware OpTime order.
+The protocol planned 8 matched-seed pairs per contrast. Six
+historical RQ1 records anchor the explanations; their outcomes are not replay
+denominators. A replay pair enters
+the mechanism denominator only when its raw histories satisfy every
+preregistered topology, route, setup-write, and semantic-prestate control.
+Control-invalid pairs remain listed in the analysis summary with their reasons
+and are excluded from all signature and outcome counts below. The analyzer
+recomputes pair validity from raw histories and checks it against the campaign
+manifest. Selection uses the first preregistered control-valid pair by pair ID;
+consistency outcomes do not affect validity or selection.
+Anchor IDs, raw hashes, canonical history hashes, routes, outcomes, and
+selection limits are in \texttt{configs/rq3-anchors.json} and
+\texttt{docs/rq3-historical-trace-selection.md}. Timestamp-component
+comparisons are descriptive and do not establish full term-aware OpTime order.
 
 {\scriptsize
 \setlength{\tabcolsep}{3pt}
-\begin{longtable}{@{}p{1.7cm}p{2.5cm}p{7.8cm}p{2.4cm}@{}}
-\caption{RQ3 matched-seed mechanism contrasts. Counts use all 8 pairs per contrast.}
+\begin{longtable}{@{}p{1.1cm}p{2.4cm}p{5.8cm}p{6.9cm}@{}}
+\caption{RQ3 preregistered contrasts; counts use control-valid pairs only.}
 \label{tab:rq3-mechanisms}\\
 \toprule
-Pair & Changed factor & Observed signatures & Topology / exemplar \\
+Contrast & Changed factor & Historical RQ1 anchor & Matched replay evidence \\
 \midrule
 \endfirsthead
-\caption[]{RQ3 matched-seed mechanism contrasts (continued).}\\
+\caption[]{RQ3 preregistered contrasts (continued).}\\
 \toprule
-Pair & Changed factor & Observed signatures & Topology / exemplar \\
+Contrast & Changed factor & Historical RQ1 anchor & Matched replay evidence \\
 \midrule
 \endhead
 \bottomrule
 \endfoot
-M1 (C5/C6) & causal: off/on & C5 stale v0/no afterClusterTime: 8/8; W1 operationTime timestamp component greater than routed-member lastWrite timestamp component: 8/8; C6 afterClusterTime present: 8/8, equal to W1 operationTime timestamp component: 8/8, greater than routed-member lastWrite timestamp component: 8/8; C6 reads issued: 8/8, successful: 0/8, unavailable: 8/8, indeterminate: 0/8, not reached: 0/8; error codes: 50: 1, NetworkTimeout: 7; no successful C6 read values to classify. Same-named initial primary/isolation target: 8/8; same actual read route: 8/8; role/timestamp signature isomorphic under member-name permutation (post-hoc): 8/8 auditable pairs; unobserved: 0/8. & same-named member pair; selected \texttt{m1-r01} \\
-M2 (C8/C5) & read concern: local/majority & C8 local v1: 8/8 (successful reads: 8/8); C5 majority v0: 8/8 (successful reads: 8/8); recorded timestamp-component pattern: 8/8; W2 acknowledged: C8 5/8, C5 5/8; non-success: C8 3/8, C5 3/8; W2 on all final members: C8 8/8, C5 8/8; read version retained after convergence: C8 0/8, C5 8/8. Same-named initial primary/isolation target: 0/8; same actual read route: 0/8; role/timestamp signature isomorphic under member-name permutation (post-hoc): 8/8 auditable pairs; unobserved: 0/8. & member names differ; selected \texttt{m2-r01} \\
-M3 (C3/C6) & write concern: w:1/majority & C3 w:1 first-write acknowledgements: 8/8; acknowledged W1 absent from every converged post-heal member: 8/8; C3 converged final states: 8/8; C6 majority acknowledgements: 0/8; C6 majority timeouts: 8/8; W1 later present on all converged members after NetworkTimeout: 8/8; C6 converged final states: 8/8. Same-named initial primary/isolation target: 4/8; same actual first-write route: 4/8; role/timestamp signature isomorphic under member-name permutation (post-hoc): 8/8 auditable pairs; unobserved: 0/8. & same-named member pair; selected \texttt{m3-r02} \\
+M1 (C5/C6) & causal session: off/on & C5 experiment-00089-C5-ryw, C6 experiment-00335-C6-ryw: C5 returned stale v0 without afterClusterTime. C6 sent W1's operation time as afterClusterTime but returned no value before NetworkTimeout. Both converged to v1 after healing. & Control-valid pairs 8/8; invalid 0. C5 stale v0 without afterClusterTime 8/8; C5 W1 operationTime component ahead of routed-member lastWrite 8/8; C6 afterClusterTime present/matches W1 operationTime/ahead of routed lastWrite: 8/8, 8/8, 8/8; C6 read responses successful/unavailable/indeterminate/not reached: 0/8, 8/8, 0/8, 0/8; error codes: NetworkTimeout: 8. Same actual subject route 8/8; selected replay m1-r01. \\
+M2 (C8/C5) & read concern: local/majority & C8 experiment-00019-C8-wfr, C5 experiment-00144-C5-wfr: C8 read v1 from the isolated former primary; C5 read v0. Both dependent writes and post-heal state converged to version 2. & Control-valid pairs 8/8; invalid 0. C8 local v1 / successful reads 8/8 / 8/8; C5 majority v0 / successful reads 8/8 / 8/8; W2 acknowledged C8/C5 3/8, 3/8; W2 on all final members C8/C5 8/8, 8/8; returned read version present after convergence C8/C5 0/8, 8/8; setup W1 command logs w:1 on mongo3 16/16 arms. Same actual subject route 8/8; selected replay m2-r01. \\
+M3 (C3/C6) & write concern: w:1/majority & C3 experiment-00001-C3-mw, C6 experiment-00086-C6-mw: C3 acknowledged W1 at w:1 and W1 was absent after the elected branch converged. C6 timed out with no response but W1 was present on all members after healing. & Control-valid pairs 8/8; invalid 0. C3 w:1 first-write acknowledged 8/8; acknowledged W1 absent from all converged members 8/8; C6 majority first-write acknowledged/time out 0/8, 8/8; W1 later present on all final members after timeout 0/8. Same actual subject route 8/8; selected replay m3-r01. \\
 \end{longtable}
 }
 
-The C3/C6 write comparison distinguishes acknowledgement from effect: a
-\texttt{w:1} acknowledgement followed by W1 missing from every converged,
-post-heal member is an observed rollback; a majority-write timeout remains
-unresolved until the direct final-state observation. The C5/C6 causal comparison
-records the command's causal time bound, direct routed-member state, and client
-response separately. Read concern is interpreted from the value and route
-actually recorded for each WFR read.
-The frozen protocol and runner specify \texttt{w:1} for M2's setup W1. The raw
-setup diagnostic does not retain its command event, so the outgoing concern is
-not independently observed in these histories.
+The historical seeds differ. The causal lower bound constrains when a read may complete; a timeout does not establish an internal server wait. Historical limitation: The seeds differ. A timeout is no observed response, not proof of an internal server wait.
 
-C5 returned stale v0 without afterClusterTime in 8/8 histories; W1's operationTime timestamp component was greater than the routed member's directly observed lastWrite timestamp component in 8/8. In C6, afterClusterTime matched W1's operationTime timestamp component in 8/8 and was greater than the routed member's recorded lastWrite timestamp component at the pre-read snapshot in 8/8; reads ended UNAVAILABLE with no value in 8/8 histories (error codes: 50: 1, NetworkTimeout: 7). This is consistent with a causal lower bound constraining read completion, but the snapshots and timeout do not prove an internal server-side wait. Causal ordering constrains when a read may complete; it does not make replication instantaneous.
+The historical setup W1 write concern is protocol-defined, not directly observed; the replay captures that command. WFR outcomes: C8 violations/indeterminate 3/8, 5/8; C5 passes/indeterminate 3/8, 5/8. These counts preserve the recorded read values and post-convergence observations. Historical limitation: The setup write concern is protocol-defined as w:1 but was not captured in the old command log. The seeds differ.
 
-M2 classifications: C8 5 WFR violations, 3 indeterminate; C5 5 WFR passes, 3 indeterminate. W2 was present on all final members in C8 8/8 and C5 8/8 pairs. C8's returned v1 is absent from the converged final versions in 8/8 pairs; C5's returned v0 remains in 8/8. Same-named initial primary/isolation targets: 0/8; post-hoc role/timestamp-state audit: 8/8 auditable pairs; 0/8 unobserved. The combined C8-local-v1/C5-majority-v0 outcome and recorded timestamp-component pattern (both reads routed to their isolated primary; the primary lastWrite timestamp component exceeded the commit timestamp component, while both secondary components equaled it) occurred in 8/8 pairs. Interpret this under the explicit member-name permutation assumption, not as same-host matching.
+The historical seeds and election paths differ. The C3/C6 comparison separates recorded acknowledgement from post-heal effect; a majority timeout does not mean the write failed. Historical limitation: The seeds and realized election paths differ. The timeout does not mean the write failed; interpret this as a mechanism-consistent trace, not a controlled causal estimate.
 
-In the 4 same-named M3 pairs, C3 acknowledged W1 and W1 was absent from every converged member in 4/4; C6 timed out on its majority W1 in 4/4 and W1 was present on all final members in 4/4. The post-hoc role/timestamp-state audit matched 8/8 auditable pairs under member-name permutation.
-
-\maybefigure[fig:rq3-causal-timeline]{submission/figures/rq3-causal-timeline.pdf}{Matched-seed C5/C6 RYW trace. The two arms use independent fault episodes; client command metadata, direct topology snapshots, and response outcomes are shown from the selected histories.}
+\maybefigure[fig:rq3-causal-timeline]{submission/figures/rq3-causal-timeline.pdf}{First control-valid C5/C6 RYW pair; each arm is an independent fault episode.}
