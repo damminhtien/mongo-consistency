@@ -1,6 +1,6 @@
 PYTHON ?= python3
 MC_SMOKE_MOUNT ?= ./results/smoke
-.PHONY: check-docs check-schemas check-release-ready submission test setup smoke pilot experiment experiment-fresh rq2 rq3 rq3-preflight rq3-analyse analyse
+.PHONY: check-docs check-schemas check-release-ready submission test setup smoke pilot experiment experiment-fresh rq2 rq3 rq3-preflight rq3-analyse rq4-analyse analyse
 
 check-docs:
 	$(PYTHON) scripts/check_documentation.py
@@ -46,5 +46,12 @@ rq3-preflight: setup
 rq3-analyse:
 	PYTHONPATH=src $(PYTHON) scripts/analyse_rq3.py
 
+rq4-analyse:
+	PYTHONPATH=src $(PYTHON) scripts/analyse_rq4.py
+
 analyse:
-	PYTHONPATH=src $(PYTHON) scripts/analyse_results.py
+	@if [ "$(RQ)" = "rq4" ]; then \
+		PYTHONPATH=src $(PYTHON) scripts/analyse_rq4.py; \
+	else \
+		PYTHONPATH=src $(PYTHON) scripts/analyse_results.py; \
+	fi

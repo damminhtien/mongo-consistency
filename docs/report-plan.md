@@ -10,7 +10,7 @@ The front matter places a short acknowledgements section after the abstract.
 ## Report structure
 
 1. Abstract: scope, campaigns, classification rules, and generated outcomes.
-2. Introduction: objective, scope, four client-centric properties, and RQ1-RQ3.
+2. Introduction: objective, scope, four client-centric properties, and RQ1-RQ4.
 3. Database System and Deployment: MongoDB, topology, recorded versions,
    installation, and deployment verification.
 4. Consistency Configurations: read/write concerns, causal sessions, C1-C8,
@@ -20,8 +20,8 @@ The front matter places a short acknowledgements section after the abstract.
    metrics, and outcome classes.
 6. Experiments and Results: RYW, MR, MW, and WFR, each with prediction,
    experiment/rationale, results, and explanation; then cross-configuration and
-   cross-scenario tables and one RQ3 mechanism subsection with a timeline and
-   evidence table.
+   cross-scenario tables, the RQ4 consistency/completion/latency evidence table,
+   and one RQ3 mechanism subsection with a timeline and evidence table.
 7. Discussion: predictions versus observations, configuration and fault
    effects, consistency/availability distinctions, and behavior needing
    interpretation.
@@ -63,6 +63,14 @@ The front matter places a short acknowledgements section after the abstract.
   pilot histories separate from the main campaigns.
 - Report fault timing by fault episode. Histories that share an episode are not
   independent fault injections.
+- Treat RQ4 as a derived analysis of immutable RQ1/RQ2 histories. Define
+  violation, observed definitive completion, indeterminate rate, and critical
+  operation latency before inspecting results. Use p50/p95 for the small
+  campaign cells and do not call observed definitive completion formal CAP
+  availability.
+- Keep outcome composition visible for each configuration, scenario, and
+  property. Use one-factor contrasts, especially C5 versus C6, and retain
+  missing cells such as C5 under the RQ2 partition as missing evidence.
 - Treat an unprobed interval as unmeasured availability. F2 has no subject call
   during the election barrier; scheduled-call success is not continuous
   availability.

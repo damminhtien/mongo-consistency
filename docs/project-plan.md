@@ -43,8 +43,9 @@ repository.
 - RQ3: Which observed routing, session-time, and topology evidence explains
   representative outcomes? Internal MongoDB mechanisms are not claimed unless
   the recorded trace supports the inference.
-- RQ4: What consistency, operation-success, completion, latency, election, and
-  recovery trade-offs appear in the recorded campaigns?
+- RQ4: When MongoDB avoids a client-visible consistency violation, how much
+  critical-operation latency and observed definitive completion does the
+  client pay in the recorded campaigns?
 
 RQ1 uses stale-replica and election schedules to expose the required states.
 RQ2 separately compares topology conditions. This boundary prevents a change in
@@ -123,9 +124,12 @@ cache state is logged separately and never treated as ground truth.
    [rq2-results.md](rq2-results.md) and the submission Results section.
 9. [x] Verify the six historical RQ1 anchors, run ten topology rehearsals, then
    run the 48-history RQ3 replay and analyze control-valid pairs.
-10. Rebuild analysis, plots, LaTeX macros, PDF, and reproduction archive from
+10. [x] Derive RQ4 consistency, observed definitive completion, indeterminate
+    rate, and critical-operation p50/p95 latency from immutable RQ1/RQ2 raw
+    histories. Keep missing C5 partition cells explicit.
+11. Rebuild analysis, plots, LaTeX macros, PDF, and reproduction archive from
     canonical raw histories.
-11. Audit the clean-clone path, generated artifacts, staged diff, and final
+12. Audit the clean-clone path, generated artifacts, staged diff, and final
     submission package.
 
 ## Completion gates
@@ -151,6 +155,23 @@ faults verified and all recovery checks converged. Record/schema validation
 passed and offline analysis was rebuilt. See [rq2-results.md](rq2-results.md).
 The host coordinator applies faults outside the runner container through a
 temporary IPC mount, keeping Docker control out of the runner.
+
+## RQ4 analysis layer
+
+RQ4 is an offline analysis layer over the completed RQ1 and RQ2 histories. In
+this checkout, RQ1 is stored under `results/raw/experiment` and RQ2 under
+`results/raw/rq2`; the analyzer also accepts a `results/raw/rq1` alias. It
+does not query MongoDB or modify raw records. For each configuration, scenario,
+and property it reports the observed violation rate, observed definitive
+completion rate, indeterminate rate, and p50/p95 latency of the registered
+critical operation (RYW read, MR second read, MW successor write, or WFR
+dependent write). `UNAVAILABLE`, `INDETERMINATE`, precondition misses, and
+harness errors remain separate.
+
+The analysis writes `results/summary/rq4/metrics.csv`, `contrasts.csv`, and
+`fault_deltas.csv`, plus three PDF figures under `figures/`. Rebuild it with
+`make analyse RQ=rq4`. RQ2 partition data contain C1, C3, C4, and C6 only, so
+the C5/C6 partition contrast is emitted as `MISSING_CELL` rather than inferred.
 
 ## Current RQ1 status
 
