@@ -158,6 +158,38 @@ class CheckerTests(unittest.TestCase):
         history.final_observation["topology"]["stable"] = False
         self.assertEqual(Outcome.INDETERMINATE, check_history(history).outcome)
 
+    def test_successful_read_without_a_concrete_version_is_indeterminate(self) -> None:
+        history = base_history(
+            "RYW",
+            [
+                operation("write", "write", intended_version=1, write_id="w1"),
+                operation("read", "read"),
+            ],
+        )
+        self.assertEqual(Outcome.INDETERMINATE, check_history(history).outcome)
+
+    def test_mw_rejects_disagreeing_converged_member_snapshots(self) -> None:
+        history = base_history(
+            "MW",
+            [
+                operation("first_write", "write", intended_version=1, write_id="w1"),
+                operation(
+                    "second_write",
+                    "write",
+                    intended_version=2,
+                    write_id="w2",
+                    parent_write_id="w1",
+                ),
+            ],
+            final_observation=final_observation(
+                [{"write_id": "w1", "version": 1}, {"write_id": "w2", "version": 2}]
+            ),
+        )
+        history.final_observation["members"]["mongo3"]["updates"] = [
+            {"write_id": "w2", "version": 2}
+        ]
+        self.assertEqual(Outcome.INDETERMINATE, check_history(history).outcome)
+
     def test_wfr_requires_same_key_and_read_dependency(self) -> None:
         passing = base_history(
             "WFR",

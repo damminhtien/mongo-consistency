@@ -6,10 +6,12 @@ import unittest
 from pathlib import Path
 
 from scripts.build_submission import (
+    BuildError,
     METADATA_KEYS,
     REQUIRED_SECTIONS,
     REQUIRED_SUBMISSION_FILES,
     parse_metadata,
+    validate_figure_inputs,
     write_generated_analysis,
     write_generated_metadata,
 )
@@ -297,6 +299,39 @@ class SubmissionLayoutTests(unittest.TestCase):
             for term in terms:
                 self.assertRegex(body, rf"(?i){re.escape(term)}")
 
+        background = (ROOT / "submission/sections/03-background.tex").read_text(
+            encoding="utf-8"
+        )
+        predictions = (ROOT / "submission/sections/05-predictions.tex").read_text(
+            encoding="utf-8"
+        )
+        method = (ROOT / "submission/sections/06-method.tex").read_text(
+            encoding="utf-8"
+        )
+        limits = (ROOT / "submission/sections/09-limits.tex").read_text(
+            encoding="utf-8"
+        )
+        for source in (background, method, limits):
+            self.assertIn("durable counterexample", source)
+            self.assertIn("transient", source)
+        self.assertIn(r"\label{tab:sentinel-mechanisms}", predictions)
+        self.assertIn("majority read and majority write alone", predictions)
+        self.assertIn("completed, decidable VIOLATION", predictions)
+        for property_name in property_sections:
+            start = results.index(rf"\subsection{{{property_name}}}")
+            next_section = results.find("\n\\subsection{", start + 1)
+            body = results[start:] if next_section == -1 else results[start:next_section]
+            positions = [
+                body.index(rf"\subsubsection{{{label}}}")
+                for label in (
+                    "Prediction",
+                    "Test construction",
+                    "Observation",
+                    "Interpretation",
+                )
+            ]
+            self.assertEqual(positions, sorted(positions))
+
         discussion = (ROOT / "submission/sections/08-discussion.tex").read_text(
             encoding="utf-8"
         )
@@ -314,10 +349,30 @@ class SubmissionLayoutTests(unittest.TestCase):
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
         self.assertIn(".PHONY:", makefile)
         self.assertIn("check-docs", makefile)
+        self.assertIn("check-runner-isolation", makefile)
         self.assertIn("check-generated:", makefile)
         self.assertIn("setup", makefile)
         self.assertIn("submission:", makefile)
         self.assertIn("scripts/build_submission.py", makefile)
+
+    def test_submission_build_rejects_missing_figure_input(self) -> None:
+        from tempfile import TemporaryDirectory
+
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "submission/sections/report.tex"
+            source.parent.mkdir(parents=True)
+            source.write_text(
+                r"\maybefigure{submission/figures/missing.pdf}{Missing figure}",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(BuildError, "Missing report figure input"):
+                validate_figure_inputs(root)
+
+            figure = root / "submission/figures/missing.pdf"
+            figure.parent.mkdir(parents=True)
+            figure.write_bytes(b"placeholder fixture")
+            validate_figure_inputs(root)
 
     def test_source_manifest_has_explicit_package_roots(self) -> None:
         source = (ROOT / "scripts/build_submission.py").read_text(encoding="utf-8")

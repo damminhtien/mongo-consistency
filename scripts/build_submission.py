@@ -59,6 +59,7 @@ METADATA_KEYS = (
 )
 REPORT_FILENAME = "mongo-consistency-report.pdf"
 ARCHIVE_FILENAME = "mongo-consistency-submission.zip"
+FIGURE_INPUT_RE = re.compile(r"\\maybefigure(?:\[[^]]*\])?\{([^}]+)\}")
 PACKAGE_ROOT_FILES = (
     "Makefile",
     "README.md",
@@ -1090,6 +1091,21 @@ def check_documents(root: Path, checker_root: Path) -> None:
         )
 
 
+def validate_figure_inputs(root: Path) -> None:
+    """Require every report figure input before compiling the PDF."""
+
+    figure_paths: set[str] = set()
+    for source_path in (root / "submission").rglob("*.tex"):
+        figure_paths.update(
+            FIGURE_INPUT_RE.findall(source_path.read_text(encoding="utf-8"))
+        )
+    missing = sorted(path for path in figure_paths if not (root / path).is_file())
+    if missing:
+        raise BuildError(
+            "Missing report figure input(s): " + ", ".join(missing)
+        )
+
+
 def build(root: Path) -> tuple[Path, Path, Path]:
     """Build and validate the PDF, archive, and manifest."""
 
@@ -1105,6 +1121,7 @@ def build(root: Path) -> tuple[Path, Path, Path]:
         path.mkdir(parents=True, exist_ok=True)
 
     check_documents(root, root)
+    validate_figure_inputs(root)
     report_path = compile_report(root, build_root, values)
 
     package_root = build_root / "package"

@@ -22,7 +22,7 @@ tracks remaining project and submission work.
 - [x] Use one logical document and explicit application dependencies for MW/WFR.
 - [x] Add offline RYW, MR, MW, and WFR checkers and same-key fixtures.
 - [x] Validate every serialized history against the committed JSON Schemas.
-- [ ] Add fixtures for invalid direct roles, missing setup records, and every
+- [x] Add fixtures for invalid direct roles, missing setup records, and every
   malformed or ambiguous history boundary.
 
 ## Topology and workloads
@@ -47,9 +47,10 @@ tracks remaining project and submission work.
   non-smoke runs without frozen clean provenance.
 - [x] Verify actual Python, PyMongo, MongoDB server, Docker, Compose versions and
   image digest with a live setup.
-- [ ] Test resume rejection for changed provenance and altered history hashes.
-- [ ] Confirm the runner container cannot access Docker socket, credentials, or
-  unrelated host files.
+- [x] Test resume rejection for changed provenance and altered history hashes.
+- [x] Confirm the runner container cannot access Docker socket, credentials, or
+  unrelated host files; save the check in
+  `results/validation/runner-isolation.json`.
 
 ## Validation and campaigns
 

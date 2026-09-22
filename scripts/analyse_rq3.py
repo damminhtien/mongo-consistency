@@ -1098,9 +1098,9 @@ def _render_report_section(
         anchor_manifest, _ = verify_anchor_manifest(ROOT)
         historical_anchors = _summarize_historical_anchors(anchor_manifest)
     specifications = {
-        "M1": ("causal session", "C5 vs C6; off vs on"),
-        "M2": ("read concern", "C8 vs C5; local vs majority"),
-        "M3": ("write concern", "C3 vs C6; w:1 vs majority"),
+        "M1": "causal session: C5 versus C6, off versus on",
+        "M2": "read concern: C8 versus C5, local versus majority",
+        "M3": "write concern: C3 versus C6, w:1 versus majority",
     }
     rows: list[str] = []
     validity: list[str] = []
@@ -1110,13 +1110,12 @@ def _render_report_section(
         planned_n = len(planned_pairs)
         valid_n = len(valid_pairs)
         counts = _counts(valid_pairs, contrast_id)
-        mechanism, contrast = specifications[contrast_id]
         validity.append(
             f"{contrast_id}: Control-valid pairs {valid_n}/{planned_n}"
         )
 
         if contrast_id == "M1":
-            observation = (
+            signature = (
                 f"C5 returned stale v0 without afterClusterTime in "
                 f"{counts['C5_stale_success_without_after_cluster_time']}/{valid_n}; "
                 f"C6 carried afterClusterTime in "
@@ -1124,28 +1123,26 @@ def _render_report_section(
                 f"successful stale read and unavailable reads in "
                 f"{counts['C6_unavailable_reads']}/{valid_n}."
             )
-            interpretation = (
-                "Consistent with a causal-session lower bound preventing a stale "
-                "successful read; the client-visible timeout does not prove internal "
-                "server blocking."
+            limitation = (
+                "The timeout is client-visible and does not reveal internal "
+                "waiting; the contrast is consistent with a causal-session lower "
+                "bound, not a universal guarantee."
             )
         elif contrast_id == "M2":
-            observation = (
+            signature = (
                 f"C8 local returned v1 in {counts['C8_local_read_v1']}/{valid_n}; "
                 f"C5 majority returned v0 in {counts['C5_majority_read_v0']}/{valid_n}. "
                 f"The returned version was present in final state for C8/C5 in "
                 f"{counts['C8_read_version_present_in_final_state']}/{valid_n} and "
                 f"{counts['C5_read_version_present_in_final_state']}/{valid_n}."
             )
-            interpretation = (
-                "Consistent with local exposing the latest state at the selected "
-                "instance and majority exposing a majority-committed state. The "
-                "setup W1 was a protocol-defined w:1 stimulus, not independently "
-                "observed command evidence; the trace supports a role/state "
-                "observation rather than a universal route effect."
+            limitation = (
+                "The setup W1 was a protocol-defined w:1 stimulus, not an "
+                "independently observed command. The trace supports a "
+                "role/state comparison, not a general route effect."
             )
         else:
-            observation = (
+            signature = (
                 f"C3 acknowledged W1 at w:1 in "
                 f"{counts['C3_w1_first_write_acknowledged']}/{valid_n}; the "
                 f"acknowledged W1 was absent from all converged members in "
@@ -1155,17 +1152,17 @@ def _render_report_section(
                 f"direct W1 presence after healing was observed in "
                 f"{counts['C6_w1_present_on_all_final_members_after_timeout']}/{valid_n}."
             )
-            interpretation = (
-                "w:1 acknowledgement and majority acknowledgement expose different "
-                "client outcomes under failover. A timeout leaves the write effect "
-                "unresolved from the client response; it does not establish definite "
-                "failure or internal waiting."
+            limitation = (
+                "A timeout leaves the write effect unresolved from the client "
+                "response; it does not establish definite failure or internal "
+                "waiting. Final presence is a separate observation from "
+                "acknowledgement."
             )
 
         rows.append(
             " & ".join(
                 _latex_escape(cell)
-                for cell in (mechanism, contrast, observation, interpretation)
+                for cell in (specifications[contrast_id], signature, limitation)
             )
             + r" \\"
         )
@@ -1179,31 +1176,28 @@ def _render_report_section(
             "{C5/C6 causal-session timeline; each arm is an independent fault episode.}"
         )
     repetitions = int(campaign["repetitions_per_contrast"])
-    validity_text = "; ".join(validity) + "."
+    validity_text = "Valid pair counts: " + "; ".join(validity) + "."
     return rf"""\subsection{{Mechanism contrasts (RQ3)}}
 
-RQ3 is a focused mechanism study that explains representative RQ1 and RQ2
-observations; it is not a third benchmark. The protocol planned {repetitions}
-matched-seed pairs per contrast, and the analyzer recomputes pair validity from
-the raw histories before deriving the observations below. {validity_text} The
-six registered RQ1 histories remain historical anchors rather than replay
-denominators. The four client-centric definitions used by the checker---read
-your-writes, monotonic reads, monotonic writes, and writes-follow-reads---are
-client properties from Lecture~3; MongoDB read concern, write concern, and
-causal sessions are the mechanisms used to interpret them.
+RQ3 is mechanism evidence for representative RQ1 and RQ2 observations, not a
+separate benchmark. It uses {repetitions} matched-seed pairs per contrast;
+pair validity is recomputed from the raw histories before the table is built.
+{validity_text} The six registered RQ1 histories are historical anchors, not
+RQ3 replay denominators. The factors are interpreted through the client-centric
+definitions from Lecture~3 and the cited MongoDB documentation.
 
 {{\scriptsize
 \setlength{{\tabcolsep}}{{3pt}}
-\begin{{longtable}}{{@{{}}p{{2.2cm}}p{{2.8cm}}p{{5.8cm}}p{{5.2cm}}@{{}}}}
-\caption{{RQ3 focused mechanism contrasts; observations use control-valid pairs.}}
+\begin{{longtable}}{{@{{}}p{{3.0cm}}p{{7.8cm}}p{{5.0cm}}@{{}}}}
+\caption{{RQ3 mechanism evidence; observations use control-valid pairs.}}
 \label{{tab:rq3-mechanisms}}\\
 \toprule
-Mechanism & Contrast & Observation & Interpretation / limitation \\
+Factor changed & Observed mechanism signature & Limitation \\
 \midrule
 \endfirsthead
-\caption[]{{RQ3 focused mechanism contrasts (continued).}}\\
+\caption[]{{RQ3 mechanism evidence (continued).}}\\
 \toprule
-Mechanism & Contrast & Observation & Interpretation / limitation \\
+Factor changed & Observed mechanism signature & Limitation \\
 \midrule
 \endhead
 \bottomrule
@@ -1212,14 +1206,10 @@ Mechanism & Contrast & Observation & Interpretation / limitation \\
 \end{{longtable}}
 }}
 
-The contrasts are finite, Docker-based observations. M2 is interpreted at the
-level of role-equivalent replica states and does not establish a general
-physical-member or route effect. M3's client-visible timeout does not reveal
-whether MongoDB waited internally, and direct presence after healing is a
-separate observation from acknowledgement. The repetitions do not prove a
-universal guarantee, and containers on one host do not reproduce a WAN failure
-model. Raw hashes, routes, pair controls, and selected histories remain in the
-analysis and reproduction artifacts.
+These are finite Docker observations. They do not estimate a causal effect or
+generalise beyond the registered topology and schedules. Raw hashes, routes,
+pair controls, and selected histories remain in the analysis and reproduction
+artifacts.
 
 {timeline_note}
 """

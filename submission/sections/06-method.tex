@@ -15,7 +15,11 @@ Three actors have separate roles. The subject client issues the tested
 operations. An independent topology and document observer connects directly to
 all members without using the subject session. A restricted fault controller
 changes MongoDB member availability and replication-network reachability. The
-runner has no Docker socket or Docker credentials.
+Compose configuration mounts only the results, figures, and setup-provenance
+paths into the runner; it does not mount a Docker socket or Docker credential
+directory. The runtime isolation check in
+\texttt{results/validation/runner-isolation.json} records the corresponding
+container and environment checks.
 
 \subsection{Consistency property checkers}
 
@@ -24,7 +28,11 @@ client. MR compares successive reads of the same key. MW checks whether a
 converged state containing a successor write also contains its predecessor.
 WFR checks whether a converged state containing a dependent write also
 contains the version returned by its preceding read. MW and WFR use one logical
-document so the checker can evaluate the declared dependency.
+document so the checker can evaluate the declared dependency. For these two
+properties, the converged state is a durable witness rather than an
+intermediate visibility sample. A PASS means no durable counterexample was
+found in the registered history; it does not rule out a transient ordering
+violation before convergence.
 
 After fault cleanup, the topology oracle requires one primary and two
 secondaries. The independent observer then checks that all three copies

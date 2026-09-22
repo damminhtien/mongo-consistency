@@ -18,6 +18,17 @@ under the registered one-document observation.
 be visible without that version.
 \end{description}
 
+The first two definitions are checked from the versions returned by client
+reads. For MW and WFR, the course definition is operationalised here with one
+logical document and an independent post-heal observer. The checker searches
+for a durable counterexample in the converged one-document history. A PASS
+means that the registered observation found no durable counterexample; it does
+not show that no transient ordering violation occurred before convergence.
+The raw histories contain command metadata and post-heal member snapshots, but
+no direct intermediate snapshot immediately after the successor or dependent
+write. This boundary follows the recorded evidence and the client-centric
+definitions in Lecture~3 \cite[slides 37 to 44]{cai-lecture-3}.
+
 \subsection{Research questions}
 
 RQ1 asks how read concern, write concern, and causal sessions affect RYW, MR,

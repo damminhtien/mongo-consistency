@@ -1,0 +1,46 @@
+{
+  "checks": {
+    "compose": {
+      "cap_drop_all": true,
+      "docker_socket_reference": false,
+      "environment_names": [
+        "FAULT_CONTROLLER_MONGO1",
+        "FAULT_CONTROLLER_MONGO2",
+        "FAULT_CONTROLLER_MONGO3",
+        "MC_SETUP_PROVENANCE"
+      ],
+      "forbidden_environment_names": [],
+      "mount_targets": [
+        "/workspace/figures",
+        "/workspace/results/raw",
+        "/workspace/setup/toolchain.json"
+      ],
+      "mounts": [
+        {
+          "source": "results/raw",
+          "target": "/workspace/results/raw"
+        },
+        {
+          "source": "figures",
+          "target": "/workspace/figures"
+        },
+        {
+          "source": "results/setup/toolchain.json",
+          "target": "/workspace/setup/toolchain.json"
+        }
+      ],
+      "network_names": [
+        "client_net"
+      ],
+      "read_only_root": true
+    },
+    "runtime": {
+      "credential_environment_names": [],
+      "credential_files_present": [],
+      "docker_socket_exists": false
+    }
+  },
+  "compose_file": "compose.yaml",
+  "schema_version": "runner-isolation.v1",
+  "status": "PASS"
+}

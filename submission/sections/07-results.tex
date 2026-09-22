@@ -73,34 +73,48 @@ N does not predict a violation in every repetition.
 
 \subsection{Read-your-writes consistency}
 
-\subsubsection{Stale-read test}
+\subsubsection{Prediction}
+
+C6 is the registered RYW target. A completed read older than the preceding
+subject write would contradict that prediction.
+
+\subsubsection{Test construction}
 
 The schedule isolates a secondary at version 0, writes version 1 through the
 subject session, and verifies that a fresh replica has version 1 while the
 isolated member remains stale. The subject then reads from that member. A
-completed read of version 0 contradicts the preceding write. C6 is the
-predicted RYW configuration.
+completed read of version 0 is the registered counterexample.
 
-\subsubsection{Observed stale reads}
+\subsubsection{Observation}
 
 Across \RYWHistoryCount\ adversarial histories, the checker recorded
 \RYWPassCount\ PASS, \RYWViolationCount\ VIOLATION,
 \RYWUnavailableCount\ UNAVAILABLE, and
 \RYWIndeterminateCount\ INDETERMINATE. The C6 histories did not produce a
-resolved read, so they neither confirm nor contradict the prediction. The
-completed stale-read counterexamples occurred in configurations without an
-RYW target, as shown in Table~\ref{tab:rq1-prediction-observation}.
+resolved read. The completed stale-read counterexamples occurred in
+configurations without an RYW target, as shown in
+Table~\ref{tab:rq1-prediction-observation}.
+
+\subsubsection{Interpretation}
+
+The data do not falsify the C6 prediction, but they do not confirm it either:
+the required C6 read was unresolved. The completed stale reads are descriptive
+evidence from non-target configurations.
 
 \subsection{Monotonic-reads consistency}
 
-\subsubsection{Read-order test}
+\subsubsection{Prediction}
+
+C3 and C6 are the registered MR targets. A completed second read below the
+version returned by the first read would contradict the target prediction.
+
+\subsubsection{Test construction}
 
 The schedule confirms that a fresh secondary has version 1 while a stale
 secondary remains at version 0. The subject reads the fresh member and then
-the stale member in one explicit session. C3 and C6 are the predicted MR
-configurations; a second read below the first returned version is a violation.
+the stale member in one explicit session.
 
-\subsubsection{Observed read regressions}
+\subsubsection{Observation}
 
 Across \MRHistoryCount\ adversarial histories, there were
 \MRPassCount\ PASS, \MRViolationCount\ VIOLATION,
@@ -111,9 +125,9 @@ Across \MRHistoryCount\ adversarial histories, there were
 configuration produced a completed MR comparison: the required reads were
 unavailable or their preconditions were missed.
 
-History \texttt{experiment-00003-C7-mr} is a completed RQ1 counterexample.
-Both reads used majority read concern in one session with
-causal consistency disabled. The later read returned an older version:
+History \texttt{experiment-00003-C7-mr} is a completed counterexample from a
+non-target configuration. Both reads used majority read concern in one session
+with causal consistency disabled. The later read returned an older version:
 
 \begin{table}[ht]
 \centering
@@ -131,42 +145,72 @@ Read & Requested / actual member (role) & Returned version / write IDs & Status 
 \end{tabular}
 \end{table}
 
+\subsubsection{Interpretation}
+
+The predicted configurations produced no decidable comparison, so the result
+does not resolve their MR prediction. The C7 trace shows that the registered
+schedule can expose a completed regression when causal consistency is off; it
+does not turn C7 into a failed target.
+
 \subsection{Monotonic-writes consistency}
 
-\subsubsection{Write-order test}
+\subsubsection{Prediction}
+
+C4 and C6 are the registered MW targets. A completed converged observation in
+which the successor is present without its predecessor would contradict a
+target prediction.
+
+\subsubsection{Test construction}
 
 The schedule sends the first subject write to an isolated old primary. After
 the majority side elects a new primary, the subject issues a successor write
 that names the first write as its parent. An independent observer checks the
-same document on all three members after recovery. C4 and C6 are the predicted
-MW configurations.
+same document on all three members after recovery.
 
-\subsubsection{Observed write order}
+\subsubsection{Observation}
 
 Of \MWHistoryCount\ adversarial histories, \MWPassCount\ were PASS,
 \MWViolationCount\ were VIOLATION, \MWUnavailableCount\ were UNAVAILABLE,
 and \MWIndeterminateCount\ were INDETERMINATE. Both predicted configurations
-were indeterminate in every repetition, so they provide no resolved MW
-comparison. The completed counterexamples occurred in other configurations;
-the recovered document contained a successor without its predecessor.
+were indeterminate in every repetition. The completed counterexamples occurred
+in other configurations; the recovered document contained a successor without
+its predecessor.
+
+\subsubsection{Interpretation}
+
+The campaign provides no resolved MW comparison for C4 or C6. The observed
+counterexamples are durable-witness violations in non-target configurations;
+they do not establish what happened during the unobserved interval before
+convergence.
 
 \subsection{Writes-follow-reads consistency}
 
-\subsubsection{Read-dependent write test}
+\subsubsection{Prediction}
+
+C3 and C6 are the registered WFR targets. A completed converged observation in
+which the dependent write is present without the version returned by its
+preceding read would contradict a target prediction.
+
+\subsubsection{Test construction}
 
 The schedule creates version 1 on the isolated old branch as setup. The
 subject reads that version and issues a dependent write on the newly elected
 primary. The write records the read identifier and version. An independent
-observer checks the converged document after recovery. C3 and C6 are the
-predicted WFR configurations.
+observer checks the converged document after recovery.
 
-\subsubsection{Observed read dependencies}
+\subsubsection{Observation}
 
 Across \WFRHistoryCount\ adversarial histories, the checker recorded
 \WFRPassCount\ PASS, \WFRViolationCount\ VIOLATION,
 \WFRUnavailableCount\ UNAVAILABLE, and
 \WFRIndeterminateCount\ INDETERMINATE. Every resolved history in predicted
 configurations C3 and C6 passed; C6 also had unresolved histories.
+
+\subsubsection{Interpretation}
+
+The resolved C3 and C6 histories did not contradict the registered WFR
+prediction. The unresolved C6 histories do not confirm it, and the converged
+observer cannot rule out a transient ordering violation before recovery.
 
 \subsection{RQ2 fault-scenario results}
 
@@ -274,6 +318,7 @@ Fault & Episodes & Applied & Elections & Election p50 & Converged & Recovery p50
 
 The focused RQ3 contrasts below explain representative RQ1 and RQ2 outcomes
 through causal-session, read-concern, and write-concern mechanisms.
+\FloatBarrier
 \input{submission/generated-rq3.tex}
 
 \maybefigure[fig:outcome-heatmap]{submission/figures/outcome-heatmap.pdf}{Outcome heatmap by configuration and property.}

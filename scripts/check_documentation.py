@@ -144,9 +144,22 @@ PLACEHOLDER_PATTERNS = (
 
 EMPTY_LINK_RE = re.compile(r"\[[^\]\n]+\]\(\s*\)")
 MARKDOWN_HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$")
+MARKDOWN_HEADING_LEVEL_RE = re.compile(r"^\s{0,3}(#{1,6})\s+")
 HTML_HEADING_RE = re.compile(r"^\s*<h[1-6][^>]*>(.*?)</h[1-6]>\s*$", re.IGNORECASE)
+HTML_HEADING_LEVEL_RE = re.compile(r"^\s*<h([1-6])\b", re.IGNORECASE)
 LATEX_HEADING_RE = re.compile(
     r"^\s*\\(?:chapter|section|subsection|subsubsection|paragraph|subparagraph)\*?\{([^}]*)\}"
+)
+LATEX_HEADING_LEVELS = {
+    "chapter": 1,
+    "section": 2,
+    "subsection": 3,
+    "subsubsection": 4,
+    "paragraph": 5,
+    "subparagraph": 6,
+}
+LATEX_HEADING_LEVEL_RE = re.compile(
+    r"^\s*\\(chapter|section|subsection|subsubsection|paragraph|subparagraph)"
 )
 
 
@@ -253,6 +266,23 @@ def _heading_matches(path: str, line: str) -> re.Match[str] | None:
     if suffix in {".html", ".htm"}:
         return HTML_HEADING_RE.match(line)
     return MARKDOWN_HEADING_RE.match(line)
+
+
+def _heading_level(path: str, line: str) -> int:
+    suffix = Path(path).suffix.lower()
+    if suffix in {".tex", ".ltx"}:
+        match = LATEX_HEADING_LEVEL_RE.match(line)
+        if match:
+            return LATEX_HEADING_LEVELS[match.group(1)]
+    elif suffix in {".html", ".htm"}:
+        match = HTML_HEADING_LEVEL_RE.match(line)
+        if match:
+            return int(match.group(1))
+    else:
+        match = MARKDOWN_HEADING_LEVEL_RE.match(line)
+        if match:
+            return len(match.group(1))
+    raise ValueError(f"could not determine heading level for {path!r}: {line!r}")
 
 
 def check_text(path: str, text: str, *, is_pdf: bool = False) -> list[Finding]:
@@ -367,7 +397,8 @@ def check_text(path: str, text: str, *, is_pdf: bool = False) -> list[Finding]:
             )
 
     if not is_pdf:
-        headings: dict[str, int] = {}
+        headings: dict[tuple[str, ...], int] = {}
+        heading_stack: list[tuple[int, str]] = []
         for line_number, line in prose_lines:
             match = _heading_matches(path, line)
             if not match:
@@ -375,18 +406,24 @@ def check_text(path: str, text: str, *, is_pdf: bool = False) -> list[Finding]:
             heading = _normalise_heading(match.group(1))
             if not heading:
                 continue
-            if heading in headings:
+            level = _heading_level(path, line)
+            while heading_stack and heading_stack[-1][0] >= level:
+                heading_stack.pop()
+            scope = tuple(item[1] for item in heading_stack)
+            heading_key = scope + (heading,)
+            if heading_key in headings:
                 findings.append(
                     _finding(
                         path,
                         line_number,
                         "duplicate-heading",
-                        f"heading repeats line {headings[heading]}: {match.group(1)!r}",
+                        f"heading repeats line {headings[heading_key]}: {match.group(1)!r}",
                         line,
                     )
                 )
             else:
-                headings[heading] = line_number
+                headings[heading_key] = line_number
+            heading_stack.append((level, heading))
 
         # Repeated paragraphs are usually copied boilerplate. Ignore short
         # fragments, tables, lists, and fenced code because those have other

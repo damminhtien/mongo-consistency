@@ -21,6 +21,7 @@ client-consistency study. The experiment and its evidence rules are defined in
 make test
 make check-docs
 make check-schemas
+make check-runner-isolation
 make setup
 make smoke
 make pilot

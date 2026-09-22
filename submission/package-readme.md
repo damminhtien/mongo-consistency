@@ -15,6 +15,7 @@ python3 -m pip install -r requirements-dev.txt
 make test
 make check-docs
 make check-schemas
+make check-runner-isolation
 make analyse
 make submission
 ~~~
@@ -45,6 +46,7 @@ To derive report tables from saved histories without starting MongoDB, run:
 
 ~~~bash
 make analyse
+make rq4-analyse
 make submission
 ~~~
 

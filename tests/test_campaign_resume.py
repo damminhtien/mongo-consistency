@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import signal
 import sys
 import tempfile
@@ -15,6 +16,7 @@ from mongo_consistency.models import History
 from scripts.run_campaign import (
     CampaignShutdown,
     _campaign_manifest,
+    _check_previous_manifest,
     _record_from_history,
     _require_frozen_provenance,
     _smoke_gate,
@@ -30,6 +32,75 @@ from scripts.run_campaign import (
 
 
 class CampaignResumeTests(unittest.TestCase):
+    def test_resume_rejects_changed_runtime_provenance(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            manifest_path = Path(directory) / "campaign-manifest.json"
+            manifest_path.write_text(
+                json.dumps(
+                    {
+                        "campaign": "experiment",
+                        "seed_base": 10,
+                        "expected_case_count": 2,
+                        "prediction_commit": "prediction-a",
+                        "prediction_manifest_hash": "hash-a",
+                        "protocol_commit": "protocol-a",
+                        "protocol_hash": "protocol-hash-a",
+                        "runner_commit": "runner-a",
+                        "software_versions": {"python": "3.14.7"},
+                        "image_digest": ["mongo@sha256:a"],
+                    }
+                )
+            )
+            with self.assertRaisesRegex(ValueError, "different runtime provenance"):
+                _check_previous_manifest(
+                    manifest_path,
+                    campaign="experiment",
+                    seed_base=10,
+                    expected_case_count=2,
+                    runtime_metadata={
+                        "prediction_commit": "prediction-b",
+                        "prediction_manifest_hash": "hash-a",
+                        "protocol_commit": "protocol-a",
+                        "protocol_hash": "protocol-hash-a",
+                        "runner_commit": "runner-a",
+                        "software_versions": {"python": "3.14.7"},
+                        "image_digest": ["mongo@sha256:a"],
+                    },
+                )
+
+    def test_resume_rejects_an_altered_history_hash(self) -> None:
+        history = History(
+            manifest={
+                "trial_id": "experiment-00001-C1-ryw",
+                "campaign_id": "experiment",
+                "configuration_id": "C1",
+                "property": "RYW",
+                "adversarial": True,
+                "seed": 11,
+            },
+            operations=[],
+            precondition={
+                "status": "SATISFIED",
+                "checks": [{"name": "resume-fixture", "status": "SATISFIED"}],
+            },
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "history.json"
+            write_history(path, history)
+            payload = json.loads(path.read_text())
+            payload["history_hash"] = "0" * 64
+            path.write_text(json.dumps(payload))
+            with self.assertRaisesRegex(ValueError, "history_hash does not match"):
+                _record_from_history(
+                    path,
+                    campaign="experiment",
+                    ordinal=1,
+                    configuration_id="C1",
+                    property_name="RYW",
+                    adversarial=True,
+                    seed=11,
+                )
+
     def test_resume_record_requires_exact_case_identity(self) -> None:
         trial_id = trial_id_for("experiment", 7, "C3", "MW")
         history = History(

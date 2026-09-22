@@ -37,7 +37,7 @@ Read preference / member & Schedule-directed primary or secondary & Reaches the 
 
 \begin{table}[ht]
 \centering
-\caption{C1-C8 settings and predicted guarantees.}
+\caption{C1-C8 settings and registered prediction targets.}
 \label{tab:configurations}
 \begin{tabular}{@{}lllll@{}}
 \toprule
@@ -55,16 +55,45 @@ C8 & local & majority & off & none \\
 \end{tabular}
 \end{table}
 
+\subsection{Mechanism basis for the sentinel configurations}
+
+The RQ2 sentinel configurations were chosen to separate the mechanisms named
+in the lecture and MongoDB documentation. The table states the mechanism used
+in the prediction; it does not add a guarantee beyond the cited sources.
+
+\begin{table}[ht]
+\centering
+\caption{Mechanism basis for C3, C4, and C6.}
+\label{tab:sentinel-mechanisms}
+\begin{tabular}{@{}p{0.08\textwidth}p{0.25\textwidth}p{0.38\textwidth}p{0.19\textwidth}@{}}
+\toprule
+Config. & Settings & Documented mechanism used in the prediction & Registered targets \\
+\midrule
+C3 & majority read, \texttt{w:1} write, causal session on & The session carries the observed operation time to dependent operations; the majority read selects a majority-committed view. & MR, WFR \\
+C4 & local read, majority write, causal session on & The majority write acknowledgement and session dependency are present, while the local read remains tied to the selected member's state. & MW \\
+C6 & majority read, majority write, causal session on & The read and write acknowledgement conditions are both majority based, and the causal session carries the dependency between operations. & RYW, MR, MW, WFR \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+These rows explain why C3, C4, and C6 were selected as targets. In
+particular, majority read and majority write alone are not treated as a
+substitute for the causal-session mechanism when the question concerns a
+dependency between operations \cite[slides 49 to 53]{cai-lecture-3}
+\cite{mongodb-causal-consistency}.
+
 \subsection{RQ1 predictions}
 
-Before the campaign, we predicted which configurations should provide each
-client-centric property. C3 targets MR and WFR, C4 targets MW, and C6 targets
-all four. We assigned no guarantee target to C1, C2, C5, C7, or C8. A target is
-a prediction for histories that complete under the test schedule; it does not
-mean every repetition must pass. For configurations without a target, we ask
-whether the schedule produces a counterexample, not whether every run violates
-the property. C5 separates majority concerns from causal-session setting, so
-its concerns alone are not taken as a causal-session guarantee.
+Before the campaign, we registered which configurations would be tested as
+targets for each client-centric property. C3 targets MR and WFR, C4 targets
+MW, and C6 targets all four. A targeted history can still be UNAVAILABLE or
+INDETERMINATE when the schedule does not return the required value or complete
+the dependent operation; those outcomes do not test the prediction. A
+completed, decidable VIOLATION would contradict the prediction. For
+configurations without a target, the campaign records descriptive outcomes
+rather than a prediction test. C5 separates majority concerns from causal
+session state, so its concern settings alone are not treated as a causal
+session guarantee.
 
 We fixed these predictions before running the campaign. An acknowledgement
 does not prove that a write survives recovery:

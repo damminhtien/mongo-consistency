@@ -123,6 +123,15 @@ class DocumentationQualityTests(unittest.TestCase):
         rules = {finding.rule for finding in findings}
         self.assertTrue({"placeholder", "empty-link", "duplicate-heading"} <= rules)
 
+    def test_repeated_headings_in_separate_sections_are_allowed(self) -> None:
+        text = (
+            "# Results\n\n"
+            "## RYW\n\n### Prediction\n\n"
+            "## MR\n\n### Prediction\n"
+        )
+        findings = check_text("sample.md", text)
+        self.assertNotIn("duplicate-heading", {finding.rule for finding in findings})
+
 
 if __name__ == "__main__":
     unittest.main()

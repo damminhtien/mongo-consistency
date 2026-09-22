@@ -14,7 +14,11 @@ The Compose deployment runs on one physical host. Three MongoDB containers
 network. The experiment runner joins only the client network. A fault
 controller shares each MongoDB container's network namespace and changes
 replica-path reachability through a restricted control endpoint. The runner
-does not have a Docker socket or Docker credentials.
+receives only the results, figures, and setup-provenance mounts. The Compose
+definition contains no Docker socket or credential mount, and the runtime
+boundary is checked by
+\texttt{scripts/check\_runner\_isolation.py}. The saved result is
+\texttt{results/validation/runner-isolation.json}.
 
 The default host ports are 27017, 27018, and 27019 for the three members; their
 database port inside each container is 27017. The default Compose subnets are
