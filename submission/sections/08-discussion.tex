@@ -1,46 +1,34 @@
 \section{Discussion}
 
-\subsection{What the two campaigns show together}
+\subsection{From stale results to waiting and unresolved operations}
 
-The configuration and fault campaigns point to the same distinction. A weak
-setting can return a completed value from a lagging branch or acknowledge a
-write that is not retained after recovery. A stronger setting can withhold the
-operation until the required state is available. The client then sees a wait,
-timeout, or unresolved history instead of a returned stale value. These are
-different outcomes, and the latter is not evidence of continuous availability.
+The configuration campaign shows that consistency settings change the form of
+failure visible to the client. C7 provides the simplest normal example: a
+\texttt{w:1} write returned successfully, but a later majority read without a
+causal session reached a secondary that still returned version 0. The final
+state converged to version 1, but convergence did not repair the value already
+returned to the client.
 
-The C1-C8 matrix is better read as an experimental cube than as a single
-ranking. The result depends on the property predicate, operation order, session
-state, read and write concern, and member that receives the request. Majority
-read and majority write do not replace the causal dependency carried by a
-session when the property concerns an ordered sequence of operations.
+The partition makes the contrast sharper. Under C1, a weak write can complete
+on the isolated branch and the following operation can expose stale or
+reordered state. Under C6, majority acknowledgement and the causal dependency
+constrain the operation at the partition boundary. The client then sees a
+timeout or an unissued dependent operation rather than a completed
+counterexample. This is a change in failure mode, not evidence that the
+operation succeeded.
 
-\subsection{Effect of topology changes}
+The mechanism contrasts support this interpretation. C5 and C6 differ in
+causal-session state; C8 and C5 differ in read concern; C3 and C6 differ in
+write concern while preserving the other mechanism choices needed for the
+comparison. The histories show what the client received and when, but they do
+not expose MongoDB's internal wait state.
 
-The secondary crash removed redundancy without producing a recorded anomaly in
-the tested schedule. Primary failure produced an election interval, but the
-protocol did not send a subject operation during that interval. The partition
-was the informative fault: it kept one branch client-reachable while removing
-its replication path. C1 then exposed stale or reordered state, whereas C6
-usually remained unresolved at the majority-write boundary.
+\subsection{Consistency, completion, and latency}
 
-\subsection{Completion and latency}
+The property result answers whether a completed history contradicted the
+dependency. The completion result asks whether the client obtained a
+decidable answer at all. Latency then asks how long the critical operation
+took. A stronger setting can therefore improve the consistency outcome while
+reducing completion under partition.
 
-Completion and consistency must be reported separately. The completion tables
-use PASS and VIOLATION as definitive outcomes and retain UNAVAILABLE and
-INDETERMINATE as their own categories. All-attempt latency includes timed-out
-critical operations; resolved latency uses only histories with a definitive
-PASS or VIOLATION. This separation prevents a timeout from disappearing from
-the measurement or being counted as a successful consistency check.
-
-The matched mechanism histories support these explanations but do not reveal
-MongoDB's internal wait state. A client timeout shows that the operation did
-not return within the deadline. It does not by itself show whether the server
-applied the operation, continued waiting, or later completed it.
-
-\subsection{Interpretation boundary}
-
-The observations are conditional on the recorded MongoDB and PyMongo versions,
-the C1-C8 settings, the registered schedules, and the single-host Docker
-topology. They describe the measured client histories. They do not establish a
-universal guarantee for every deployment or application.
+\input{submission/generated-rq4.tex}

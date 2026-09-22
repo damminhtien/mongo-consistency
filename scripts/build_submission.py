@@ -39,7 +39,6 @@ REQUIRED_SECTIONS = tuple(
         (6, "method"),
         (7, "results"),
         (8, "discussion"),
-        (9, "limits"),
         (10, "reproduction"),
         (11, "conclusion"),
         (12, "tool-use"),
@@ -729,7 +728,6 @@ def write_generated_analysis(path: Path, root: Path) -> None:
                 f"{'/'.join(map(str, fault_outcome_values))} & "
                 f"{operation_successful}/{operation_attempted} "
                 f"({percent_value(fault_summary.get('operation_success_rate'))}\\%) & "
-                f"{percent_value(fault_summary.get('history_completion_rate'))}\\% & "
                 f"{millisecond_value((fault_summary.get('latency_ms') or {}).get('p50'))}/"
                 f"{millisecond_value((fault_summary.get('latency_ms') or {}).get('p95'))} \\\\"
             )

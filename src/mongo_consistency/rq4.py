@@ -551,7 +551,7 @@ def _outcomes_partition_body(rows: list[dict[str, Any]]) -> tuple[str, int]:
     body = _svg_text(
         left,
         68,
-        "RQ2 F3 signature cells; each bar is one C1/C6 RYW or MW comparison",
+        "F3 partition cells; each bar is one C1/C6 RYW or MW comparison",
         size=13,
         color="#475569",
     )
@@ -613,7 +613,7 @@ def _latency_completion_body(rows: list[dict[str, Any]]) -> tuple[str, int]:
     body = _svg_text(
         left,
         67,
-        "RQ2 F3 partition cells; client-observed time to the critical operation",
+        "Partition cells; client-observed time to the critical operation",
         size=13,
         color="#475569",
     )
@@ -696,7 +696,7 @@ def _contrast_body(contrasts: list[dict[str, Any]]) -> tuple[str, int]:
     ]
     width, row_height = 1120, 36
     left, top, bar_width = 255, 95, 560
-    body = _svg_text(left, 68, "RQ1 normal and property-specific fault schedules; C5 is absent from RQ2 F3", size=13, color="#475569")
+    body = _svg_text(left, 68, "Normal and property-specific fault schedules; C5 is absent from F3", size=13, color="#475569")
     body += _svg_text(left + bar_width / 2, 88, "critical-operation p95 latency (ms)", size=12, anchor="middle")
     max_value = max(
         (float(row[field]) for row in rows for field in ("left_p95_ms", "right_p95_ms") if row[field] is not None),
@@ -738,13 +738,13 @@ def _contrast_body(contrasts: list[dict[str, Any]]) -> tuple[str, int]:
 
 
 def generate_figures(figures_root: Path, rows: list[dict[str, Any]], contrasts: list[dict[str, Any]]) -> list[Path]:
-    """Generate the three RQ4 PDF figures from aggregate rows."""
+    """Generate the three completion and latency figures from aggregate rows."""
 
     figures_root.mkdir(parents=True, exist_ok=True)
     outputs = [
-        (figures_root / "rq4_outcomes_partition.pdf", _outcomes_partition_body(rows), "RQ4 paired partition signature outcomes"),
-        (figures_root / "rq4_latency_completion.pdf", _latency_completion_body(rows), "RQ4 client-observed time versus completion"),
-        (figures_root / "rq4_c5_c6_contrast.pdf", _contrast_body(contrasts), "RQ4 C5 versus C6 contrast"),
+        (figures_root / "rq4_outcomes_partition.pdf", _outcomes_partition_body(rows), "Paired partition signature outcomes"),
+        (figures_root / "rq4_latency_completion.pdf", _latency_completion_body(rows), "Client-observed time versus completion"),
+        (figures_root / "rq4_c5_c6_contrast.pdf", _contrast_body(contrasts), "C5 versus C6 contrast"),
     ]
     paths: list[Path] = []
     for path, (body, height), title in outputs:

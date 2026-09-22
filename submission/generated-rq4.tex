@@ -1,57 +1,29 @@
-\subsection{Completion and latency}
-
-The completion and latency summary is computed offline from the recorded
-configuration and fault histories. It adds no database run or new workload.
-For each cell, definitive completion is
-\(D=(\mathrm{PASS}+\mathrm{VIOLATION})/\mathrm{attempted}\), where attempted
-includes PASS, VIOLATION, UNAVAILABLE, and INDETERMINATE. It is an observed
-workload measure, not formal CAP availability.
-
-All-attempt latency includes valid timeout outcomes. Resolved latency uses only
-histories with PASS or VIOLATION, so the two samples answer different questions.
-The small cells are reported with p50 and p95 values.
+The completion analysis asks what the client received after the consistency
+predicate is applied. For the paired partition cells, definitive completion is
+\(D=(\mathrm{PASS}+\mathrm{VIOLATION})/
+(\mathrm{PASS}+\mathrm{VIOLATION}+\mathrm{UNAVAILABLE}+\mathrm{INDETERMINATE})\).
+It is an observed workload measure, not formal CAP availability.
 
 \begin{table}[ht]
 \centering
 \small
 \setlength{\tabcolsep}{4pt}
-\caption{Paired signature outcomes under the recorded partition.}
+\caption{Client-observed completion and latency under the recorded partition.}
 \label{tab:completion-partition-outcomes}
 \begin{tabular}{@{}l l r l r r@{}}
 \toprule
-Config & Property & $n$ & P/V/U/I & $D$ & All-attempt p95 (ms) \\
+Config. & Property & $n$ & P/V/U/I & $D$ & All-attempt p95 (ms) \\
 \midrule
 \RQFourPartitionRows
 \bottomrule
 \end{tabular}
 \end{table}
 
-The paired signatures show the same pattern for RYW and MW. C1's RYW cell has
-P/V/U/I counts \RQFourPartitionCOneRYWCounts\ and definitive completion
-\RQFourPartitionCOneRYWCompletion; its MW cell has
-\RQFourPartitionCOneMWCounts\ and \RQFourPartitionCOneMWCompletion. The
-matching C6 cells have RYW counts \RQFourPartitionCsixRYWCounts\ and
-completion \RQFourPartitionCsixRYWCompletion, followed by MW counts
-\RQFourPartitionCsixMWCounts\ and completion
-\RQFourPartitionCsixMWCompletion. C1 returns a result in these cells; C6
-remains unresolved at the majority-write boundary.
-
-\begin{table}[ht]
-\centering
-\small
-\setlength{\tabcolsep}{4pt}
-\caption{C5 and C6 one-factor contrasts. Deltas are C6 minus C5.}
-\label{tab:completion-c5-c6}
-\begin{tabular}{@{}l l l r r@{}}
-\toprule
-Scenario & Property & Status & $\Delta p95$ (ms) & $\Delta D$ \\
-\midrule
-\RQFourContrastRows
-\bottomrule
-\end{tabular}
-\end{table}
-
-The tables describe the tested schedules. They do not rank configurations or
-turn observed completion into a general availability claim.
+The paired C1 cells complete the scheduled operation and expose the weak
+setting's stale or reordered state. The matching C6 cells have no completed
+counterexample because the majority-write boundary is not satisfied under the
+partition. All-attempt latency retains timed-out operations; resolved latency,
+shown in Appendix~\ref{app:completion-details}, uses only PASS and VIOLATION
+histories.
 
 \maybefigure[fig:completion-latency]{submission/figures/rq4_latency_completion.pdf}{Client-observed p95 time and definitive completion under the recorded schedules.}

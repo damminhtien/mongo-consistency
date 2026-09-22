@@ -1,33 +1,30 @@
-\subsection{Matched mechanism contrasts}
-
-These matched histories explain representative observations from the two
-campaigns. They are not a separate benchmark or a new denominator. The three
-contrasts change one mechanism at a time: causal session state, read concern,
-and write concern. The observations are interpreted through the client-centric
-definitions from Lecture~3 and the cited MongoDB documentation.
+The paired histories explain the three campaign-level patterns without adding
+a new workload or denominator. Each contrast changes one mechanism while
+keeping the relevant property schedule and route checks visible.
 
 {\small
 \setlength{\tabcolsep}{3pt}
-\begin{longtable}{@{}p{3.0cm}p{7.8cm}p{5.0cm}@{}}
-\caption{Matched mechanism evidence from control-valid pairs.}
-\label{tab:rq3-mechanisms}\\
+\begin{longtable}{@{}p{3.3cm}p{11.5cm}@{}}
+\caption{Mechanism evidence from control-valid paired histories.}
+\label{tab:mechanism-evidence}\\
 \toprule
-Factor changed & Observed mechanism signature & Limitation \\
+Factor changed & What the paired histories showed \\
 \midrule
 \endfirsthead
-\caption[]{Matched mechanism evidence (continued).}\\
+\caption[]{Mechanism evidence from paired histories (continued).}\\
 \toprule
-Factor changed & Observed mechanism signature & Limitation \\
+Factor changed & What the paired histories showed \\
 \midrule
 \endhead
 \bottomrule
 \endfoot
-causal session: C5 versus C6, off versus on & C5 returned stale v0 without afterClusterTime in all valid pairs; C6 carried afterClusterTime in all valid pairs, with no successful stale read and unavailable reads in all valid pairs. & The timeout is client-visible and does not reveal internal waiting; the contrast is consistent with a causal-session lower bound, not a universal guarantee. \\
-read concern: C8 versus C5, local versus majority & C8 local returned v1 in all valid pairs; C5 majority returned v0 in all valid pairs. The returned version was present in final state for C8/C5 in no valid pairs and all valid pairs. & The setup W1 was a protocol-defined w:1 stimulus, not an independently observed command. The trace supports a role/state comparison, not a general route effect. \\
-write concern: C3 versus C6, w:1 versus majority & C3 acknowledged W1 at w:1 in all valid pairs; the acknowledged W1 was absent from all converged members in all valid pairs. C6 majority W1 timed out in all valid pairs; direct W1 presence after healing was observed in no valid pairs. & A timeout leaves the write effect unresolved from the client response; it does not establish definite failure or internal waiting. Final presence is a separate observation from acknowledgement. \\
+causal session: C5 versus C6 & C5 returned stale v0 without \texttt{afterClusterTime} in all valid pairs. C6 carried the causal lower bound in all valid pairs and all corresponding reads were unavailable before returning a stale value. \\
+read concern: C8 versus C5 & C8 local reads returned v1 in all valid pairs, while C5 majority reads returned v0 in all valid pairs. The comparison isolates the state selected by the read concern under the recorded setup. \\
+write concern: C3 versus C6 & C3 acknowledged W1 at \texttt{w:1} in all valid pairs and W1 was absent after convergence. C6 majority writes timed out in all valid pairs, leaving the client-side effect unresolved. \\
 \end{longtable}
 }
 
-These observations are finite and schedule-specific. The pair-control audit,
-selected history identities, and raw hashes are retained in the analysis
-artifacts.
+The causal-session contrast links the stale completed read to the absence of a
+causal lower bound. The write-concern contrast links the unresolved outcome to
+the acknowledgement boundary. These are mechanism-consistent explanations of
+the recorded traces, not claims about an unobserved internal server state.

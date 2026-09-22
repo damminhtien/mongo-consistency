@@ -17,9 +17,8 @@ the order in which the project tasks happened.
 4. Results: baseline, configuration effects, fault effects, selected mechanism
    evidence, and client-visible completion consequences.
 5. Discussion: three synthesis claims drawn across campaigns.
-6. Limitations: validity boundaries and unmeasured intervals.
-7. Reproducibility: commands and evidence locations.
-8. Conclusion: the three findings that answer the two central questions.
+6. Reproducibility: commands and evidence locations.
+7. Conclusion: the three findings that answer the two central questions.
 
 The full configuration matrices, raw history identities, hashes, and CSV
 metrics remain in the repository as audit material. They are not reproduced as
@@ -37,8 +36,8 @@ generated document fragments.
   matters without repeating the same template for every property.
 - Put cross-campaign interpretation in Discussion. Do not repeat the same
   finding in Results, Discussion, and Conclusion.
-- Keep full caveats in Limitations. State the relevant qualification beside a
-  result only when omitting it would change the reader's interpretation.
+- State scope qualifications beside the relevant result when omitting them
+  would change the reader's interpretation.
 - Keep raw JSON histories and machine-readable CSV summaries as the evidence
   boundary. Do not fabricate a value for an unavailable or indeterminate cell.
 

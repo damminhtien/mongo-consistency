@@ -1,16 +1,18 @@
 \section{Conclusion}
 
-The two campaigns show that concern settings and causal sessions change the
-form of a consistency failure visible to a MongoDB client. Under the recorded
-partition, C1 returned stale-read and write-order counterexamples. The matching
-C6 histories usually stopped at a majority-write timeout before the dependent
-operation could be issued. A stronger consistency setting can therefore avoid
-a returned counterexample by leaving the operation unresolved.
+The configuration campaign answers the first study question: read concern,
+write concern, and causal sessions change whether a stale or dependency-breaking
+result can complete. The normal C7 history shows that a majority read does not
+by itself protect a preceding \texttt{w:1} write when the session carries no
+causal dependency.
 
-The fault results also show why topology and completion need to be reported
-alongside the property result. The election interval was not probed by a
-subject request, and the post-recovery witness cannot describe every transient
-state before convergence. The conclusions apply to MongoDB
-\MongoDBServerVersion, PyMongo \PyMongoVersion, the recorded schedules, and
-the single-host deployment. They are not a universal availability or
-consistency guarantee.
+The fault campaign answers the second question. The tested secondary loss and
+post-election calls did not produce a new anomaly in their scheduled windows.
+The replication partition created the clearest separation: C1 returned
+completed stale or reordered outcomes, while C6 commonly stopped at a
+majority-write timeout before the dependent operation could be issued.
+
+The combined finding is that stronger settings can shift the client-visible
+failure mode from an inconsistent completed result to waiting, timeout, or
+unresolved completion. This conclusion is limited to the recorded schedules,
+software versions, and single-host deployment.

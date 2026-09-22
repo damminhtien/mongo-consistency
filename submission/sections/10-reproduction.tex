@@ -1,21 +1,15 @@
 \section{Reproducibility}
 
-The submitted archive contains the compiled report PDF and the runtime source
-and campaign scripts needed to recreate the MongoDB deployment. The report
-source, tests, offline analysis tools, and raw histories remain in the
-repository for review but are not part of the upload archive.
+The repository contains the Compose deployment, runtime code, configuration
+matrix, schedules, schemas, raw histories, and offline checks used to produce
+the report. The submitted archive contains the compiled PDF and the code
+needed to run the MongoDB campaigns; the authored LaTeX source, tests, raw
+histories, and report-building scripts remain outside that archive.
 
-From a clean checkout with Docker running, install the pinned dependencies and
-start the three-member Compose deployment:
+The main commands are:
 
 \begin{verbatim}
-python3 -m pip install -r requirements-dev.txt
 make setup
-\end{verbatim}
-
-The live campaign commands are:
-
-\begin{verbatim}
 make smoke
 make pilot
 make experiment
@@ -23,26 +17,8 @@ make rq2
 make rq3
 \end{verbatim}
 
-Smoke checks the execution machinery and is not scientific evidence. Pilot
-histories are separate from the main configuration campaign. The fault
-campaign uses its own manifest and groups histories that share one fault
-episode.
-
-The offline checks rebuild summaries from saved histories without connecting to
-MongoDB:
-
-\begin{verbatim}
-make test
-make check-docs
-make check-schemas
-make check-runner-isolation
-make analyse
-make rq3-analyse
-make rq4-analyse
-\end{verbatim}
-
-Finally, \texttt{make submission} compiles the manually authored LaTeX source,
-adds the data macros derived from the saved summaries, validates the PDF, and
-creates the archive containing the PDF and runtime code. The manifest records
-SHA-256 checksums for the uploaded files. Run
-\texttt{make check-submission-artifacts} before upload.
+Appendix~\ref{app:install} gives the installation sequence and the offline
+validation commands. Appendix~\ref{app:full-results} gives the full matrices,
+audit identities, and additional figures. The report is compiled from the
+hand-authored source in \texttt{submission/}; the build may add numeric macros
+derived from saved results, but it does not write report prose or sections.

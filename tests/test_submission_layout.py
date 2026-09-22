@@ -84,12 +84,13 @@ class SubmissionLayoutTests(unittest.TestCase):
             r"\input{submission/sections/04-method.tex}",
             r"\input{submission/sections/07-results.tex}",
             r"\input{submission/sections/08-discussion.tex}",
-            r"\input{submission/sections/09-limits.tex}",
             r"\input{submission/sections/10-reproduction.tex}",
             r"\input{submission/sections/11-conclusion.tex}",
         )
         positions = [report.index(item) for item in ordered]
         self.assertEqual(positions, sorted(positions))
+        self.assertNotIn(r"\input{submission/sections/09-limits.tex}", report)
+        self.assertFalse((ROOT / "submission/sections/09-limits.tex").exists())
 
         introduction = (ROOT / "submission/sections/02-introduction.tex").read_text(encoding="utf-8")
         self.assertIn("Q_1", introduction)
