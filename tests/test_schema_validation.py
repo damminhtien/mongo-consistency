@@ -195,7 +195,7 @@ class SchemaValidationTests(unittest.TestCase):
                 (ROOT / "configs/configurations.json").read_text(encoding="utf-8"),
                 encoding="utf-8",
             )
-            manifest_path = root / "results/raw/rq3-v2/campaign-manifest.json"
+            manifest_path = root / "results/raw/rq3/campaign-manifest.json"
             manifest_path.parent.mkdir(parents=True)
             manifest_path.write_text("{}", encoding="utf-8")
 
@@ -203,7 +203,7 @@ class SchemaValidationTests(unittest.TestCase):
             _check_rq3_campaign_manifest_v2(
                 {
                     "protocol_id": "rq3-protocol.v2",
-                    "repetitions_per_contrast": 5,
+                    "repetitions_per_contrast": 8,
                     "records": [],
                 },
                 manifest_path,
@@ -213,7 +213,7 @@ class SchemaValidationTests(unittest.TestCase):
             _check_rq3_campaign_manifest_v2(
                 {
                     "protocol_id": "rq3-protocol.v2",
-                    "repetitions_per_contrast": 5,
+                    "repetitions_per_contrast": 8,
                     "records": [],
                     "pair_controls": [
                         {

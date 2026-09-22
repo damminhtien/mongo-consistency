@@ -19,13 +19,13 @@ from mongo_consistency.rq3 import TOPOLOGY_PLANS, normalize_topology
 from mongo_consistency.topology import TopologyError, TopologyOracle
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_CYCLES = 1
+DEFAULT_CYCLES = 10
 OUTPUT = ROOT / "results/raw/rq3-preflight.json"
 
 
 def run_preflight(*, output: Path = OUTPUT, cycles: int = DEFAULT_CYCLES) -> dict[str, Any]:
     if cycles != DEFAULT_CYCLES:
-        raise ValueError("protocol v2 requires exactly one topology rehearsal")
+        raise ValueError("protocol v2 requires exactly ten topology rehearsals")
     plan = TOPOLOGY_PLANS["M3"]
     controller = controller_from_environment()
     metadata = campaign_runtime_metadata(ROOT / "results/raw")

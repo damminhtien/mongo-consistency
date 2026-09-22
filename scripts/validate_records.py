@@ -630,7 +630,7 @@ def _check_rq3_campaign_manifest_v2(
     """Check protocol-v2 plan and history references after JSON Schema validation."""
 
     repetitions = payload.get("repetitions_per_contrast")
-    valid_repetitions = type(repetitions) is int and 5 <= repetitions <= 10
+    valid_repetitions = type(repetitions) is int and repetitions == 8
     records = payload.get("records")
     if not isinstance(records, list):
         return
@@ -762,12 +762,12 @@ def _check_rq3_campaign_manifest_v2(
             errors.append(f"{path}: RQ3 v2 history path must be repository-relative: {relative_history_path}")
             continue
         history_path = repository_root / relative_path
-        raw_root = repository_root / "results/raw/rq3-v2"
+        raw_root = repository_root / "results/raw/rq3"
         try:
             resolved_history_path = history_path.resolve()
             resolved_history_path.relative_to(raw_root.resolve())
         except (OSError, ValueError):
-            errors.append(f"{path}: RQ3 v2 history path escapes results/raw/rq3-v2: {relative_history_path}")
+            errors.append(f"{path}: RQ3 v2 history path escapes results/raw/rq3: {relative_history_path}")
             continue
         if (
             not isinstance(trial_id, str)
@@ -958,10 +958,10 @@ def _check_rq3_preflight(
     )
     if payload.get("status") == "PASS":
         _require(
-            payload.get("planned_cycle_count") == 1
-            and len(cycles) == 1
-            and passed == 1,
-            f"{path}: passing topology rehearsal must include its one planned cycle",
+            payload.get("planned_cycle_count") == 10
+            and len(cycles) == 10
+            and passed == 10,
+            f"{path}: passing topology rehearsal must include all ten planned cycles",
             errors,
         )
 
@@ -1085,7 +1085,7 @@ def validate(root: Path) -> list[str]:
     summary = root / "results/summary/summary.json"
     if summary.is_file():
         _check_summary(summary, errors, validators)
-    analysis_root = root / "results/analysis/rq3-v2"
+    analysis_root = root / "results/analysis/rq3"
     analysis_summary = analysis_root / "summary.json"
     selection_manifest = analysis_root / "selection-manifest.json"
     if analysis_summary.is_file():

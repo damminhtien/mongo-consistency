@@ -34,9 +34,10 @@ from mongo_consistency.rq3_anchors import verify_anchor_manifest
 from mongo_consistency.topology import TopologyOracle
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_REPETITIONS = 5
-MIN_REPETITIONS = 5
-MAX_REPETITIONS = 10
+RQ3_REPETITIONS = 8
+DEFAULT_REPETITIONS = RQ3_REPETITIONS
+MIN_REPETITIONS = RQ3_REPETITIONS
+MAX_REPETITIONS = RQ3_REPETITIONS
 
 
 @dataclass(frozen=True)
@@ -343,12 +344,12 @@ def _preflight_digest(path: Path) -> str:
         payload.get("schema_version") != "rq3-preflight.v2"
         or payload.get("protocol_id") != "rq3-protocol.v2"
         or payload.get("status") != "PASS"
-        or payload.get("planned_cycle_count") != 1
-        or payload.get("completed_cycle_count") != 1
-        or payload.get("passed_cycle_count") != 1
+        or payload.get("planned_cycle_count") != 10
+        or payload.get("completed_cycle_count") != 10
+        or payload.get("passed_cycle_count") != 10
         or payload.get("topology_plan") != TOPOLOGY_PLANS["M3"].to_dict()
     ):
-        raise ValueError(f"RQ3 topology preflight must pass its single topology rehearsal: {path}")
+        raise ValueError(f"RQ3 topology preflight must pass all ten topology rehearsals: {path}")
     return _sha256(path)
 
 
@@ -619,7 +620,7 @@ def main() -> int:
     parser.add_argument("--repetitions", type=int, default=DEFAULT_REPETITIONS)
     parser.add_argument("--seed-base", type=int)
     parser.add_argument("--resume", action="store_true")
-    parser.add_argument("--output-root", type=Path, default=ROOT / "results/raw/rq3-v2")
+    parser.add_argument("--output-root", type=Path, default=ROOT / "results/raw/rq3")
     args = parser.parse_args()
     manifest = run_campaign(
         output_root=args.output_root,

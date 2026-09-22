@@ -20,8 +20,8 @@ from mongo_consistency.rq3 import TOPOLOGY_PLANS, pair_control
 from mongo_consistency.rq3_anchors import verify_anchor_manifest
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_INPUT = ROOT / "results/raw/rq3-v2"
-DEFAULT_OUTPUT = ROOT / "results/analysis/rq3-v2"
+DEFAULT_INPUT = ROOT / "results/raw/rq3"
+DEFAULT_OUTPUT = ROOT / "results/analysis/rq3"
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -756,15 +756,15 @@ def _summary_and_report(
         preflight.get("schema_version") != "rq3-preflight.v2"
         or preflight.get("protocol_id") != "rq3-protocol.v2"
         or preflight.get("status") != "PASS"
-        or preflight.get("planned_cycle_count") != 1
-        or preflight.get("completed_cycle_count") != 1
-        or preflight.get("passed_cycle_count") != 1
+        or preflight.get("planned_cycle_count") != 10
+        or preflight.get("completed_cycle_count") != 10
+        or preflight.get("passed_cycle_count") != 10
         or preflight.get("topology_plan") != TOPOLOGY_PLANS["M3"].to_dict()
     ):
         raise ValueError("RQ3 topology rehearsal did not pass its control")
     repetitions = campaign.get("repetitions_per_contrast")
-    if type(repetitions) is not int or not 5 <= repetitions <= 10:
-        raise ValueError("RQ3 campaign repetitions must be between five and ten")
+    if type(repetitions) is not int or repetitions != 8:
+        raise ValueError("RQ3 campaign repetitions must be exactly eight")
     expected_count = campaign.get("planned_case_count")
     records = campaign.get("records", [])
     if (

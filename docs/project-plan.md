@@ -59,7 +59,7 @@ read-concern, and write-concern questions. The selected IDs and raw hashes live
 in [`configs/rq3-anchors.json`](../configs/rq3-anchors.json); the selection
 and its limits are described in
 [`rq3-historical-trace-selection.md`](rq3-historical-trace-selection.md).
-Three bounded matched contrasts replay each mechanism five times (30 histories
+Three bounded matched contrasts replay each mechanism eight times (48 histories
 total). These runs explain selected observations; they do not estimate
 violation probabilities. Each arm normalizes a fixed topology, checks direct
 member roles and actual command routes, and records final state after healing.
@@ -121,8 +121,8 @@ cache state is logged separately and never treated as ground truth.
    partition signature cells. The completed campaign has 432 histories across
    36 episodes; its generated report and detailed results are in
    [rq2-results.md](rq2-results.md) and the submission Results section.
-9. Verify the six historical RQ1 anchors, run one topology rehearsal, then run
-   the 30-history RQ3 replay and analyze control-valid pairs.
+9. Verify the six historical RQ1 anchors, run ten topology rehearsals, then run
+   the 48-history RQ3 replay and analyze control-valid pairs.
 10. Rebuild analysis, plots, LaTeX macros, PDF, and reproduction archive from
     canonical raw histories.
 11. Audit the clean-clone path, generated artifacts, staged diff, and final

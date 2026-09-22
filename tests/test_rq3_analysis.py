@@ -126,9 +126,9 @@ class RQ3AnalysisTests(unittest.TestCase):
                         "schema_version": "rq3-preflight.v2",
                         "protocol_id": "rq3-protocol.v2",
                         "status": "PASS",
-                        "planned_cycle_count": 1,
-                        "completed_cycle_count": 1,
-                        "passed_cycle_count": 1,
+                        "planned_cycle_count": 10,
+                        "completed_cycle_count": 10,
+                        "passed_cycle_count": 10,
                         "topology_plan": TOPOLOGY_PLANS["M3"].to_dict(),
                     },
                     sort_keys=True,
@@ -159,7 +159,7 @@ class RQ3AnalysisTests(unittest.TestCase):
             pair_controls = []
             ordinal = 0
             for contrast_id, (campaign_id, configurations, property_name, _operations) in CONTRASTS.items():
-                for replicate in range(1, 6):
+                for replicate in range(1, 9):
                     pair_id = f"{contrast_id.lower()}-r{replicate:02d}"
                     pair_seed = 700 + replicate
                     histories = {}
@@ -237,10 +237,10 @@ class RQ3AnalysisTests(unittest.TestCase):
                 "protocol_id": "rq3-protocol.v2",
                 "campaign": "rq3",
                 "status": "COMPLETE",
-                "repetitions_per_contrast": 5,
+                "repetitions_per_contrast": 8,
                 "seed_base": 700,
-                "planned_case_count": 30,
-                "completed_case_count": 30,
+                "planned_case_count": 48,
+                "completed_case_count": 48,
                 "runner_commit": runner_commit,
                 "runner_script_sha256": _frozen_hash(ROOT / "scripts/run_rq3_campaign.py"),
                 "configuration_sha256": _frozen_hash(ROOT / "configs/configurations.json"),
@@ -282,11 +282,11 @@ class RQ3AnalysisTests(unittest.TestCase):
 
             m1 = summary["contrast_summaries"]["M1"]
             self.assertEqual("rq3-analysis.v2", summary["schema_version"])
-            self.assertEqual(4, m1["control_valid_pair_count"])
+            self.assertEqual(7, m1["control_valid_pair_count"])
             self.assertEqual(1, m1["invalid_pair_count"])
             self.assertEqual("m1-r01", m1["invalid_pairs"][0]["pair_id"])
             self.assertEqual(
-                4,
+                7,
                 m1["signature_counts"]["C5_stale_success_without_after_cluster_time"],
             )
             self.assertEqual("m1-r02", m1["selected_pair"]["pair_id"])
@@ -296,10 +296,10 @@ class RQ3AnalysisTests(unittest.TestCase):
             report = (submission_root / "generated-rq3.tex").read_text(encoding="utf-8")
             self.assertEqual("rq3-selection.v2", selection["schema_version"])
             self.assertEqual(summary["preflight_sha256"], selection["preflight_sha256"])
-            self.assertIn("Control-valid pairs 4/5", report)
+            self.assertIn("Control-valid pairs 7/8", report)
             self.assertNotIn("post-hoc", report)
             self.assertNotIn("permutation", report)
-            self.assertEqual(30, len(manifest["records"]))
+            self.assertEqual(48, len(manifest["records"]))
 
 
 if __name__ == "__main__":

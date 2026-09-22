@@ -73,7 +73,7 @@ RQ3_CONTRASTS = {
         "capture_operations": ["first_write", "second_write"],
     },
 }
-RQ3_REPETITIONS = 5
+RQ3_REPETITIONS = 8
 RQ3_EXPECTED_ROUTES = {
     "M1": {"write": "mongo3", "read": "mongo1"},
     "M2": {"read": "mongo3", "write": "mongo2"},
@@ -439,14 +439,14 @@ def _check_rq3_preflight(
         or preflight.get("protocol_id") != "rq3-protocol.v2"
         or preflight.get("status") != "PASS"
         or preflight.get("topology_plan") != topology_plan
-        or preflight.get("planned_cycle_count") != 1
-        or preflight.get("completed_cycle_count") != 1
-        or preflight.get("passed_cycle_count") != 1
+        or preflight.get("planned_cycle_count") != 10
+        or preflight.get("completed_cycle_count") != 10
+        or preflight.get("passed_cycle_count") != 10
     ):
-        errors.append("rq3: topology rehearsal must pass its single cycle for the registered M3 plan")
+        errors.append("rq3: topology rehearsal must pass all ten cycles for the registered M3 plan")
     cycles = preflight.get("cycles")
-    if not isinstance(cycles, list) or len(cycles) != 1:
-        errors.append("rq3: topology rehearsal must contain exactly one cycle record")
+    if not isinstance(cycles, list) or len(cycles) != 10:
+        errors.append("rq3: topology rehearsal must contain exactly ten cycle records")
     else:
         for expected_cycle, cycle in enumerate(cycles, start=1):
             if (
@@ -479,7 +479,7 @@ def _operation(history: dict[str, Any], operation_id: str) -> dict[str, Any] | N
 def _check_rq3(root: Path, errors: list[str]) -> None:
     """Require complete protocol-v2 RQ3 controls and raw-derived analysis."""
 
-    raw_root = root / "results/raw/rq3-v2"
+    raw_root = root / "results/raw/rq3"
     manifest_path = raw_root / "campaign-manifest.json"
     manifest = _read_object(manifest_path, errors)
     if manifest is None:
@@ -723,7 +723,7 @@ def _check_rq3(root: Path, errors: list[str]) -> None:
         try:
             resolved_path.relative_to(raw_root.resolve())
         except ValueError:
-            errors.append(f"rq3: history path escapes results/raw/rq3-v2: {relative_path}")
+            errors.append(f"rq3: history path escapes results/raw/rq3: {relative_path}")
             continue
         if not resolved_path.is_file():
             errors.append(f"rq3: history file is missing: {relative_path}")
@@ -946,8 +946,10 @@ def _check_rq3(root: Path, errors: list[str]) -> None:
                     f"rq3: {contrast_id} {operation_id} route match must be "
                     f"{RQ3_REPETITIONS}/{RQ3_REPETITIONS} pairs"
                 )
-    if m2_setup_evidence_count != 10:
-        errors.append("rq3: M2 setup W1 command evidence must cover 10/10 arms")
+    if m2_setup_evidence_count != RQ3_REPETITIONS * 2:
+        errors.append(
+            f"rq3: M2 setup W1 command evidence must cover {RQ3_REPETITIONS * 2}/{RQ3_REPETITIONS * 2} arms"
+        )
     for contrast_id, pair_ids in valid_pair_ids.items():
         if len(pair_ids) != RQ3_REPETITIONS:
             errors.append(
@@ -955,7 +957,7 @@ def _check_rq3(root: Path, errors: list[str]) -> None:
                 f"{RQ3_REPETITIONS}/{RQ3_REPETITIONS}"
             )
 
-    analysis_root = root / "results/analysis/rq3-v2"
+    analysis_root = root / "results/analysis/rq3"
     summary_path = analysis_root / "summary.json"
     selection_path = analysis_root / "selection-manifest.json"
     summary = _read_object(summary_path, errors)

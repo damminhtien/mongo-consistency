@@ -110,14 +110,14 @@ class RQ3CampaignTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "other configuration fields differ"):
             _validate_configuration_contrasts(altered)
 
-    def test_plan_has_30_histories_with_stable_matched_pair_identity(self) -> None:
-        cases = _plan(5, 250_000)
+    def test_plan_has_48_histories_with_stable_matched_pair_identity(self) -> None:
+        cases = _plan(8, 250_000)
 
-        self.assertEqual(30, len(cases))
+        self.assertEqual(48, len(cases))
         for contrast_id in ("M1", "M2", "M3"):
             contrast_cases = [case for case in cases if case.contrast.contrast_id == contrast_id]
-            self.assertEqual(10, len(contrast_cases))
-            for replicate in range(1, 6):
+            self.assertEqual(16, len(contrast_cases))
+            for replicate in range(1, 9):
                 pair = [case for case in contrast_cases if case.replicate == replicate]
                 self.assertEqual(2, len(pair))
                 self.assertEqual(1, len({case.pair_id for case in pair}))
@@ -230,7 +230,7 @@ class RQ3CampaignTests(unittest.TestCase):
             "runner_commit": "commit",
             "protocol_hash": "protocol-hash",
         }
-        cases = _plan(5, 100_010)
+        cases = _plan(8, 100_010)
         with tempfile.TemporaryDirectory() as directory:
             output_root = Path(directory) / "results" / "raw" / "rq3"
             output_root.mkdir(parents=True)
@@ -240,7 +240,7 @@ class RQ3CampaignTests(unittest.TestCase):
             ), patch("run_rq3_campaign._preflight_digest", return_value="a" * 64):
                 payload = _manifest_payload(
                     status="RUNNING",
-                    repetitions=5,
+                    repetitions=8,
                     seed_base=100_010,
                     metadata=metadata,
                     cases=cases,
@@ -255,7 +255,7 @@ class RQ3CampaignTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "frozen inputs"):
                     run_campaign(
                         output_root=output_root,
-                        repetitions=5,
+                        repetitions=8,
                         seed_base=100_010,
                         resume=True,
                     )
@@ -267,7 +267,7 @@ class RQ3CampaignTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "frozen inputs"):
                     run_campaign(
                         output_root=output_root,
-                        repetitions=5,
+                        repetitions=8,
                         seed_base=100_010,
                         resume=True,
                     )

@@ -80,11 +80,11 @@ The front matter places a short acknowledgements section after the abstract.
   and do not enter signature counts. Select the first preregistered valid pair
   for trace display rather than selecting by outcome. Retain anchor, protocol,
   campaign, and topology-plan hashes with the analysis artifacts.
-- Read the replay manifest from `results/raw/rq3-v2/campaign-manifest.json` and the
+- Read the replay manifest from `results/raw/rq3/campaign-manifest.json` and the
   topology rehearsal from `results/raw/rq3-preflight.json`. Record the
   `rq3-anchor-selection.v1`, `rq3-campaign.v2`, `rq3-preflight.v2`,
   `rq3-analysis.v2`, and `rq3-selection.v2` schema versions. Until the six
-  anchors verify and the five-pair-per-contrast replay passes its controls,
+  anchors verify and the eight-pair-per-contrast replay passes its controls,
   report RQ3 as pending and make no mechanism-result claims.
 - Identify the host operating-system release as not recorded when describing
   campaign provenance. Do not replace historical provenance with the current

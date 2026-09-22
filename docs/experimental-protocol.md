@@ -498,8 +498,8 @@ IPC path. See [rq2-results.md](rq2-results.md) for the observed outcomes.
 
 Protocol `rq3-protocol.v2` explains selected RQ1 observations through three
 mechanism contrasts. It starts from the six histories in
-[`../configs/rq3-anchors.json`](../configs/rq3-anchors.json), then runs five
-matched-seed pairs per contrast (30 new histories total). Each arm has its own
+[`../configs/rq3-anchors.json`](../configs/rq3-anchors.json), then runs eight
+matched-seed pairs per contrast (48 new histories total). Each arm has its own
 namespace, history, and fault episode. These replays explain selected traces;
 they are not a third probability-estimation campaign.
 
@@ -596,7 +596,7 @@ Unit tests exercise the contrast definitions, anchor hashes, pair identity,
 deterministic member plans, normalization failure behavior, resume hashes,
 synthetic M1-M3 histories, invalid-pair exclusion, ambiguous write outcomes,
 and deterministic analysis output. Before collecting replays,
-`make rq3-preflight` runs one topology rehearsal: normalize to `mongo3`,
+`make rq3-preflight` runs ten topology rehearsals: normalize to `mongo3`,
 partition it while `mongo1` is frozen, verify `mongo2` as primary and `mongo1`
 as secondary through direct member connections, then heal and normalize again.
 The rehearsal is recorded separately and is not an RQ3 history. Every replay
@@ -621,15 +621,15 @@ RQ3 v2 acceptance concerns execution controls, not predicted results:
 
 | Gate | Required |
 | --- | ---: |
-| Planned and completed histories | 30 / 30 |
+| Planned and completed histories | 48 / 48 |
 | `HARNESS_ERROR` histories | 0 |
 | Verified historical anchor histories | 6 / 6 |
-| Control-valid pairs for M1, M2, and M3 | 5 / 5 each |
-| M1 actual write and read routes | 5 / 5 each |
-| M2 actual read and dependent-write routes | 5 / 5 each |
-| M3 actual W1 and W2 routes | 5 / 5 each |
-| M2 setup W1 command, `w:1`, and `mongo3` route | 10 / 10 arms |
-| Topology rehearsal | 1 / 1 |
+| Control-valid pairs for M1, M2, and M3 | 8 / 8 each |
+| M1 actual write and read routes | 8 / 8 each |
+| M2 actual read and dependent-write routes | 8 / 8 each |
+| M3 actual W1 and W2 routes | 8 / 8 each |
+| M2 setup W1 command, `w:1`, and `mongo3` route | 16 / 16 arms |
+| Topology rehearsal | 10 / 10 |
 | Reanalysis of identical raw inputs | byte-identical outputs |
 | Report artifacts derived from raw histories | hash-verified |
 

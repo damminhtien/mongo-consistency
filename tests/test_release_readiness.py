@@ -80,7 +80,7 @@ def _rq3_valid_root(root: Path) -> None:
     anchors = json.loads((root / "configs/rq3-anchors.json").read_text(encoding="utf-8"))
     configurations = load_configurations(root / "configs/configurations.json")
     fixture_pairs = json.loads(RQ3_FIXTURE_PATH.read_text(encoding="utf-8"))["pairs"]
-    raw_root = root / "results/raw/rq3-v2"
+    raw_root = root / "results/raw/rq3"
     preflight_path = root / "results/raw/rq3-preflight.json"
 
     runtime_provenance: dict[str, object] = {
@@ -105,16 +105,16 @@ def _rq3_valid_root(root: Path) -> None:
         "protocol_id": "rq3-protocol.v2",
         "status": "PASS",
         "topology_plan": TOPOLOGY_PLANS["M3"].to_dict(),
-        "planned_cycle_count": 1,
-        "completed_cycle_count": 1,
-        "passed_cycle_count": 1,
+        "planned_cycle_count": 10,
+        "completed_cycle_count": 10,
+        "passed_cycle_count": 10,
         "cycles": [
             {
                 "cycle": cycle,
                 "cycle_id": f"rq3-preflight-v2-c{cycle:02d}",
                 "status": "PASS",
             }
-            for cycle in range(1, 2)
+            for cycle in range(1, 11)
         ],
         "runtime_provenance": runtime_provenance,
         "started_ns": 1,
@@ -131,7 +131,7 @@ def _rq3_valid_root(root: Path) -> None:
     ordinal_by_contrast = {key: 0 for key in RQ3_CONTRASTS}
     contrast_rows = []
     for contrast_id, spec in RQ3_CONTRASTS.items():
-        pair_ids = [f"{contrast_id.lower()}-r{replicate:02d}" for replicate in range(1, 6)]
+        pair_ids = [f"{contrast_id.lower()}-r{replicate:02d}" for replicate in range(1, 9)]
         contrast_rows.append(
             {
                 "contrast_id": contrast_id,
@@ -215,7 +215,7 @@ def _rq3_valid_root(root: Path) -> None:
                     second_write["parent_write_id"] = "w1"
                     second_write["dependency_metadata"] = {"parent_write_id": "w1"}
                 history = History.from_dict(payload)
-                history_path = root / "results/raw/rq3-v2" / campaign / f"{trial_id}.json"
+                history_path = root / "results/raw/rq3" / campaign / f"{trial_id}.json"
                 history_hash = write_history(history_path, history)
                 history_payload = history.to_dict()
                 pair_histories[configuration_id] = history_payload
@@ -269,10 +269,10 @@ def _rq3_valid_root(root: Path) -> None:
         "protocol_id": "rq3-protocol.v2",
         "campaign": "rq3",
         "status": "COMPLETE",
-        "repetitions_per_contrast": 5,
+        "repetitions_per_contrast": 8,
         "seed_base": 700,
-        "planned_case_count": 30,
-        "completed_case_count": 30,
+        "planned_case_count": 48,
+        "completed_case_count": 48,
         "runner_commit": runtime_provenance["runner_commit"],
         "runner_script_sha256": _sha256(root / "scripts/run_rq3_campaign.py"),
         "configuration_sha256": _sha256(root / "configs/configurations.json"),
@@ -317,15 +317,15 @@ def _rq3_valid_root(root: Path) -> None:
         }
         selected_pairs[contrast_id] = selected
         contrast_summaries[contrast_id] = {
-            "planned_pair_count": 5,
-            "control_valid_pair_count": 5,
+            "planned_pair_count": 8,
+            "control_valid_pair_count": 8,
             "invalid_pair_count": 0,
             "invalid_pairs": [],
             "signature_counts": analyse_rq3._counts(grouped_rows[contrast_id], contrast_id),
             "selected_pair": selected,
         }
 
-    analysis_root = root / "results/analysis/rq3-v2"
+    analysis_root = root / "results/analysis/rq3"
     selection_path = analysis_root / "selection-manifest.json"
     analysis_root.mkdir(parents=True, exist_ok=True)
     selection = {
@@ -369,7 +369,7 @@ def _rq3_valid_root(root: Path) -> None:
         "preflight_sha256": _sha256(preflight_path),
         "anchor_manifest_sha256": _sha256(root / "configs/rq3-anchors.json"),
         "historical_anchors": analyse_rq3._summarize_historical_anchors(anchors, repository_root=root),
-        "repetitions_per_contrast": 5,
+        "repetitions_per_contrast": 8,
         "contrast_summaries": contrast_summaries,
         "selection_manifest": selection_path.relative_to(root).as_posix(),
         "generated_artifacts": {
