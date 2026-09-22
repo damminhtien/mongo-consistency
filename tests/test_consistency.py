@@ -69,6 +69,13 @@ class ConfigurationTests(unittest.TestCase):
 
 
 class CheckerTests(unittest.TestCase):
+    def test_operation_serializes_empty_write_preimage_fields(self) -> None:
+        payload = operation("read", "read").to_dict()
+
+        self.assertEqual([], payload["write_base_write_ids"])
+        self.assertFalse(payload["write_base_observed"])
+        self.assertEqual((), OperationRecord.from_dict(payload).write_base_write_ids)
+
     def test_ryw_pass_and_violation(self) -> None:
         passing = base_history(
             "RYW",

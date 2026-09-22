@@ -37,7 +37,9 @@ For MW, the atomic pre-image of the successive write records the update
 identifiers already present at the member executing that write. The checker
 reports a violation when the preceding write identifier is absent from this
 pre-image. For WFR, the same pre-image records the highest application version
-present immediately before the dependent write.
+present immediately before the dependent write as
+	exttt{write_base_version}; the checker compares it with the version
+returned by R1.
 
 These measurements correspond to the course definitions. They do not use the
 post-recovery snapshot to infer the state used by a write. The post-recovery
