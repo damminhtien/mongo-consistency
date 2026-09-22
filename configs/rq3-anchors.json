@@ -9,24 +9,24 @@
       "configurations": ["C5", "C6"],
       "histories": [
         {
-          "trial_id": "experiment-00089-C5-ryw",
+          "trial_id": "experiment-00080-C5-ryw",
           "configuration_id": "C5",
-          "seed": 20261004,
-          "path": "results/raw/experiment/experiment-00089-C5-ryw.json",
-          "raw_sha256": "3772a533544c900965d37609bb1b5a5c50d1088be6087246a491ce1685b1b182",
-          "history_hash": "9498a573c8d93c771d2a299bd498e79507236d30ac2c6cb68dde1e6ba826bdd2"
+          "seed": 20260995,
+          "path": "results/raw/experiment/experiment-00080-C5-ryw.json",
+          "raw_sha256": "41a13d65366f2db68b7b70cce65a15e9d06306f573d9e4b802aa848ac1ebeb16",
+          "history_hash": "07e9f4af74fb7b1c740adaaf62deae4aacdbc360f19436d33990b57ece25ef23"
         },
         {
-          "trial_id": "experiment-00335-C6-ryw",
+          "trial_id": "experiment-00087-C6-ryw",
           "configuration_id": "C6",
-          "seed": 20261250,
-          "path": "results/raw/experiment/experiment-00335-C6-ryw.json",
-          "raw_sha256": "687660fee9e18a88f552c6c35e0ce1db2d1a1fffe49dff709ae0bb9356b72eb2",
-          "history_hash": "be06737266178e3b910dddddbe798104c5e5fb7fe4a817866796d109dccb934d"
+          "seed": 20261002,
+          "path": "results/raw/experiment/experiment-00087-C6-ryw.json",
+          "raw_sha256": "d644bbe829097e22fd41e0ad3ddac1116410efcc505560114a3b77daba131be2",
+          "history_hash": "bee626ef9970d440c064eaf2733e648f4c48404af7f89bdca58133ac6cbe15f1"
         }
       ],
-      "interpretation": "C5 returned stale v0 without afterClusterTime. C6 sent W1's operation time as afterClusterTime but returned no value before NetworkTimeout. Both converged to v1 after healing.",
-      "limitation": "The seeds differ. A timeout is no observed response, not proof of an internal server wait."
+      "interpretation": "C5 returned a completed stale read and violated RYW. C6 did not complete the required read, so the history is unavailable rather than a pass or violation.",
+      "limitation": "The seeds and realized routes differ. This pair is an illustrative trace, not a controlled causal comparison or a probability estimate."
     },
     {
       "contrast_id": "M2",
@@ -34,24 +34,24 @@
       "configurations": ["C8", "C5"],
       "histories": [
         {
-          "trial_id": "experiment-00019-C8-wfr",
+          "trial_id": "experiment-00026-C8-wfr",
           "configuration_id": "C8",
-          "seed": 20260934,
-          "path": "results/raw/experiment/experiment-00019-C8-wfr.json",
-          "raw_sha256": "2f8d05aa81b0362890265b6e522924c71a524633b8a0f14ef28910cb1e5f5a3c",
-          "history_hash": "f256d5534bdbb36b323ef86592b7af98cfc4af3e6c7526aa82fb739ec6c4a1fb"
+          "seed": 20260941,
+          "path": "results/raw/experiment/experiment-00026-C8-wfr.json",
+          "raw_sha256": "624ca2da7078163a8a5eb16426cb6d5ee48a5d0d2a9e8c19a3f7e91b920004ea",
+          "history_hash": "a6b262c7ddda5555cd97f040455668e86980b50735cb63f71c789df27ca71f05"
         },
         {
-          "trial_id": "experiment-00144-C5-wfr",
+          "trial_id": "experiment-00160-C5-wfr",
           "configuration_id": "C5",
-          "seed": 20261059,
-          "path": "results/raw/experiment/experiment-00144-C5-wfr.json",
-          "raw_sha256": "31339fd1ef0d453612dbc6e5ca5904d1d3d00025b15ba9fe21325ce5f00fb144",
-          "history_hash": "b3a069014fd7a4a6a2658a370333f0662d8460816729129e1bfca270552b7a4b"
+          "seed": 20261075,
+          "path": "results/raw/experiment/experiment-00160-C5-wfr.json",
+          "raw_sha256": "ffb3524a8bc4cced2d7295fcfe58ac0e04aa59ec99408e2f6b1cc89f31b1ef40",
+          "history_hash": "e746327f92f580c7d3bf8395e16381cbeff722dfd63abb2dce0ddcbcc619561b"
         }
       ],
-      "interpretation": "C8 read v1 from the isolated former primary; C5 read v0. Both dependent writes and post-heal state converged to version 2.",
-      "limitation": "The setup write concern is protocol-defined as w:1 but was not captured in the old command log. The seeds differ."
+      "interpretation": "C8 read v1 and its dependent write used an older pre-image, producing a WFR violation. C5 read v0 and its dependent write used that same version, producing a pass.",
+      "limitation": "The seeds and realized routes differ. The pair illustrates the recorded mechanism, but it is not a matched causal comparison."
     },
     {
       "contrast_id": "M3",
@@ -59,24 +59,24 @@
       "configurations": ["C3", "C6"],
       "histories": [
         {
-          "trial_id": "experiment-00001-C3-mw",
+          "trial_id": "experiment-00120-C3-mw",
           "configuration_id": "C3",
-          "seed": 20260916,
-          "path": "results/raw/experiment/experiment-00001-C3-mw.json",
-          "raw_sha256": "745187ceb120d2feb22165f38c79f240ebe03ec568b0d631ab902ac896c7bc51",
-          "history_hash": "003f01945e43225183664ebf00872ed9800bc0dd3f00b6e837bfd8f5f933c2da"
+          "seed": 20261035,
+          "path": "results/raw/experiment/experiment-00120-C3-mw.json",
+          "raw_sha256": "7e45fd7bf9b615d56c9bb2a49b9d7cef9ccee07e7e98db9a9a39acece7629264",
+          "history_hash": "890ff552de909270f94d27aca11af2a57ce296af3bc7d89b81e8c63fad1d284e"
         },
         {
-          "trial_id": "experiment-00086-C6-mw",
+          "trial_id": "experiment-00009-C6-mw",
           "configuration_id": "C6",
-          "seed": 20261001,
-          "path": "results/raw/experiment/experiment-00086-C6-mw.json",
-          "raw_sha256": "f4ab238ace126d430f1ad2d8472db7f5c59374a33f6d7243a26e5b9a3bb658e7",
-          "history_hash": "82b972c46db9d934646385d2b359bc8df0c42fda07a3525d5f94ea55e68d5b62"
+          "seed": 20260924,
+          "path": "results/raw/experiment/experiment-00009-C6-mw.json",
+          "raw_sha256": "5f4768116f432d28ed8288e7929b5213c2420d4611eeb6da9bbaef443d204802",
+          "history_hash": "23df9197944b155c8370ce6f39be0cc093b183cabb2b3852632c385ec716a114"
         }
       ],
-      "interpretation": "C3 acknowledged W1 at w:1 and W1 was absent after the elected branch converged. C6 timed out with no response but W1 was present on all members after healing.",
-      "limitation": "The seeds and realized election paths differ. The timeout does not mean the write failed; interpret this as a mechanism-consistent trace, not a controlled causal estimate."
+      "interpretation": "C3 completed W1 and the successive write ran on a state whose pre-image did not contain W1, producing an MW violation. C6 did not complete the required majority write, so its history is indeterminate.",
+      "limitation": "The seeds and election paths differ. The pair is a mechanism illustration, not a controlled causal estimate."
     }
   ]
 }

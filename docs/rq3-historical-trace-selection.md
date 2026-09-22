@@ -14,38 +14,32 @@ canonical history digest validated by the repository history reader.
 
 ## M1: causal session, C5 versus C6, RYW
 
-- C5: `results/raw/experiment/experiment-00089-C5-ryw.json`; raw-file
-  SHA-256 `3772a533544c900965d37609bb1b5a5c50d1088be6087246a491ce1685b1b182`;
-  `history_hash` `9498a573c8d93c771d2a299bd498e79507236d30ac2c6cb68dde1e6ba826bdd2`.
-- C6: `results/raw/experiment/experiment-00335-C6-ryw.json`; raw-file
-  SHA-256 `687660fee9e18a88f552c6c35e0ce1db2d1a1fffe49dff709ae0bb9356b72eb2`;
-  `history_hash` `be06737266178e3b910dddddbe798104c5e5fb7fe4a817866796d109dccb934d`.
+- C5: `results/raw/experiment/experiment-00080-C5-ryw.json`; raw-file
+  SHA-256 `41a13d65366f2db68b7b70cce65a15e9d06306f573d9e4b802aa848ac1ebeb16`;
+  `history_hash` `07e9f4af74fb7b1c740adaaf62deae4aacdbc360f19436d33990b57ece25ef23`.
+- C6: `results/raw/experiment/experiment-00087-C6-ryw.json`; raw-file
+  SHA-256 `d644bbe829097e22fd41e0ad3ddac1116410efcc505560114a3b77daba131be2`;
+  `history_hash` `bee626ef9970d440c064eaf2733e648f4c48404af7f89bdca58133ac6cbe15f1`.
 
-Both histories record initial primary `mongo3`, isolation target `mongo1`, W1
-routed through `mongo3:27017`, and R1 routed to `mongo1:27017` while it is a
-secondary. C5 returns v0 without `afterClusterTime`; C6 carries an
-`afterClusterTime` equal to W1's operation time, then ends `UNAVAILABLE` with
-`NetworkTimeout` and no value. Both histories later observe W1 on all three
-members after healing. The pair is matched on these observed fields, not seed
-(20261004 versus 20261250); the timeout is not evidence of an internal server
-wait.
+The C5 history contains a completed stale read and an RYW violation. The C6
+history does not complete the required read and is therefore unavailable. The
+seeds and realized routes differ, so this is an illustrative pair rather than a
+controlled causal comparison.
 
 ## M2: read concern, C8 versus C5, WFR
 
-- C8: `results/raw/experiment/experiment-00019-C8-wfr.json`; raw-file
-  SHA-256 `2f8d05aa81b0362890265b6e522924c71a524633b8a0f14ef28910cb1e5f5a3c`;
-  `history_hash` `f256d5534bdbb36b323ef86592b7af98cfc4af3e6c7526aa82fb739ec6c4a1fb`.
-- C5: `results/raw/experiment/experiment-00144-C5-wfr.json`; raw-file
-  SHA-256 `31339fd1ef0d453612dbc6e5ca5904d1d3d00025b15ba9fe21325ce5f00fb144`;
-  `history_hash` `b3a069014fd7a4a6a2658a370333f0662d8460816729129e1bfca270552b7a4b`.
+- C8: `results/raw/experiment/experiment-00026-C8-wfr.json`; raw-file
+  SHA-256 `624ca2da7078163a8a5eb16426cb6d5ee48a5d0d2a9e8c19a3f7e91b920004ea`;
+  `history_hash` `a6b262c7ddda5555cd97f040455668e86980b50735cb63f71c789df27ca71f05`.
+- C5: `results/raw/experiment/experiment-00160-C5-wfr.json`; raw-file
+  SHA-256 `ffb3524a8bc4cced2d7295fcfe58ac0e04aa59ec99408e2f6b1cc89f31b1ef40`;
+  `history_hash` `e746327f92f580c7d3bf8395e16381cbeff722dfd63abb2dce0ddcbcc619561b`.
 
-Both histories record initial primary and isolation target `mongo2`, R1 routed
-to `mongo2:27017` while it is primary, a majority-side election to `mongo3`,
-and W2 routed to `mongo3:27017`. C8's local read returns v1 and its dependent
-W2 records version 1; the converged final state contains versions `[0,2]` and
-write IDs `init,w2`, so the returned v1 is absent. C5's majority read returns
-v0 and its dependent W2 records version 0; it converges to the same final
-state. The pair has different seeds (20260934 versus 20261059).
+The C8 history reads v1 and its dependent write uses a pre-image at v0, which
+is a WFR violation. The C5 history reads v0 and its dependent write uses that
+same version, which passes the recorded oracle. The seeds and realized routes
+differ, so the pair illustrates the mechanism without claiming a matched
+causal effect.
 
 The RQ1 records capture the setup W1 member, timing, and success but not its
 command-level write concern. The protocol specifies `w:1` for this WFR setup
@@ -55,21 +49,15 @@ histories.
 
 ## M3: write concern, C3 versus C6, MW
 
-- C3: `results/raw/experiment/experiment-00001-C3-mw.json`; raw-file
-  SHA-256 `745187ceb120d2feb22165f38c79f240ebe03ec568b0d631ab902ac896c7bc51`;
-  `history_hash` `003f01945e43225183664ebf00872ed9800bc0dd3f00b6e837bfd8f5f933c2da`.
-- C6: `results/raw/experiment/experiment-00086-C6-mw.json`; raw-file
-  SHA-256 `f4ab238ace126d430f1ad2d8472db7f5c59374a33f6d7243a26e5b9a3bb658e7`;
-  `history_hash` `82b972c46db9d934646385d2b359bc8df0c42fda07a3525d5f94ea55e68d5b62`.
+- C3: `results/raw/experiment/experiment-00120-C3-mw.json`; raw-file
+  SHA-256 `7e45fd7bf9b615d56c9bb2a49b9d7cef9ccee07e7e98db9a9a39acece7629264`;
+  `history_hash` `890ff552de909270f94d27aca11af2a57ce296af3bc7d89b81e8c63fad1d284e`.
+- C6: `results/raw/experiment/experiment-00009-C6-mw.json`; raw-file
+  SHA-256 `5f4768116f432d28ed8288e7929b5213c2420d4611eeb6da9bbaef443d204802`;
+  `history_hash` `23df9197944b155c8370ce6f39be0cc093b183cabb2b3852632c385ec716a114`.
 
-Both histories start with `mongo3` primary, isolate `mongo3`, route W1 to
-`mongo3:27017`, and apply the fault before W1. C3's `w:1` W1 is acknowledged;
-after election and healing, W1 is absent from all three converged members. C6's
-majority W1 ends indeterminate with `NetworkTimeout` and no response, but W1 is
-present on all three converged members after healing. Thus its timeout did not
-establish write failure.
-
-This historical pair has different seeds (20260916 versus 20261001) and
-different election paths: C3 elects `mongo1`, while C6 records no replacement
-primary and ends with `mongo3` primary. It illustrates acknowledgement,
-indeterminate outcome, and later effect; it is not a controlled causal pair.
+The C3 history completes W1, then the successive write runs on a state whose
+pre-image does not contain W1, producing an MW violation. The C6 history does
+not complete the required majority write and is indeterminate. The seeds and
+election paths differ, so this pair is a mechanism illustration rather than a
+controlled causal estimate.
