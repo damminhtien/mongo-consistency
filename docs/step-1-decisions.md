@@ -33,8 +33,8 @@ recorded assumption cannot be implemented.
 - Main RQ1 design: 96 normal controls and 160 adversarial histories, 256 in
   total. The reduced plan keeps three normal and five adversarial repetitions
   in every configuration/property cell so the live campaign remains bounded.
-- Pilot design: five adversarial repetitions plus one normal control for each
-  configuration/property cell, 192 histories total.
+- Pilot design: one adversarial repetition plus one normal control for each
+  configuration/property cell, 64 histories total.
 - Run one 32-history machinery smoke before freezing the protocol and predictions.
 - Use seed 20260915 plus the campaign ordinal, unique namespaces, and a
   deterministic shuffled plan for RQ1. RQ2 pairs repetition indices across
