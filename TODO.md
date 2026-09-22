@@ -63,7 +63,8 @@ tracks remaining project and submission work.
   prediction commit `b79b567` and protocol commit `c7e3cf9`.
 - [x] Run the 192-history pilot; require zero harness errors and precondition
   misses at or below 5% per property.
-- [x] Run sequential RQ1: 320 normal controls plus 960 adversarial histories.
+- [ ] Run reduced sequential RQ1: 96 normal controls plus 160 adversarial
+  histories, 256 in total.
 - [x] Implement the grouped RQ2 runner and host-only fault coordinator for
   C1/C3/C4/C6, F1/F2/F3, and RYW/MR/MW/WFR, with a 432-history plan across 36
   episodes and unique keys/sessions per history.
@@ -85,16 +86,10 @@ tracks remaining project and submission work.
 - [x] Commit coherent slices, inspect staged diffs, run git diff --check, and
   push main.
 
-Q1 / Task 1 status: complete. The canonical manifest is `COMPLETE` at
-1,280/1,280 histories: 320 normal controls and 960 adversarial histories. The
-outcomes are 415 PASS, 443 VIOLATION, 224 UNAVAILABLE, 175 INDETERMINATE, 23
-PRECONDITION_MISS, and zero HARNESS_ERROR. Of the 960 adversarial histories,
-538 were resolved: 96 PASS and 442 VIOLATION. All 23 precondition misses are
-adversarial MR histories and remain outside the consistency denominator. Raw
-record validation passed; the clean runner is `cc702ab`. Offline summaries,
-the prediction/outcome matrix, factorial contrasts, figures, and report were
-rebuilt from the canonical histories. Smoke artifacts are separate
-development diagnostics and do not change the Q1 result.
+Q1 / Task 1 status: pending reduced rerun. The active plan is 256 histories:
+96 normal controls and 160 adversarial histories. Counts must be regenerated
+from the raw histories after the run; the superseded 1,280-history result is
+not evidence for the reduced campaign.
 
 Q2 / Task 2 status: complete. Execution evidence (20 September 2026):
 `make rq2` completed 432/432

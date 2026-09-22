@@ -106,7 +106,8 @@ cache state is logged separately and never treated as ground truth.
 5. Freeze predictions and protocol commits.
 6. Run the 192-history pilot; block main runs on harness errors, wrong routing,
    cleanup failures, or more than 5% precondition misses for any property.
-7. Run RQ1 sequentially: 320 normal controls plus 960 adversarial histories.
+7. Run the reduced RQ1 sequentially: 96 normal controls plus 160 adversarial
+   histories, 256 in total.
 8. [x] Implement the grouped RQ2 runner and host coordinator, freeze their
    provenance, then run 384 core histories and 48 extra histories for four
    partition signature cells. The completed campaign has 432 histories across
@@ -172,14 +173,7 @@ being inferred.
 
 ## Current RQ1 status
 
-RQ1 is complete. The canonical campaign completed all 1,280 histories on clean
-runner commit `cc702ab`: 320 normal controls and 960 adversarial histories.
-Across the full campaign there were 415 PASS, 443 VIOLATION, 224 UNAVAILABLE,
-175 INDETERMINATE, 23 PRECONDITION_MISS, and zero HARNESS_ERROR outcomes. Of
-the adversarial histories, 538 were resolved: 96 PASS and 442 VIOLATION.
-
-All 23 precondition misses occurred in adversarial MR histories; they remain
-separate from the consistency denominator. Raw-record and schema validation
-passed. The offline summary, prediction/outcome matrix, factorial contrasts,
-figures, and report were rebuilt from the canonical histories. Smoke records
-are separate machinery diagnostics, not RQ1 observations.
+The previous 1,280-history RQ1 record is superseded by the reduced frozen plan:
+96 normal controls and 160 adversarial histories. After the rerun, report only
+the counts generated from `results/raw/experiment` by `make analyse`; do not
+copy outcome numbers into this plan by hand.

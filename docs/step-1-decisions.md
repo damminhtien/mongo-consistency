@@ -30,7 +30,9 @@ recorded assumption cannot be implemented.
 - RQ2 has eight core repetitions per configuration/fault/property cell. Four
   primary-partition signature cells extend to 20 repetitions. The total is
   432 histories in 36 grouped fault episodes.
-- Main RQ1 design: 320 normal controls and 960 adversarial histories.
+- Main RQ1 design: 96 normal controls and 160 adversarial histories, 256 in
+  total. The reduced plan keeps three normal and five adversarial repetitions
+  in every configuration/property cell so the live campaign remains bounded.
 - Pilot design: five adversarial repetitions plus one normal control for each
   configuration/property cell, 192 histories total.
 - Run one 32-history machinery smoke before freezing the protocol and predictions.

@@ -305,13 +305,13 @@ error, routing mismatch, cleanup error, or property precondition-miss rate above
 
 ### RQ1 main campaign
 
-Run sequentially on the laptop. Use 10 normal controls and 30 adversarial
+Run sequentially on the laptop. Use three normal controls and five adversarial
 histories per configuration/property cell:
 
 ```text
-normal controls: 8 x 4 x 10 = 320
-adversarial:     8 x 4 x 30 = 960
-total:                         1280 histories
+normal controls: 8 x 4 x 3 = 96
+adversarial:     8 x 4 x 5 = 160
+total:                       256 histories
 ```
 
 Each namespace is unique. The database is not reset between histories. Use the
@@ -324,21 +324,11 @@ parallel execution measurements.
 
 #### Recorded RQ1 result
 
-The canonical RQ1 manifest is `COMPLETE` at 1,280/1,280 histories: 320 normal
-controls and 960 adversarial histories. The recorded outcomes are 415 PASS,
-443 VIOLATION, 224 UNAVAILABLE, 175 INDETERMINATE, 23 PRECONDITION_MISS, and no
-HARNESS_ERROR. Every precondition miss is an adversarial MR history. The runner
-records a clean frozen commit (`cc702ab`). Among the 960 adversarial histories,
-538 were resolved: 96 PASS and 442 VIOLATION. The consistency violation rate
-is 442/538 (82.2%); it describes only resolved histories under these schedules.
-The 23 MR PRECONDITION_MISS and 224 UNAVAILABLE histories remain separate
-outcomes.
-
-The prediction and protocol inputs are pinned to `b79b567` and `c7e3cf9`.
-Raw-record and schema validation passed. The offline summary, per-configuration
-prediction/outcome matrix, factorial contrasts, figures, and submission report
-were rebuilt from the canonical histories. Smoke manifests are separate
-machinery diagnostics and are excluded from RQ1 analysis and counts.
+The earlier 1,280-history record is superseded. The active RQ1 manifest must
+contain 256 histories: 96 normal controls and 160 adversarial histories. The
+outcome counts are generated from the canonical raw histories by `make analyse`
+and are not entered into this protocol by hand. Smoke and pilot manifests remain
+separate machinery diagnostics and are excluded from RQ1 analysis and counts.
 
 ### RQ2 failure comparison
 

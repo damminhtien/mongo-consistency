@@ -311,7 +311,7 @@ class CampaignResumeTests(unittest.TestCase):
             ):
                 manifest = run_campaign("experiment", raw_root, resume=True)
         self.assertEqual("COMPLETE", manifest["status"])
-        self.assertEqual(1280, manifest["completed_case_count"])
+        self.assertEqual(256, manifest["completed_case_count"])
 
 
 if __name__ == "__main__":

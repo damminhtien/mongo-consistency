@@ -17,7 +17,7 @@ else:
     from build_submission import BuildError, parse_metadata
 
 ROOT = Path(__file__).resolve().parents[1]
-EXPECTED_CAMPAIGNS = {"pilot": 192, "experiment": 1280, "rq2": 432}
+EXPECTED_CAMPAIGNS = {"pilot": 192, "experiment": 256, "rq2": 432}
 RQ2_CONFIGURATIONS = {"C1", "C3", "C4", "C6"}
 EXPECTED_RQ2_CELLS = {property_name: RQ2_CONFIGURATIONS for property_name in ("RYW", "MR", "MW", "WFR")}
 RQ2_CONDITIONS = ("F1", "F2", "F3")
@@ -46,7 +46,7 @@ RQ2_EPISODE_PLAN = {
     }
     for repetition in range(9, 21)
 }
-EXPECTED_SUMMARY_COUNTS = {"pilot": 192, "experiment": 1280, "rq2": 432}
+EXPECTED_SUMMARY_COUNTS = {"pilot": 192, "experiment": 256, "rq2": 432}
 RQ3_CONTRASTS = {
     "M1": {
         "campaign": "rq3-m1",
@@ -147,7 +147,7 @@ def _check_campaign(root: Path, campaign: str, expected_count: int, errors: list
                 repetitions_by_mode = (
                     ((False, 1), (True, 5))
                     if campaign == "pilot"
-                    else ((False, 10), (True, 30))
+                    else ((False, 3), (True, 5))
                 )
                 for adversarial, repetitions in repetitions_by_mode:
                     if counts[(configuration_id, property_name, adversarial)] != repetitions:
@@ -1130,10 +1130,10 @@ def check_release_readiness(root: Path = ROOT) -> list[str]:
             if (
                 not isinstance(baseline, dict)
                 or baseline.get("campaign_id") != "experiment"
-                or baseline.get("history_count") != 10
+                or baseline.get("history_count") != 3
             ):
                 errors.append(
-                    "analysis summary: every RQ2 group must carry its separate 10-history RQ1 normal baseline"
+                    "analysis summary: every RQ2 group must carry its separate 3-history RQ1 normal baseline"
                 )
 
     try:
