@@ -18,12 +18,29 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from mongo_consistency.faults import FaultControllerClient, FaultControllerError  # noqa: E402
-
 COMPOSE_FILE = ROOT / "compose.yaml"
 MEMBERS = {"mongo1", "mongo2", "mongo3"}
 DEFAULT_CONTROL_PORTS = {"mongo1": 29091, "mongo2": 29092, "mongo3": 29093}
 REQUEST_ID_PATTERN = re.compile(r"^[0-9a-f]{32}$")
+CONTROLLER_REQUEST_SCRIPT = """
+import json
+import sys
+from urllib.request import Request, urlopen
+
+port, request_kind, action, event_id = sys.argv[1:]
+url = f"http://127.0.0.1:{port}/health"
+request = Request(url)
+if request_kind == "apply":
+    payload = json.dumps({"action": action, "event_id": event_id}).encode("utf-8")
+    request = Request(
+        f"http://127.0.0.1:{port}/apply",
+        data=payload,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+with urlopen(request, timeout=10) as response:
+    print(response.read().decode("utf-8"))
+"""
 
 
 class CoordinatorError(RuntimeError):
@@ -36,12 +53,6 @@ class FaultCoordinator:
     def __init__(self, state_path: Path) -> None:
         self.state_path = state_path
         self.active = self._load_active_state()
-        endpoints = {}
-        for member, default_port in DEFAULT_CONTROL_PORTS.items():
-            variable = f"MC_{member.upper()}_CONTROL_HOST_PORT"
-            port = int(os.environ.get(variable, default_port))
-            endpoints[member] = f"http://127.0.0.1:{port}"
-        self.controllers = FaultControllerClient(endpoints)
 
     def _load_active_state(self) -> dict[str, tuple[str, str]]:
         if not self.state_path.exists():
@@ -157,12 +168,17 @@ class FaultCoordinator:
 
     def _apply(self, condition: str, member: str, event_id: str) -> dict[str, Any]:
         if condition == "F3":
-            health = self._refresh_fault_controller(member)
+            health = self._controller_request(member, request_kind="health")
             if health.get("replication_isolated") is not False:
                 raise CoordinatorError(
                     f"fault controller for {member} is already isolating replication traffic"
                 )
-            response = self.controllers.isolate(member, event_id)
+            response = self._controller_request(
+                member,
+                request_kind="apply",
+                action="isolate",
+                event_id=event_id,
+            )
             return {"mechanism": "replica-network-isolation", "controller": response}
         result = self._compose("kill", "--signal", "SIGKILL", member)
         return {"mechanism": "container-sigkill", "stdout": result.stdout.strip()}
@@ -171,11 +187,21 @@ class FaultCoordinator:
         if condition == "F3":
             refreshed = False
             try:
-                response = self.controllers.heal(member, event_id)
-            except FaultControllerError:
+                response = self._controller_request(
+                    member,
+                    request_kind="apply",
+                    action="heal",
+                    event_id=event_id,
+                )
+            except CoordinatorError:
                 self._refresh_fault_controller(member)
                 refreshed = True
-                response = self.controllers.heal(member, event_id)
+                response = self._controller_request(
+                    member,
+                    request_kind="apply",
+                    action="heal",
+                    event_id=event_id,
+                )
             return {
                 "mechanism": "replica-network-heal",
                 "controller": response,
@@ -201,14 +227,51 @@ class FaultCoordinator:
         last_error: Exception | None = None
         while time.monotonic() < deadline:
             try:
-                return self.controllers.member_health(member)
-            except FaultControllerError as error:
+                return self._controller_request(member, request_kind="health")
+            except CoordinatorError as error:
                 last_error = error
                 time.sleep(0.2)
         raise CoordinatorError(
             f"fault controller for {member} did not reattach to its current network namespace: "
             f"{last_error}"
         )
+
+    def _controller_request(
+        self,
+        member: str,
+        *,
+        request_kind: str,
+        action: str = "",
+        event_id: str = "",
+    ) -> dict[str, Any]:
+        if request_kind not in {"health", "apply"}:
+            raise CoordinatorError(f"unsupported fault-controller request: {request_kind}")
+        controller_number = member.removeprefix("mongo")
+        service = f"fault-controller-{controller_number}"
+        port = DEFAULT_CONTROL_PORTS[member]
+        result = self._compose(
+            "exec",
+            "-T",
+            service,
+            "python",
+            "-c",
+            CONTROLLER_REQUEST_SCRIPT,
+            str(port),
+            request_kind,
+            action,
+            event_id,
+        )
+        try:
+            payload = json.loads(result.stdout)
+        except (TypeError, ValueError) as error:
+            raise CoordinatorError(
+                f"fault controller returned invalid JSON for {member}: {result.stdout!r}"
+            ) from error
+        if not isinstance(payload, dict) or payload.get("ok") is not True:
+            raise CoordinatorError(f"fault controller rejected {member}: {payload!r}")
+        if payload.get("member") != member:
+            raise CoordinatorError(f"fault controller identity mismatch for {member}: {payload!r}")
+        return payload
 
     def _compose(self, *arguments: str) -> subprocess.CompletedProcess[str]:
         try:
