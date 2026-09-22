@@ -1,4 +1,4 @@
-"""Validate committed record formats and any generated experiment artifacts."""
+"""Validate committed record formats and experiment artifacts."""
 
 from __future__ import annotations
 

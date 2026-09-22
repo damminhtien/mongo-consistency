@@ -1,14 +1,15 @@
-"""Summarize matched RQ3 histories and build the report table and timeline."""
+"""Summarize matched RQ3 histories into JSON analysis artifacts.
+
+The report source is authored in the repository. This analyzer writes only
+machine-readable JSON used for audit and selection; it does not write LaTeX,
+figures, or report prose.
+"""
 
 from __future__ import annotations
 
 import argparse
 import hashlib
 import json
-import os
-import shutil
-import subprocess
-import tempfile
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
@@ -16,7 +17,7 @@ from typing import Any
 from mongo_consistency.checkers import check_history
 from mongo_consistency.config import load_configurations
 from mongo_consistency.history import read_history
-from mongo_consistency.rq3 import TOPOLOGY_PLANS, pair_control
+from mongo_consistency.rq3 import pair_control
 from mongo_consistency.rq3_anchors import verify_anchor_manifest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -36,8 +37,6 @@ def _sha256(path: Path) -> str:
 
 
 def _display_path(path: Path) -> str:
-    """Use repository-relative paths when possible, including fixture paths otherwise."""
-
     try:
         return path.relative_to(ROOT).as_posix()
     except ValueError:
@@ -48,14 +47,10 @@ def _history_path(record: dict[str, Any], *, input_root: Path | None = None) -> 
     value = Path(str(record["path"]))
     if value.is_absolute() and value.is_file():
         return value
-    candidates = []
+    candidates: list[Path] = []
     if input_root is not None:
         candidates.extend(
-            (
-                input_root.parent.parent / value,
-                input_root.parent / value,
-                input_root / value,
-            )
+            (input_root.parent.parent / value, input_root.parent / value, input_root / value)
         )
     candidates.append(ROOT / value)
     for candidate in candidates:
@@ -73,15 +68,6 @@ def _operation(history: dict[str, Any], operation_id: str) -> dict[str, Any]:
         ),
         {},
     )
-
-
-def _initial_topology(history: dict[str, Any]) -> dict[str, Any]:
-    checks = history.get("precondition", {}).get("checks", [])
-    for check in checks:
-        if check.get("name") == "one-primary-two-secondary-topology":
-            actual = check.get("actual")
-            return actual if isinstance(actual, dict) else {}
-    return {}
 
 
 def _final_members(history: dict[str, Any]) -> dict[str, dict[str, Any]]:
@@ -104,9 +90,7 @@ def _final_write_presence(history: dict[str, Any], write_id: str) -> str:
     if (
         set(members) != {"mongo1", "mongo2", "mongo3"}
         or any(not isinstance(member, dict) for member in members.values())
-        or any(
-            member.get("reachable") is not True for member in members.values()
-        )
+        or any(member.get("reachable") is not True for member in members.values())
     ):
         return "unobserved"
     present = [write_id in member.get("observed_write_ids", []) for member in members.values()]
@@ -127,21 +111,7 @@ def _final_contains_read_version(history: dict[str, Any]) -> bool:
     )
 
 
-def _timestamp_relation(value: Any, boundary: Any) -> str:
-    if not isinstance(value, dict) or not isinstance(boundary, dict):
-        return "unknown"
-    value_time = (value.get("seconds"), value.get("increment"))
-    boundary_time = (boundary.get("seconds"), boundary.get("increment"))
-    if not all(type(part) is int for part in (*value_time, *boundary_time)):
-        return "unknown"
-    if value_time > boundary_time:
-        return "ahead"
-    if value_time < boundary_time:
-        return "behind"
-    return "at"
-
-
-def _duration_ms(operation: dict[str, Any]) -> float | None:
+def _operation_duration(operation: dict[str, Any]) -> float | None:
     events = operation.get("command_events", [])
     event = events[0] if isinstance(events, list) and events else {}
     start = event.get("started_ns", operation.get("start_ns"))
@@ -159,9 +129,8 @@ def _read_signature(history: dict[str, Any]) -> dict[str, Any]:
         "route": operation.get("actual_server_address"),
         "after_cluster_time": operation.get("after_cluster_time"),
         "error": operation.get("error_code"),
-        "duration_ms": _duration_ms(operation),
+        "duration_ms": _operation_duration(operation),
         "topology_before": operation.get("topology_before"),
-        "topology_after": operation.get("topology_after"),
     }
 
 
@@ -171,10 +140,65 @@ def _write_signature(history: dict[str, Any], operation_id: str) -> dict[str, An
         "status": operation.get("operation_status"),
         "route": operation.get("actual_server_address"),
         "error": operation.get("error_code"),
-        "duration_ms": _duration_ms(operation),
-        "topology_before": operation.get("topology_before"),
-        "topology_after": operation.get("topology_after"),
+        "duration_ms": _operation_duration(operation),
     }
+
+
+def _timestamp_relation(value: Any, boundary: Any) -> str:
+    if not isinstance(value, dict) or not isinstance(boundary, dict):
+        return "unknown"
+    value_time = (value.get("seconds"), value.get("increment"))
+    boundary_time = (boundary.get("seconds"), boundary.get("increment"))
+    if not all(type(part) is int for part in (*value_time, *boundary_time)):
+        return "unknown"
+    if value_time > boundary_time:
+        return "ahead"
+    if value_time < boundary_time:
+        return "behind"
+    return "at"
+
+
+def _member_from_address(address: str | None) -> str:
+    return address.split(":", maxsplit=1)[0] if address else "unknown member"
+
+
+def _route_timestamp_relation(history: dict[str, Any], operation_id: str, boundary: Any) -> str:
+    operation = _operation(history, operation_id)
+    topology = operation.get("topology_before")
+    address = operation.get("actual_server_address")
+    if (
+        not isinstance(topology, dict)
+        or topology.get("stable") is not True
+        or not isinstance(address, str)
+    ):
+        return "unknown"
+    members = topology.get("members")
+    member = members.get(_member_from_address(address)) if isinstance(members, dict) else None
+    if not isinstance(member, dict):
+        return "unknown"
+    return _timestamp_relation(boundary, member.get("last_write_op_time"))
+
+
+def _same_actual_route(
+    pairs: list[dict[str, Any]], operation_id: str, left_id: str, right_id: str
+) -> int:
+    matches = 0
+    for pair in pairs:
+        left = _operation(pair["arms"][left_id], operation_id).get("actual_server_address")
+        right = _operation(pair["arms"][right_id], operation_id).get("actual_server_address")
+        matches += int(isinstance(left, str) and bool(left) and left == right)
+    return matches
+
+
+def _error_code_counts(
+    pairs: list[dict[str, Any]], configuration_id: str, operation_id: str
+) -> dict[str, int]:
+    counts: dict[str, int] = defaultdict(int)
+    for pair in pairs:
+        error_code = _operation(pair["arms"][configuration_id], operation_id).get("error_code")
+        if error_code is not None:
+            counts[str(error_code)] += 1
+    return dict(sorted(counts.items()))
 
 
 def _summarize_historical_anchors(
@@ -187,11 +211,11 @@ def _summarize_historical_anchors(
     }
     pairs: list[dict[str, Any]] = []
     for pair in anchor_manifest["pairs"]:
-        histories = []
+        histories: list[dict[str, Any]] = []
         for record in pair["histories"]:
             history_object = read_history(repository_root / record["path"])
             history = history_object.to_dict()
-            observed_operations = {}
+            observed_operations: dict[str, Any] = {}
             for operation_id in operation_ids[pair["contrast_id"]]:
                 operation = _operation(history, operation_id)
                 if operation:
@@ -209,7 +233,7 @@ def _summarize_historical_anchors(
                             "response_received",
                         )
                     }
-                    observed_operations[operation_id]["duration_ms"] = _duration_ms(operation)
+                    observed_operations[operation_id]["duration_ms"] = _operation_duration(operation)
             final = history.get("final_observation", {})
             final_members = final.get("members", {}) if isinstance(final, dict) else {}
             histories.append(
@@ -257,284 +281,22 @@ def _row_for_pair(
     arms: dict[str, dict[str, Any]],
     configurations: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    controls = pair_control(
-        contrast_id,
-        pair_id,
-        arms,
-        configurations=configurations,
-    )
-    row = {
+    controls = pair_control(contrast_id, pair_id, arms, configurations=configurations)
+    return {
         "pair_id": pair_id,
         "arms": arms,
         "control_valid": controls["control_valid"],
         "invalid_reasons": controls["invalid_reasons"],
         "controls": controls,
     }
-    return row
 
 
 def _valid_pairs(pairs: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [pair for pair in pairs if pair.get("control_valid") is True]
 
 
-def _latex_escape(value: Any) -> str:
-    text = str(value)
-    replacements = {
-        "\\": r"\textbackslash{}",
-        "&": r"\&",
-        "%": r"\%",
-        "$": r"\$",
-        "#": r"\#",
-        "_": r"\_",
-        "{": r"\{",
-        "}": r"\}",
-        "~": r"\textasciitilde{}",
-        "^": r"\textasciicircum{}",
-    }
-    return "".join(replacements.get(character, character) for character in text)
-
-
 def _history_id(history: dict[str, Any]) -> str:
     return str(history.get("manifest", {}).get("trial_id", "unknown"))
-
-
-def _member_from_address(address: str | None) -> str:
-    return address.split(":", maxsplit=1)[0] if address else "unknown member"
-
-
-def _same_actual_route(
-    pairs: list[dict[str, Any]], operation_id: str, left_id: str, right_id: str
-) -> int:
-    matches = 0
-    for pair in pairs:
-        left = _operation(pair["arms"][left_id], operation_id).get("actual_server_address")
-        right = _operation(pair["arms"][right_id], operation_id).get("actual_server_address")
-        matches += int(isinstance(left, str) and bool(left) and left == right)
-    return matches
-
-
-def _route_timestamp_relation(
-    history: dict[str, Any], operation_id: str, boundary: Any
-) -> str:
-    operation = _operation(history, operation_id)
-    topology = operation.get("topology_before")
-    address = operation.get("actual_server_address")
-    if (
-        not isinstance(topology, dict)
-        or topology.get("stable") is not True
-        or not isinstance(address, str)
-    ):
-        return "unknown"
-    members = topology.get("members")
-    route = _member_from_address(address)
-    member = members.get(route) if isinstance(members, dict) else None
-    if not isinstance(member, dict):
-        return "unknown"
-    return _timestamp_relation(boundary, member.get("last_write_op_time"))
-
-
-def _error_code_counts(
-    pairs: list[dict[str, Any]], configuration_id: str, operation_id: str
-) -> dict[str, int]:
-    counts: dict[str, int] = defaultdict(int)
-    for pair in pairs:
-        error_code = _operation(pair["arms"][configuration_id], operation_id).get("error_code")
-        if error_code is not None:
-            counts[str(error_code)] += 1
-    return dict(sorted(counts.items()))
-
-
-def _format_timestamp(value: Any) -> str:
-    if isinstance(value, dict):
-        seconds = value.get("seconds")
-        increment = value.get("increment")
-        if isinstance(seconds, int) and isinstance(increment, int):
-            return f"{seconds}:{increment}"
-        cluster_time = value.get("cluster_time")
-        if isinstance(cluster_time, dict):
-            return _format_timestamp(cluster_time)
-    return "unavailable"
-
-
-def _read_text(history: dict[str, Any]) -> str:
-    read = _read_signature(history)
-    operation = _operation(history, "read")
-    events = operation.get("command_events", [])
-    command_event = events[0] if isinstance(events, list) and events else {}
-    time_bound = read["after_cluster_time"]
-    bound_text = (
-        "afterClusterTime absent"
-        if time_bound is None
-        else f"afterClusterTime={_format_timestamp(time_bound)}"
-    )
-    elapsed = "unavailable" if read["duration_ms"] is None else f"{read['duration_ms']} ms"
-    op_time = _format_timestamp(operation.get("operation_time_before"))
-    cluster_time = _format_timestamp(operation.get("cluster_time_before"))
-    return (
-        f"{read['route']}; {command_event.get('command_name')}; "
-        f"RC={operation.get('read_concern')}; {bound_text}; "
-        f"session opTime={op_time}, clusterTime={cluster_time}; command {elapsed}"
-    )
-
-
-def _read_result_text(history: dict[str, Any]) -> str:
-    read = _read_signature(history)
-    if read["status"] == "SUCCESS":
-        result = f"SUCCESS, v{read['version']}"
-    elif read["status"] is None:
-        result = "read not reached"
-    else:
-        result = f"{read['status']}/{read['error'] or 'no error code'}"
-    elapsed = "latency unavailable" if read["duration_ms"] is None else f"{read['duration_ms']} ms"
-    return f"{result}, {elapsed}"
-
-
-def _find_pdflatex() -> str | None:
-    found = shutil.which("pdflatex")
-    if found:
-        return found
-    candidates: list[Path] = []
-    configured = os.environ.get("TEXLIVE_BIN")
-    if configured:
-        candidates.append(Path(configured).expanduser())
-    user_texlive = Path.home() / "texlive"
-    if user_texlive.is_dir():
-        for version in sorted(user_texlive.iterdir()):
-            bin_root = version / "bin"
-            if bin_root.is_dir():
-                candidates.extend(path for path in sorted(bin_root.iterdir()) if path.is_dir())
-    for directory in candidates:
-        candidate = directory / "pdflatex"
-        if candidate.is_file() and os.access(candidate, os.X_OK):
-            return str(candidate)
-    return None
-
-
-def _snapshot_text(history: dict[str, Any], stage: str) -> str:
-    read = _read_signature(history)
-    snapshot = read.get(f"topology_{stage}")
-    if not isinstance(snapshot, dict):
-        return f"Topology {stage}: unavailable"
-    target = _member_from_address(read["route"])
-    members = snapshot.get("members")
-    state = members.get(target, {}) if isinstance(members, dict) else {}
-    term = snapshot.get("term")
-    return (
-        f"primary={snapshot.get('primary', 'unavailable')}; term="
-        f"{'unavailable' if term is None else term}; {target} "
-        f"role={state.get('role', 'unavailable')}; "
-        f"lastWrite={_format_timestamp(state.get('last_write_op_time'))}; "
-        f"majorityCommit={_format_timestamp(snapshot.get('last_committed_op_time'))}"
-    )
-
-
-def _write_trace_text(history: dict[str, Any]) -> str:
-    operation = _operation(history, "write")
-    write = _write_signature(history, "write")
-    return (
-        f"{write['status']} at {write['route']}; WC={operation.get('write_concern')}; "
-        f"opTime={_format_timestamp(operation.get('operation_time_after'))}; "
-        f"clusterTime={_format_timestamp(operation.get('cluster_time_after'))}"
-    )
-
-
-def _read_trace_text(history: dict[str, Any]) -> str:
-    operation = _operation(history, "read")
-    read = _read_signature(history)
-    if read["status"] == "SUCCESS":
-        result = f"SUCCESS v{read['version']}"
-    elif read["status"] is None:
-        result = "not reached"
-    else:
-        result = f"{read['status']}/{read['error'] or 'error unavailable'}"
-    return (
-        f"{result} at {read['route']}; RC={operation.get('read_concern')}; "
-        f"afterClusterTime={_format_timestamp(read['after_cluster_time']) if read['after_cluster_time'] is not None else 'absent'}; "
-        f"session opTime={_format_timestamp(operation.get('operation_time_before'))}, "
-        f"clusterTime={_format_timestamp(operation.get('cluster_time_before'))}; "
-        f"command={read['duration_ms'] if read['duration_ms'] is not None else 'unavailable'} ms"
-    )
-
-
-def _render_timeline(pair: dict[str, Any], destination: Path) -> None:
-    arms = pair["arms"]
-    c5 = arms["C5"]
-    c6 = arms["C6"]
-    c5_w1 = _final_write_presence(c5, "w1")
-    c6_w1 = _final_write_presence(c6, "w1")
-    c5_final = f"{_read_result_text(c5)}; W1 after heal={c5_w1}"
-    c6_final = f"{_read_result_text(c6)}; W1 after heal={c6_w1}"
-    initial_primary = _initial_topology(c5).get("primary", "unavailable")
-    source = rf"""\documentclass[10pt]{{article}}
-\usepackage[paperwidth=210mm,paperheight=155mm,margin=12mm]{{geometry}}
-\usepackage[T1]{{fontenc}}
-\usepackage{{lmodern}}
-\usepackage{{booktabs}}
-\usepackage{{tabularx}}
-\usepackage{{array}}
-\pagestyle{{empty}}
-\setlength{{\parindent}}{{0pt}}
-\renewcommand{{\arraystretch}}{{1.35}}
-\pdfinfoomitdate=1
-\pdftrailerid{{}}
-\begin{{document}}
-\begin{{center}}
-{{\Large\bfseries Causal-session contrast}}\\[0.25em]
-{{\normalsize Matched seed; independent fault episodes; initial primary {initial_primary}}}\\[0.5em]
-{{\footnotesize\texttt{{{_latex_escape(_history_id(c5))}}}\\
-\texttt{{{_latex_escape(_history_id(c6))}}}}}
-\end{{center}}
-\vspace{{0.8em}}
-\normalsize
-\begin{{tabularx}}{{\textwidth}}{{@{{}}>{{\bfseries\raggedright\arraybackslash}}p{{0.16\textwidth}}>{{\raggedright\arraybackslash}}X>{{\raggedright\arraybackslash}}X@{{}}}}
-\toprule
-Stage & C5: causal session off & C6: causal session on \\
-\midrule
-1. W1 write & {_latex_escape(_write_trace_text(c5))} & {_latex_escape(_write_trace_text(c6))} \\
-2. R1 read & {_latex_escape(_read_trace_text(c5))} & {_latex_escape(_read_trace_text(c6))} \\
-3. Topology before R1 & {_latex_escape(_snapshot_text(c5, 'before'))} & {_latex_escape(_snapshot_text(c6, 'before'))} \\
-4. Topology after R1 & {_latex_escape(_snapshot_text(c5, 'after'))} & {_latex_escape(_snapshot_text(c6, 'after'))} \\
-5. Client result & {_latex_escape(c5_final)} & {_latex_escape(c6_final)} \\
-\bottomrule
-\end{{tabularx}}
-\end{{document}}
-"""
-    with tempfile.TemporaryDirectory(prefix="rq3-timeline-") as temporary:
-        build_dir = Path(temporary)
-        source_path = build_dir / "rq3-causal-timeline.tex"
-        source_path.write_text(source, encoding="utf-8")
-        pdflatex = _find_pdflatex()
-        if pdflatex is None:
-            raise RuntimeError("pdflatex was not found on PATH, in TEXLIVE_BIN, or under ~/texlive")
-        environment = os.environ.copy()
-        executable_dir = str(Path(pdflatex).resolve().parent)
-        path_entries = environment.get("PATH", "").split(os.pathsep)
-        if executable_dir not in path_entries:
-            environment["PATH"] = os.pathsep.join(
-                (executable_dir, environment.get("PATH", ""))
-            )
-        result = subprocess.run(
-            [
-                pdflatex,
-                "-halt-on-error",
-                "-interaction=nonstopmode",
-                "-output-directory",
-                str(build_dir),
-                str(source_path),
-            ],
-            cwd=ROOT,
-            env=environment,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            check=False,
-        )
-        pdf_path = build_dir / "rq3-causal-timeline.pdf"
-        if result.returncode != 0 or not pdf_path.is_file():
-            tail = (result.stdout + "\n" + result.stderr)[-5000:]
-            raise RuntimeError(f"could not render the RQ3 timeline PDF:\n{tail}")
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(pdf_path, destination)
 
 
 def _counts(pairs: list[dict[str, Any]], contrast_id: str) -> dict[str, Any]:
@@ -575,22 +337,18 @@ def _counts(pairs: list[dict[str, Any]], contrast_id: str) -> dict[str, Any]:
                 for pair in pairs
             ),
             "C6_read_attempted": sum(
-                _read_signature(pair["arms"]["C6"])["status"] is not None
-                for pair in pairs
+                _read_signature(pair["arms"]["C6"])["status"] is not None for pair in pairs
             ),
             "C6_unavailable_reads": sum(
-                _read_signature(pair["arms"]["C6"])["status"] == "UNAVAILABLE"
-                for pair in pairs
+                _read_signature(pair["arms"]["C6"])["status"] == "UNAVAILABLE" for pair in pairs
             ),
             "C6_indeterminate_reads": sum(
-                _read_signature(pair["arms"]["C6"])["status"] == "INDETERMINATE"
-                for pair in pairs
+                _read_signature(pair["arms"]["C6"])["status"] == "INDETERMINATE" for pair in pairs
             ),
             "C6_read_error_code_counts": _error_code_counts(pairs, "C6", "read"),
             "same_actual_read_route_pairs": _same_actual_route(pairs, "read", "C5", "C6"),
             "C6_successful_read_responses": sum(
-                _read_signature(pair["arms"]["C6"])["status"] == "SUCCESS"
-                for pair in pairs
+                _read_signature(pair["arms"]["C6"])["status"] == "SUCCESS" for pair in pairs
             ),
             "C6_successful_reads_without_version": sum(
                 _read_signature(pair["arms"]["C6"])["status"] == "SUCCESS"
@@ -610,8 +368,7 @@ def _counts(pairs: list[dict[str, Any]], contrast_id: str) -> dict[str, Any]:
                 for pair in pairs
             ),
             "C6_read_not_reached": sum(
-                _read_signature(pair["arms"]["C6"])["status"] is None
-                for pair in pairs
+                _read_signature(pair["arms"]["C6"])["status"] is None for pair in pairs
             ),
         }
     if contrast_id == "M2":
@@ -632,8 +389,7 @@ def _counts(pairs: list[dict[str, Any]], contrast_id: str) -> dict[str, Any]:
                 for pair in pairs
             ),
             "C8_successful_read_responses": sum(
-                _read_signature(pair["arms"]["C8"])["status"] == "SUCCESS"
-                for pair in pairs
+                _read_signature(pair["arms"]["C8"])["status"] == "SUCCESS" for pair in pairs
             ),
             "C5_majority_read_v0": sum(
                 _read_signature(pair["arms"]["C5"])["status"] == "SUCCESS"
@@ -641,8 +397,7 @@ def _counts(pairs: list[dict[str, Any]], contrast_id: str) -> dict[str, Any]:
                 for pair in pairs
             ),
             "C5_successful_read_responses": sum(
-                _read_signature(pair["arms"]["C5"])["status"] == "SUCCESS"
-                for pair in pairs
+                _read_signature(pair["arms"]["C5"])["status"] == "SUCCESS" for pair in pairs
             ),
             "same_actual_read_route_pairs": _same_actual_route(pairs, "read", "C8", "C5"),
             "C8_W2_acknowledged": sum(
@@ -664,12 +419,10 @@ def _counts(pairs: list[dict[str, Any]], contrast_id: str) -> dict[str, Any]:
                 for pair in pairs
             ),
             "C8_W2_present_on_all_final_members": sum(
-                _final_write_presence(pair["arms"]["C8"], "w2") == "all_members"
-                for pair in pairs
+                _final_write_presence(pair["arms"]["C8"], "w2") == "all_members" for pair in pairs
             ),
             "C5_W2_present_on_all_final_members": sum(
-                _final_write_presence(pair["arms"]["C5"], "w2") == "all_members"
-                for pair in pairs
+                _final_write_presence(pair["arms"]["C5"], "w2") == "all_members" for pair in pairs
             ),
             "C8_read_version_present_in_final_state": sum(
                 _final_contains_read_version(pair["arms"]["C8"])
@@ -679,18 +432,10 @@ def _counts(pairs: list[dict[str, Any]], contrast_id: str) -> dict[str, Any]:
                 _final_contains_read_version(pair["arms"]["C5"])
                 for pair in pairs
             ),
-            "C8_WFR_violations": sum(
-                pair["arms"]["C8"].get("result") == "VIOLATION" for pair in pairs
-            ),
-            "C8_WFR_indeterminate": sum(
-                pair["arms"]["C8"].get("result") == "INDETERMINATE" for pair in pairs
-            ),
-            "C5_WFR_passes": sum(
-                pair["arms"]["C5"].get("result") == "PASS" for pair in pairs
-            ),
-            "C5_WFR_indeterminate": sum(
-                pair["arms"]["C5"].get("result") == "INDETERMINATE" for pair in pairs
-            ),
+            "C8_WFR_violations": sum(pair["arms"]["C8"].get("result") == "VIOLATION" for pair in pairs),
+            "C8_WFR_indeterminate": sum(pair["arms"]["C8"].get("result") == "INDETERMINATE" for pair in pairs),
+            "C5_WFR_passes": sum(pair["arms"]["C5"].get("result") == "PASS" for pair in pairs),
+            "C5_WFR_indeterminate": sum(pair["arms"]["C5"].get("result") == "INDETERMINATE" for pair in pairs),
         }
     return {
         "C3_w1_first_write_acknowledged": sum(
@@ -703,8 +448,7 @@ def _counts(pairs: list[dict[str, Any]], contrast_id: str) -> dict[str, Any]:
             for pair in pairs
         ),
         "C3_converged_final_observations": sum(
-            _final_write_presence(pair["arms"]["C3"], "w1") != "unobserved"
-            for pair in pairs
+            _final_write_presence(pair["arms"]["C3"], "w1") != "unobserved" for pair in pairs
         ),
         "C6_majority_first_write_acknowledged": sum(
             _write_signature(pair["arms"]["C6"], "first_write")["status"] == "SUCCESS"
@@ -723,94 +467,36 @@ def _counts(pairs: list[dict[str, Any]], contrast_id: str) -> dict[str, Any]:
             pairs, "first_write", "C3", "C6"
         ),
         "C6_converged_final_observations": sum(
-            _final_write_presence(pair["arms"]["C6"], "w1") != "unobserved"
-            for pair in pairs
+            _final_write_presence(pair["arms"]["C6"], "w1") != "unobserved" for pair in pairs
         ),
     }
 
 
-def _summary_and_report(
-    *, input_root: Path, output_root: Path, submission_root: Path
-) -> dict[str, Any]:
+def _summary_and_report(*, input_root: Path, output_root: Path) -> dict[str, Any]:
     manifest_path = input_root / "campaign-manifest.json"
     campaign = _read_json(manifest_path)
     anchor_manifest, anchor_manifest_digest = verify_anchor_manifest(ROOT)
     historical_anchors = _summarize_historical_anchors(anchor_manifest)
-    if (
-        campaign.get("schema_version") != "rq3-campaign.v2"
-        or campaign.get("protocol_id") != "rq3-protocol.v2"
-    ):
-        raise ValueError("RQ3 analyzer requires an rq3-protocol.v2 campaign")
+    if campaign.get("schema_version") != "rq3-campaign.v2":
+        raise ValueError("RQ3 analyzer requires an rq3-campaign.v2 campaign")
+    if campaign.get("protocol_id") != "rq3-protocol.v2":
+        raise ValueError("RQ3 analyzer requires the rq3-protocol.v2 protocol")
     if campaign.get("status") != "COMPLETE":
         raise ValueError(f"RQ3 campaign is not complete: {campaign.get('status')}")
-    provenance = campaign.get("runtime_provenance")
-    if not isinstance(provenance, dict):
-        raise TypeError("RQ3 campaign runtime provenance is missing")
-    configuration_settings = load_configurations(ROOT / "configs/configurations.json")
-    frozen_hashes = {
-        "runner_script_sha256": ROOT / "scripts/run_rq3_campaign.py",
-        "configuration_sha256": ROOT / "configs/configurations.json",
-        "protocol_sha256": ROOT / "docs/experimental-protocol.md",
-        "topology_plan_sha256": ROOT / "src/mongo_consistency/rq3.py",
-        "anchor_manifest_sha256": ROOT / "configs/rq3-anchors.json",
-    }
-    for field, path in frozen_hashes.items():
-        if campaign.get(field) != _sha256(path):
-            raise ValueError(f"RQ3 campaign {field} does not match {_display_path(path)}")
-    if (
-        campaign.get("runner_commit") != provenance.get("runner_commit")
-        or provenance.get("runner_dirty") is not False
-        or campaign.get("protocol_sha256") != provenance.get("protocol_hash")
-        or provenance.get("prediction_manifest_hash") != _sha256(ROOT / "configs/predictions.json")
-        or campaign.get("anchor_manifest_sha256") != anchor_manifest_digest
-    ):
-        raise ValueError("RQ3 campaign frozen runtime provenance does not match its manifest")
-    preflight_path = input_root.parent / "rq3-preflight.json"
-    if not preflight_path.is_file():
-        preflight_path = ROOT / "results/raw/rq3-preflight.json"
-    if (
-        not preflight_path.is_file()
-        or campaign.get("preflight_sha256") != _sha256(preflight_path)
-    ):
-        raise ValueError("RQ3 topology preflight hash does not match the campaign manifest")
-    preflight = _read_json(preflight_path)
-    if (
-        preflight.get("schema_version") != "rq3-preflight.v2"
-        or preflight.get("protocol_id") != "rq3-protocol.v2"
-        or preflight.get("status") != "PASS"
-        or preflight.get("planned_cycle_count") != 10
-        or preflight.get("completed_cycle_count") != 10
-        or preflight.get("passed_cycle_count") != 10
-        or preflight.get("topology_plan") != TOPOLOGY_PLANS["M3"].to_dict()
-    ):
-        raise ValueError("RQ3 topology rehearsal did not pass its control")
     repetitions = campaign.get("repetitions_per_contrast")
     if type(repetitions) is not int or repetitions != 8:
         raise ValueError("RQ3 campaign repetitions must be exactly eight")
-    expected_count = campaign.get("planned_case_count")
-    records = campaign.get("records", [])
-    if (
-        expected_count != repetitions * 6
-        or campaign.get("completed_case_count") != expected_count
-        or not isinstance(records, list)
-        or len(records) != expected_count
-    ):
+    records = campaign.get("records")
+    if not isinstance(records, list) or len(records) != repetitions * 6:
         raise ValueError("RQ3 campaign manifest does not contain every planned history")
 
+    configurations = load_configurations(ROOT / "configs/configurations.json")
     contrast_specs = {
         "M1": ("rq3-m1", {"C5", "C6"}, "RYW", "m1"),
         "M2": ("rq3-m2", {"C8", "C5"}, "WFR", "m2"),
         "M3": ("rq3-m3", {"C3", "C6"}, "MW", "m3"),
     }
-    capture_operations = {
-        "M1": ["write", "read"],
-        "M2": ["read", "write"],
-        "M3": ["first_write", "second_write"],
-    }
-    first_operations = {"M1": "write", "M2": "read", "M3": "first_write"}
-    followup_operations = {"M1": "read", "M2": "write", "M3": "second_write"}
     records_by_pair: dict[str, dict[str, dict[str, Any]]] = defaultdict(dict)
-    pair_records: dict[str, list[dict[str, Any]]] = defaultdict(list)
     seen_trials: set[str] = set()
     for record in records:
         if not isinstance(record, dict):
@@ -826,11 +512,9 @@ def _summary_and_report(
         trial_id = record.get("trial_id")
         pair_seed = record.get("pair_seed")
         if (
-            not isinstance(configuration_id, str)
+            record.get("campaign") != campaign_id
             or configuration_id not in expected_arms
-            or record.get("campaign") != campaign_id
             or record.get("property") != property_name
-            or record.get("runner_commit") != campaign.get("runner_commit")
             or type(replicate) is not int
             or not 1 <= replicate <= repetitions
             or pair_id != f"{pair_prefix}-r{replicate:02d}"
@@ -844,13 +528,12 @@ def _summary_and_report(
         seen_trials.add(trial_id)
         path = _history_path(record, input_root=input_root)
         history_object = read_history(path)
-        history = history_object.to_dict()
         if history_object.history_hash != record.get("history_hash"):
             raise ValueError(f"history hash differs from the RQ3 campaign manifest: {path}")
+        history = history_object.to_dict()
         history_manifest = history.get("manifest", {})
-        expected_fields = {
+        for key, expected in {
             "trial_id": trial_id,
-            "campaign_id": campaign_id,
             "configuration_id": configuration_id,
             "property": property_name,
             "seed": pair_seed,
@@ -859,68 +542,14 @@ def _summary_and_report(
             "rq3_pair_seed": pair_seed,
             "rq3_replicate": replicate,
             "rq3_protocol_id": "rq3-protocol.v2",
-        }
-        if any(history_manifest.get(key) != value for key, value in expected_fields.items()):
-            raise ValueError(f"history identity differs from its campaign record: {path}")
-        if (
-            history_manifest.get("runner_commit") != campaign.get("runner_commit")
-            or history_manifest.get("runner_dirty") is not False
-            or not isinstance(provenance, dict)
-            or history_manifest.get("software_versions") != provenance.get("software_versions")
-            or history_manifest.get("image_digest") != provenance.get("image_digest")
-            or history_manifest.get("checker_version") != provenance.get("checker_version")
-            or any(
-                history_manifest.get(key) != provenance.get(key)
-                for key in (
-                    "protocol_commit",
-                    "protocol_hash",
-                    "prediction_commit",
-                    "prediction_manifest_hash",
-                )
-            )
-        ):
-            raise ValueError(f"history provenance differs from the RQ3 campaign: {path}")
-        if record.get("outcome") == "HARNESS_ERROR" or record.get("runner_error") is not None:
-            raise ValueError(f"harness-error history cannot produce RQ3 report evidence: {path}")
-
-        operations = {
-            operation.get("operation_id"): operation
-            for operation in history.get("operations", [])
-            if isinstance(operation, dict) and isinstance(operation.get("operation_id"), str)
-        }
-        if history_manifest.get("topology_capture_operations") != capture_operations[contrast_id]:
-            raise ValueError(f"history topology capture plan differs from {contrast_id}: {path}")
-        precondition = history.get("precondition", {})
-        precondition_status = precondition.get("status") if isinstance(precondition, dict) else None
-        schedule_outcome = history_manifest.get("schedule_outcome")
-        for operation_id in capture_operations[contrast_id]:
-            operation = operations.get(operation_id)
-            if operation is None:
-                allowed = precondition_status == "PRECONDITION_MISS"
-                if operation_id == followup_operations[contrast_id]:
-                    preceding = operations.get(first_operations[contrast_id])
-                    allowed = allowed or (
-                        preceding is not None
-                        and preceding.get("operation_status")
-                        in {"UNAVAILABLE", "INDETERMINATE", "HARNESS_ERROR"}
-                    )
-                    allowed = allowed or (
-                        isinstance(schedule_outcome, dict)
-                        and schedule_outcome.get("outcome") in {"UNAVAILABLE", "INDETERMINATE"}
-                    )
-                if not allowed:
-                    raise ValueError(f"required RQ3 operation {operation_id} is missing: {path}")
-                continue
-            if not isinstance(operation.get("topology_before"), dict) or not isinstance(
-                operation.get("topology_after"), dict
-            ):
-                raise TypeError(f"RQ3 operation {operation_id} is missing topology snapshots: {path}")
+        }.items():
+            if history_manifest.get(key) != expected:
+                raise ValueError(f"history identity differs from its campaign record: {path}")
         history["result"] = record.get("outcome")
         history["source_path"] = _display_path(path)
         if configuration_id in records_by_pair[pair_id]:
             raise ValueError(f"{pair_id} contains a duplicate configuration arm")
         records_by_pair[pair_id][configuration_id] = history
-        pair_records[pair_id].append(record)
 
     expected_pair_ids = {
         f"{contrast_id.lower()}-r{replicate:02d}"
@@ -929,72 +558,23 @@ def _summary_and_report(
     }
     if set(records_by_pair) != expected_pair_ids:
         raise ValueError("RQ3 campaign has missing or unexpected pair IDs")
-    for pair_id, items in pair_records.items():
-        contrast_id = pair_id.split("-", maxsplit=1)[0].upper()
-        expected_arms = contrast_specs[contrast_id][1]
-        seeds = [item.get("pair_seed") for item in items]
-        arm_configuration_ids = [item.get("configuration_id") for item in items]
-        if (
-            len(items) != 2
-            or set(arm_configuration_ids) != expected_arms
-            or any(type(seed) is not int for seed in seeds)
-            or seeds[0] != seeds[1]
-        ):
-            raise ValueError(f"{pair_id} does not contain the registered matched-seed arms")
-
-    recomputed_controls: dict[tuple[str, str], dict[str, Any]] = {}
-    for pair_id, arms in records_by_pair.items():
-        contrast_id = pair_id.split("-", maxsplit=1)[0].upper()
-        recomputed_controls[(contrast_id, pair_id)] = pair_control(
-            contrast_id,
-            pair_id,
-            arms,
-            configurations=configuration_settings,
-        )
-    recorded_controls = campaign.get("pair_controls")
-    if not isinstance(recorded_controls, list):
-        raise ValueError("RQ3 v2 campaign is missing its pair-control records")
-    recorded_by_key: dict[tuple[str, str], dict[str, Any]] = {}
-    for item in recorded_controls:
-        if not isinstance(item, dict):
-            raise TypeError("RQ3 campaign contains a non-object pair-control record")
-        key = (str(item.get("contrast_id")), str(item.get("pair_id")))
-        if key in recorded_by_key:
-            raise ValueError(f"RQ3 campaign contains a duplicate pair-control record: {key}")
-        recorded_by_key[key] = item
-    if set(recorded_by_key) != set(recomputed_controls):
-        raise ValueError("RQ3 campaign pair-control records do not cover the planned pairs")
-    for key, recomputed in recomputed_controls.items():
-        if recorded_by_key[key] != recomputed:
-            raise ValueError(
-                f"RQ3 campaign pair-control record differs from raw histories for {key[1]}"
-            )
 
     grouped: dict[str, list[dict[str, Any]]] = {"M1": [], "M2": [], "M3": []}
     for pair_id, arms in records_by_pair.items():
         contrast_id = pair_id.split("-", maxsplit=1)[0].upper()
-        expected_arms = contrast_specs[contrast_id][1]
-        if set(arms) != expected_arms:
+        if set(arms) != contrast_specs[contrast_id][1]:
             raise ValueError(f"{pair_id} does not contain the registered configuration pair")
-        grouped[contrast_id].append(
-            _row_for_pair(contrast_id, pair_id, arms, configuration_settings)
-        )
+        grouped[contrast_id].append(_row_for_pair(contrast_id, pair_id, arms, configurations))
 
     selections: dict[str, Any] = {}
     summary_contrasts: dict[str, Any] = {}
+    configuration_order = {"M1": ("C5", "C6"), "M2": ("C8", "C5"), "M3": ("C3", "C6")}
     for contrast_id, pairs in grouped.items():
         pairs.sort(key=lambda pair: pair["pair_id"])
-        if len(pairs) != campaign.get("repetitions_per_contrast"):
-            raise ValueError(f"{contrast_id} is missing matched pairs")
         valid_pairs = _valid_pairs(pairs)
         chosen = valid_pairs[0] if valid_pairs else None
         selection = None
         if chosen is not None:
-            configuration_order = {
-                "M1": ("C5", "C6"),
-                "M2": ("C8", "C5"),
-                "M3": ("C3", "C6"),
-            }[contrast_id]
             selection = {
                 "pair_id": chosen["pair_id"],
                 "control_valid": True,
@@ -1005,19 +585,16 @@ def _summary_and_report(
                         "sha256": chosen["arms"][configuration_id]["history_hash"],
                         "configuration_id": configuration_id,
                     }
-                    for configuration_id in configuration_order
+                    for configuration_id in configuration_order[contrast_id]
                 ],
             }
         selections[contrast_id] = selection
         invalid_pairs = [
-            {
-                "pair_id": pair["pair_id"],
-                "invalid_reasons": pair["invalid_reasons"],
-            }
+            {"pair_id": pair["pair_id"], "invalid_reasons": pair["invalid_reasons"]}
             for pair in pairs
             if not pair["control_valid"]
         ]
-        contrast_summary = {
+        summary_contrasts[contrast_id] = {
             "planned_pair_count": len(pairs),
             "control_valid_pair_count": len(valid_pairs),
             "invalid_pair_count": len(invalid_pairs),
@@ -1025,9 +602,8 @@ def _summary_and_report(
             "signature_counts": _counts(valid_pairs, contrast_id),
             "selected_pair": selection,
         }
-        summary_contrasts[contrast_id] = contrast_summary
 
-    manifest_digest = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+    manifest_digest = _sha256(manifest_path)
     output_root.mkdir(parents=True, exist_ok=True)
     selection_manifest = {
         "schema_version": "rq3-selection.v2",
@@ -1043,39 +619,10 @@ def _summary_and_report(
         ],
         "selected_pairs": selections,
     }
-    (output_root / "selection-manifest.json").write_text(
-        json.dumps(selection_manifest, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
+    selection_path = output_root / "selection-manifest.json"
+    selection_path.write_text(
+        json.dumps(selection_manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
-    generated_section = _render_report_section(grouped, selections, campaign, historical_anchors)
-    generated_appendix = _render_appendix_section(grouped, selections)
-    section_path = submission_root / "generated-rq3.tex"
-    appendix_path = submission_root / "generated-rq3-appendix.tex"
-    section_path.parent.mkdir(parents=True, exist_ok=True)
-    section_path.write_text(generated_section, encoding="utf-8")
-    appendix_path.write_text(generated_appendix, encoding="utf-8")
-    timeline_path = submission_root / "figures/rq3-causal-timeline.pdf"
-    if selections["M1"] is not None:
-        causal_pair = next(
-            pair for pair in _valid_pairs(grouped["M1"])
-            if pair["pair_id"] == selections["M1"]["pair_id"]
-        )
-        _render_timeline(causal_pair, timeline_path)
-    generated_artifacts = {
-        "report_tex": {
-            "path": _display_path(section_path),
-            "sha256": _sha256(section_path),
-        },
-        "appendix_tex": {
-            "path": _display_path(appendix_path),
-            "sha256": _sha256(appendix_path),
-        },
-    }
-    if selections["M1"] is not None:
-        generated_artifacts["timeline_pdf"] = {
-            "path": _display_path(timeline_path),
-            "sha256": _sha256(timeline_path),
-        }
     summary = {
         "schema_version": "rq3-analysis.v2",
         "protocol_id": "rq3-protocol.v2",
@@ -1084,10 +631,9 @@ def _summary_and_report(
         "preflight_sha256": campaign["preflight_sha256"],
         "anchor_manifest_sha256": anchor_manifest_digest,
         "historical_anchors": historical_anchors,
-        "repetitions_per_contrast": campaign["repetitions_per_contrast"],
+        "repetitions_per_contrast": repetitions,
         "contrast_summaries": summary_contrasts,
-        "selection_manifest": _display_path(output_root / "selection-manifest.json"),
-        "generated_artifacts": generated_artifacts,
+        "selection_manifest": _display_path(selection_path),
     }
     (output_root / "summary.json").write_text(
         json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8"
@@ -1095,252 +641,12 @@ def _summary_and_report(
     return summary
 
 
-def _render_report_section(
-    grouped: dict[str, list[dict[str, Any]]],
-    selections: dict[str, Any],
-    campaign: dict[str, Any],
-    historical_anchors: list[dict[str, Any]] | None = None,
-) -> str:
-    if historical_anchors is None:
-        anchor_manifest, _ = verify_anchor_manifest(ROOT)
-        historical_anchors = _summarize_historical_anchors(anchor_manifest)
-    specifications = {
-        "M1": "causal session: C5 versus C6, off versus on",
-        "M2": "read concern: C8 versus C5, local versus majority",
-        "M3": "write concern: C3 versus C6, w:1 versus majority",
-    }
-    rows: list[str] = []
-
-    def frequency(count: int, valid_n: int) -> str:
-        if valid_n <= 0 or count == 0:
-            return "no valid pairs"
-        if count == valid_n:
-            return "all valid pairs"
-        return "some valid pairs"
-
-    for contrast_id in ("M1", "M2", "M3"):
-        planned_pairs = grouped[contrast_id]
-        valid_pairs = _valid_pairs(planned_pairs)
-        valid_n = len(valid_pairs)
-        counts = _counts(valid_pairs, contrast_id)
-
-        if contrast_id == "M1":
-            signature = (
-                f"C5 returned stale v0 without afterClusterTime in "
-                f"{frequency(counts['C5_stale_success_without_after_cluster_time'], valid_n)}; "
-                f"C6 carried afterClusterTime in "
-                f"{frequency(counts['C6_after_cluster_time_present'], valid_n)}, with no "
-                f"successful stale read and unavailable reads in "
-                f"{frequency(counts['C6_unavailable_reads'], valid_n)}."
-            )
-            limitation = (
-                "The timeout is client-visible and does not reveal internal "
-                "waiting; the contrast is consistent with a causal-session lower "
-                "bound, not a universal guarantee."
-            )
-        elif contrast_id == "M2":
-            signature = (
-                f"C8 local returned v1 in {frequency(counts['C8_local_read_v1'], valid_n)}; "
-                f"C5 majority returned v0 in {frequency(counts['C5_majority_read_v0'], valid_n)}. "
-                f"The returned version was present in final state for C8/C5 in "
-                f"{frequency(counts['C8_read_version_present_in_final_state'], valid_n)} and "
-                f"{frequency(counts['C5_read_version_present_in_final_state'], valid_n)}."
-            )
-            limitation = (
-                "The setup W1 was a protocol-defined w:1 stimulus, not an "
-                "independently observed command. The trace supports a "
-                "role/state comparison, not a general route effect."
-            )
-        else:
-            signature = (
-                f"C3 acknowledged W1 at w:1 in "
-                f"{frequency(counts['C3_w1_first_write_acknowledged'], valid_n)}; the "
-                f"acknowledged W1 was absent from all converged members in "
-                f"{frequency(counts['C3_acknowledged_w1_absent_from_all_converged_members'], valid_n)}. "
-                f"C6 majority W1 timed out in "
-                f"{frequency(counts['C6_majority_first_write_network_timeout'], valid_n)}; "
-                f"direct W1 presence after healing was observed in "
-                f"{frequency(counts['C6_w1_present_on_all_final_members_after_timeout'], valid_n)}."
-            )
-            limitation = (
-                "A timeout leaves the write effect unresolved from the client "
-                "response; it does not establish definite failure or internal "
-                "waiting. Final presence is a separate observation from "
-                "acknowledgement."
-            )
-
-        rows.append(
-            " & ".join(
-                _latex_escape(cell)
-                for cell in (specifications[contrast_id], signature, limitation)
-            )
-            + r" \\"
-        )
-
-    m1_valid = _valid_pairs(grouped["M1"])
-    timeline_note = ""
-    if m1_valid:
-        timeline_note = (
-            "\\maybefigure[fig:rq3-causal-timeline]"
-            "{submission/figures/rq3-causal-timeline.pdf}"
-            "{C5/C6 causal-session timeline; each arm is an independent fault episode.}"
-        )
-    return rf"""\subsection{{Mechanism contrasts (RQ3)}}
-
-RQ3 is mechanism evidence for representative RQ1 and RQ2 observations, not a
-separate benchmark. It uses matched-seed pairs for three registered contrasts;
-pair validity is recomputed from the raw histories before the table is built.
-The six registered RQ1 histories are historical anchors, not
-RQ3 replay denominators. The factors are interpreted through the client-centric
-definitions from Lecture~3 and the cited MongoDB documentation.
-
-{{\small
-\setlength{{\tabcolsep}}{{3pt}}
-\begin{{longtable}}{{@{{}}p{{3.0cm}}p{{7.8cm}}p{{5.0cm}}@{{}}}}
-\caption{{RQ3 mechanism evidence; observations use control-valid pairs.}}
-\label{{tab:rq3-mechanisms}}\\
-\toprule
-Factor changed & Observed mechanism signature & Limitation \\
-\midrule
-\endfirsthead
-\caption[]{{RQ3 mechanism evidence (continued).}}\\
-\toprule
-Factor changed & Observed mechanism signature & Limitation \\
-\midrule
-\endhead
-\bottomrule
-\endfoot
-{chr(10).join(rows)}
-\end{{longtable}}
-}}
-
-These observations are finite and schedule-specific. The pair-control audit,
-selected history identities, and raw hashes are in Appendix~\ref{{app:full-results}}
-and the reproduction artifacts.
-
-{timeline_note}
-"""
-
-
-def _render_appendix_section(
-    grouped: dict[str, list[dict[str, Any]]],
-    selections: dict[str, Any],
-) -> str:
-    """Render RQ3 counts and selected identities omitted from the main text."""
-
-    specifications = {
-        "M1": "C5 versus C6, causal session",
-        "M2": "C8 versus C5, read concern",
-        "M3": "C3 versus C6, write concern",
-    }
-    audit_rows: list[str] = []
-    identity_rows: list[str] = []
-    signature_rows: list[str] = []
-    for contrast_id in ("M1", "M2", "M3"):
-        planned_pairs = grouped[contrast_id]
-        valid_pairs = _valid_pairs(planned_pairs)
-        invalid_pairs = [
-            pair for pair in planned_pairs if not pair.get("control_valid", False)
-        ]
-        audit_rows.append(
-            f"{contrast_id} & {specifications[contrast_id]} & {len(planned_pairs)} & "
-            f"{len(valid_pairs)} & {len(invalid_pairs)} \\\\"
-        )
-        selected = selections.get(contrast_id)
-        if isinstance(selected, dict):
-            pair_id = str(selected.get("pair_id", "unavailable"))
-            for history in selected.get("histories", []):
-                if not isinstance(history, dict):
-                    continue
-                configuration = _latex_escape(history.get("configuration_id", ""))
-                trial_id = _latex_escape(history.get("trial_id", "unavailable"))
-                digest = _latex_escape(str(history.get("sha256", ""))[:16] or "unavailable")
-                identity_rows.append(
-                    f"{contrast_id} & {configuration} & "
-                    f"\\texttt{{{trial_id}}} & \\texttt{{{digest}...}} \\\\"
-                )
-        else:
-            pair_id = "unavailable"
-        counts = _counts(valid_pairs, contrast_id)
-        count_text = ", ".join(
-            f"{key}={value}" for key, value in sorted(counts.items())
-        )
-        signature_rows.append(
-            f"{contrast_id} & \\texttt{{{_latex_escape(pair_id)}}} & "
-            f"{_latex_escape(count_text)} \\\\"
-        )
-
-    return r"""\subsection{RQ3 pair-control audit}
-\label{app:rq3-audit}
-
-The main RQ3 table uses the phrase all valid pairs so that the mechanism
-comparison remains readable. This appendix retains the pair counts, selected
-pair identities, and signature counts used to generate it. The full raw
-histories and complete SHA-256 values remain in
-\texttt{results/analysis/rq3/summary.json} and
-\texttt{results/analysis/rq3/selection-manifest.json}.
-
-\begin{table}[ht]
-\centering
-\small
-\caption{RQ3 pair-control counts.}
-\label{tab:rq3-pair-controls}
-\begin{tabular}{@{}l p{0.40\linewidth} r r r@{}}
-\toprule
-Contrast & Factor & Planned & Valid & Invalid \\
-\midrule
-""" + "\n".join(audit_rows) + r"""
-\bottomrule
-\end{tabular}
-\end{table}
-
-\begin{longtable}{@{}l l p{0.35\linewidth} p{0.24\linewidth}@{}}
-\caption{Selected RQ3 history identities; the final column is a SHA-256 prefix.}
-\label{tab:rq3-selected-histories}\\
-\toprule
-Contrast & Config & Trial ID & SHA-256 prefix \\
-\midrule
-\endfirsthead
-\caption[]{Selected RQ3 history identities (continued).}\\
-\toprule
-Contrast & Config & Trial ID & SHA-256 prefix \\
-\midrule
-\endhead
-\bottomrule
-\endfoot
-""" + "\n".join(identity_rows) + r"""
-\end{longtable}
-
-\begin{longtable}{@{}l p{0.25\linewidth} p{0.61\linewidth}@{}}
-\caption{RQ3 signature counts recomputed from control-valid pairs.}
-\label{tab:rq3-signature-counts}\\
-\toprule
-Contrast & Selected pair & Signature counts \\
-\midrule
-\endfirsthead
-\caption[]{RQ3 signature counts (continued).}\\
-\toprule
-Contrast & Selected pair & Signature counts \\
-\midrule
-\endhead
-\bottomrule
-\endlastfoot
-""" + "\n".join(signature_rows) + r"""
-\end{longtable}
-"""
-
-
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input-root", type=Path, default=DEFAULT_INPUT)
     parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT)
-    parser.add_argument("--submission-root", type=Path, default=ROOT / "submission")
-    args = parser.parse_args()
-    summary = _summary_and_report(
-        input_root=args.input_root,
-        output_root=args.output_root,
-        submission_root=args.submission_root,
-    )
+    args = parser.parse_args(argv)
+    summary = _summary_and_report(input_root=args.input_root, output_root=args.output_root)
     print(json.dumps(summary, sort_keys=True), flush=True)
     return 0
 

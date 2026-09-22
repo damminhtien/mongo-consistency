@@ -1,21 +1,20 @@
 \section{Reproducibility}
 
-The archive includes the source tree, raw campaign evidence available at the
-build revision, configuration and prediction files, schemas, tests, analysis
-scripts, report sources, and a SHA-256 manifest. The artifact map and command
-list are also provided in Appendices~\ref{app:repository} and
-\ref{app:install}.
+The submitted archive contains the compiled report PDF, the runtime source and
+campaign scripts needed to recreate the MongoDB deployment, and the offline
+analysis entry points needed to rebuild summaries. The report source, tests,
+and raw histories remain in the repository for review but are not part of the
+upload archive.
 
-For a clean checkout, install the pinned Python dependencies and Docker tooling
-recorded for the campaign. The setup target verifies the local tools and
-starts the three-member Compose replica set:
+From a clean checkout with Docker running, install the pinned dependencies and
+start the three-member Compose deployment:
 
 \begin{verbatim}
 python3 -m pip install -r requirements-dev.txt
 make setup
 \end{verbatim}
 
-The live validation and experiment commands are:
+The live campaign commands are:
 
 \begin{verbatim}
 make smoke
@@ -23,34 +22,29 @@ make pilot
 make experiment
 make rq2
 make rq3
-# If interrupted, resume without changing the frozen inputs.
-make rq3 RQ3_ARGS=--resume
-make rq3-analyse
 \end{verbatim}
 
-Smoke validates machinery and is not scientific evidence. Pilot histories are
-kept separate from RQ1. RQ1 runs sequentially; RQ2 uses its own campaign
-manifest and grouped fault coordinator. RQ3 replays eight matched-seed pairs
-for each preregistered contrast and writes separate fault episodes. Main
-campaigns require frozen, matching prediction, protocol, and runner provenance
-in a clean checkout.
+Smoke checks the execution machinery and is not scientific evidence. Pilot
+histories are separate from the main configuration campaign. The fault
+campaign uses its own manifest and groups histories that share one fault
+episode.
 
-Analysis and report generation use the saved campaign artifacts and do not
-require a live database:
+The offline checks rebuild summaries from saved histories without connecting to
+MongoDB:
 
 \begin{verbatim}
 make test
 make check-docs
 make check-schemas
 make check-runner-isolation
-make rq3-analyse
 make analyse
+make rq3-analyse
 make rq4-analyse
-make submission
-make check-submission-artifacts
 \end{verbatim}
 
-The first five commands validate the checkout and rebuild derived analysis from
-canonical raw histories. \texttt{make submission} rebuilds the PDF and filtered
-reproduction archive. Run \texttt{make check-release-ready} before upload; it
-checks required team metadata in addition to campaign evidence.
+Finally, \texttt{make submission} compiles the manually authored LaTeX source,
+adds the data macros derived from the saved summaries, validates the PDF, and
+creates the archive containing the PDF, source tree, campaign scripts, and
+offline analysis scripts. The manifest records SHA-256 checksums for the
+uploaded files. Run
+\texttt{make check-submission-artifacts} before upload.

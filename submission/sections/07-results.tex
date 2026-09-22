@@ -1,19 +1,23 @@
-\section{Experiments and Results}
+\section{Results}
 
-\subsection{RQ1 campaign outcomes}
+\subsection{Configuration campaign}
 
-RQ1 contains \NormalHistoryCount\ normal controls and
-\AdversarialHistoryCount\ adversarial histories. The pilot is excluded. Only
-PASS and VIOLATION enter the consistency violation rate; the other outcomes
-remain visible in the tables.
+The configuration campaign contains \NormalHistoryCount\ normal controls and
+\AdversarialHistoryCount\ adversarial histories. The normal controls contain
+\NormalPassCount\ PASS and \NormalViolationCount\ VIOLATION outcomes. The
+adversarial histories contain \AdversarialPassCount\ PASS,
+\AdversarialViolationCount\ VIOLATION, \AdversarialUnavailableCount\
+UNAVAILABLE, \AdversarialIndeterminateCount\ INDETERMINATE,
+\AdversarialPreconditionMissCount\ PRECONDITION\_MISS, and
+\AdversarialHarnessErrorCount\ HARNESS\_ERROR outcomes.
 
 \begin{table}[ht]
 \centering
-\caption{RQ1 outcome counts, with normal controls and adversarial histories separated.}
+\caption{Configuration-campaign outcome counts.}
 \label{tab:outcomes}
 \begin{tabular}{@{}lrr@{}}
 \toprule
-Outcome & Normal controls & Adversarial \\
+Outcome & Normal controls & Adversarial histories \\
 \midrule
 PASS & \NormalPassCount & \AdversarialPassCount \\
 VIOLATION & \NormalViolationCount & \AdversarialViolationCount \\
@@ -25,34 +29,17 @@ HARNESS\_ERROR & \NormalHarnessErrorCount & \AdversarialHarnessErrorCount \\
 \end{tabular}
 \end{table}
 
-\begin{table}[ht]
-\centering
-\caption{RQ1 rates and operation latency by condition.}
-\label{tab:rq1-metrics}
-\begin{tabular}{@{}lrr@{}}
-\toprule
-Metric & Normal controls & Adversarial histories \\
-\midrule
-Consistency violation rate & \ControlConsistencyViolationRate & \ConsistencyViolationRate \\
-Operation success rate & \ControlOperationSuccessRate & \OperationSuccessRate \\
-History completion rate & \ControlHistoryCompletionRate & \HistoryCompletionRate \\
-Latency p50 / p95 (ms) & \ControlLatencyMedian / \ControlLatencyHigh & \LatencyMedian / \LatencyHigh \\
-Election p50 (ms) & \ControlElectionMedian & \ElectionMedian \\
-Recovery p50 (ms) & \ControlRecoveryMedian & \RecoveryMedian \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-The adversarial violation-rate denominator is
-\texttt{\AdversarialDecidableCount}. Table~\ref{tab:outcomes} separates normal
-controls from adversarial histories.
+Among the \AdversarialDecidableCount\ resolved adversarial histories,
+\AdversarialViolationCount\ were violations and \AdversarialPassCount\ were
+passes. The denominator excludes histories in which the required operation or
+observation did not resolve.
 
 \begin{table}[ht]
 \centering
 \small
 \setlength{\tabcolsep}{3pt}
-\caption{Predicted guarantees and observed outcomes by configuration and property.}
-\label{tab:rq1-prediction-observation}
+\caption{Registered expectations and observed configuration outcomes.}
+\label{tab:prediction-observation}
 \begin{tabular}{@{}l*{4}{p{0.19\textwidth}}@{}}
 \toprule
 Config & RYW & MR & MW & WFR \\
@@ -63,201 +50,56 @@ Config & RYW & MR & MW & WFR \\
 \par\smallskip
 \begin{minipage}{\linewidth}
 \footnotesize
-G marks a predicted guarantee; N means no guarantee was predicted. P, V, U,
-and I mean PASS, VIOLATION, UNAVAILABLE, and INDETERMINATE. PM and HE denote
-PRECONDITION\_MISS and HARNESS\_ERROR. Only P and V enter the violation rate;
-N does not predict a violation in every repetition.
+G marks a registered target and N a descriptive cell. P, V, U, I, PM, and HE
+mean PASS, VIOLATION, UNAVAILABLE, INDETERMINATE, PRECONDITION\_MISS, and
+HARNESS\_ERROR. Only P and V enter the resolved comparison.
 \end{minipage}
 \end{table}
-\FloatBarrier
-\maybefigure[fig:prediction-observation]{submission/figures/prediction-observation.pdf}{Predicted guarantees and RQ1 observed outcomes.}
 
-\subsection{Read-your-writes consistency}
+\maybefigure[fig:prediction-observation]{submission/figures/prediction-observation.pdf}{Registered expectations and observed configuration outcomes.}
 
-\subsubsection{Prediction}
-
-C6 is the registered RYW target. A completed read older than the preceding
-subject write would contradict that prediction.
-
-\subsubsection{Test construction}
-
-The schedule isolates a secondary at version 0, writes version 1 through the
-subject session, and verifies that a fresh replica has version 1 while the
-isolated member remains stale. The subject then reads from that member. A
-completed read of version 0 is the registered counterexample.
-
-\subsubsection{Observation}
-
-Across \RYWHistoryCount\ adversarial histories, the checker recorded
+\paragraph{Read-your-writes and monotonic reads.}
+Across \RYWHistoryCount\ adversarial RYW histories, the checker recorded
 \RYWPassCount\ PASS, \RYWViolationCount\ VIOLATION,
-\RYWUnavailableCount\ UNAVAILABLE, and
-\RYWIndeterminateCount\ INDETERMINATE. The C6 histories did not produce a
-resolved read. The completed stale-read counterexamples occurred in
-configurations without an RYW target, as shown in
-Table~\ref{tab:rq1-prediction-observation}.
+\RYWUnavailableCount\ UNAVAILABLE, and \RYWIndeterminateCount\
+INDETERMINATE. The corresponding MR counts were \MRPassCount\ PASS,
+\MRViolationCount\ VIOLATION, \MRUnavailableCount\ UNAVAILABLE,
+\MRIndeterminateCount\ INDETERMINATE, and \MRPreconditionMissCount\
+PRECONDITION\_MISS. The target cells did not all produce a resolved comparison.
+The completed stale-read trace in a non-target cell is therefore descriptive;
+it does not turn an unresolved target into a pass or a failed prediction.
 
-\subsubsection{Interpretation}
+\paragraph{Monotonic writes and writes-follow-reads.}
+The MW campaign recorded \MWPassCount\ PASS, \MWViolationCount\ VIOLATION,
+\MWUnavailableCount\ UNAVAILABLE, and \MWIndeterminateCount\ INDETERMINATE.
+The WFR campaign recorded \WFRPassCount\ PASS, \WFRViolationCount\ VIOLATION,
+\WFRUnavailableCount\ UNAVAILABLE, and \WFRIndeterminateCount\
+INDETERMINATE. MW and WFR use an independent post-recovery observer, so a PASS
+rules out the registered durable counterexample but does not sample every
+transient state before recovery.
 
-The data do not falsify the C6 prediction, but they do not confirm it either:
-the required C6 read was unresolved. The completed stale reads are descriptive
-evidence from non-target configurations.
+\subsection{Fault campaign}
 
-\subsection{Monotonic-reads consistency}
+The fault campaign completed \RQTwoHistoryCount\ histories across
+\RQTwoFaultEpisodeCount\ fault episodes. It recorded \RQTwoPassCount\ PASS,
+\RQTwoViolationCount\ VIOLATION, \RQTwoUnavailableCount\ UNAVAILABLE, and
+\RQTwoIndeterminateCount\ INDETERMINATE. The resolved violation rate is
+\RQTwoConsistencyViolationPercent\% among histories with PASS or VIOLATION.
 
-\subsubsection{Prediction}
-
-C3 and C6 are the registered MR targets. A completed second read below the
-version returned by the first read would contradict the target prediction.
-
-\subsubsection{Test construction}
-
-The schedule confirms that a fresh secondary has version 1 while a stale
-secondary remains at version 0. The subject reads the fresh member and then
-the stale member in one explicit session.
-
-\subsubsection{Observation}
-
-Across \MRHistoryCount\ adversarial histories, there were
-\MRPassCount\ PASS, \MRViolationCount\ VIOLATION,
-\MRUnavailableCount\ UNAVAILABLE, and
-\MRIndeterminateCount\ INDETERMINATE. There were also
-\MRPreconditionMissCount\ PRECONDITION\_MISS and
-\MRHarnessErrorCount\ HARNESS\_ERROR outcomes. Neither predicted
-configuration produced a completed MR comparison: the required reads were
-unavailable or their preconditions were missed.
-
-History \texttt{experiment-00003-C7-mr} is a completed counterexample from a
-non-target configuration. Both reads used majority read concern in one session
-with causal consistency disabled. The later read returned an older version:
+F1 completed its scheduled operations after a secondary crash. F2 completed
+the calls scheduled after the primary election; no subject call was issued
+inside the election interval. F3 kept the isolated member reachable to the
+client while blocking its replication path. In the signature cells, C1
+returned completed stale-read and write-order counterexamples. The matching C6
+histories ended in majority-write timeouts before the dependent operation was
+issued.
 
 \begin{table}[ht]
 \centering
 \small
 \setlength{\tabcolsep}{4pt}
-\caption{Recorded MR trace from C7; both reads used majority read concern.}
-\label{tab:rq1-mr-trace}
-\begin{tabular}{@{}p{0.13\textwidth}p{0.37\textwidth}p{0.34\textwidth}p{0.08\textwidth}@{}}
-\toprule
-Read & Requested / actual member (role) & Returned version / write IDs & Status \\
-\midrule
-\texttt{first\_read} & \texttt{mongo3} / \texttt{mongo3:27017} (secondary) & 1 / \texttt{init, prep} & Success \\
-\texttt{second\_read} & \texttt{mongo1} / \texttt{mongo1:27017} (secondary) & 0 / \texttt{init} & Success \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\subsubsection{Interpretation}
-
-The predicted configurations produced no decidable comparison, so the result
-does not resolve their MR prediction. The C7 trace shows that the registered
-schedule can expose a completed regression when causal consistency is off; it
-does not turn C7 into a failed target.
-
-\subsection{Monotonic-writes consistency}
-
-\subsubsection{Prediction}
-
-C4 and C6 are the registered MW targets. A completed converged observation in
-which the successor is present without its predecessor would contradict a
-target prediction.
-
-\subsubsection{Test construction}
-
-The schedule sends the first subject write to an isolated old primary. After
-the majority side elects a new primary, the subject issues a successor write
-that names the first write as its parent. An independent observer checks the
-same document on all three members after recovery.
-
-\subsubsection{Observation}
-
-Of \MWHistoryCount\ adversarial histories, \MWPassCount\ were PASS,
-\MWViolationCount\ were VIOLATION, \MWUnavailableCount\ were UNAVAILABLE,
-and \MWIndeterminateCount\ were INDETERMINATE. Both predicted configurations
-were indeterminate in every repetition. The completed counterexamples occurred
-in other configurations; the recovered document contained a successor without
-its predecessor.
-
-\subsubsection{Interpretation}
-
-The campaign provides no resolved MW comparison for C4 or C6. The observed
-counterexamples are durable-witness violations in non-target configurations;
-they do not establish what happened during the unobserved interval before
-convergence.
-
-\subsection{Writes-follow-reads consistency}
-
-\subsubsection{Prediction}
-
-C3 and C6 are the registered WFR targets. A completed converged observation in
-which the dependent write is present without the version returned by its
-preceding read would contradict a target prediction.
-
-\subsubsection{Test construction}
-
-The schedule creates version 1 on the isolated old branch as setup. The
-subject reads that version and issues a dependent write on the newly elected
-primary. The write records the read identifier and version. An independent
-observer checks the converged document after recovery.
-
-\subsubsection{Observation}
-
-Across \WFRHistoryCount\ adversarial histories, the checker recorded
-\WFRPassCount\ PASS, \WFRViolationCount\ VIOLATION,
-\WFRUnavailableCount\ UNAVAILABLE, and
-\WFRIndeterminateCount\ INDETERMINATE. Every resolved history in predicted
-configurations C3 and C6 passed; C6 also had unresolved histories.
-
-\subsubsection{Interpretation}
-
-The resolved C3 and C6 histories did not contradict the registered WFR
-prediction. The unresolved C6 histories do not confirm it, and the converged
-observer cannot rule out a transient ordering violation before recovery.
-
-\subsection{RQ2 fault-scenario results}
-
-RQ2 completed \RQTwoHistoryCount\ histories in
-\RQTwoFaultEpisodeCount\ fault episodes. Its outcomes were
-\RQTwoPassCount\ PASS,
-\RQTwoViolationCount\ VIOLATION,
-\RQTwoUnavailableCount\ UNAVAILABLE, and
-\RQTwoIndeterminateCount\ INDETERMINATE. The descriptive violation rate is
-\RQTwoViolationCount/(\RQTwoPassCount+\RQTwoViolationCount) =
-\RQTwoConsistencyViolationPercent\% among histories with a resolved outcome.
-
-In the F3 signature cells, C1 produced stale-read and write-order violations
-in \RQTwoFthreeConeRYWViolationCount/\RQTwoFthreeConeRYWHistoryCount\ RYW and
-\RQTwoFthreeConeMWViolationCount/\RQTwoFthreeConeMWHistoryCount\ MW
-histories. C6 was indeterminate in
-\RQTwoFthreeCsixRYWIndeterminateCount/\RQTwoFthreeCsixRYWHistoryCount\ RYW
-and \RQTwoFthreeCsixMWIndeterminateCount/\RQTwoFthreeCsixMWHistoryCount\ MW
-histories: its majority write timed out before the read or successor write.
-Across \RQTwoMRHistoryCount\ RQ2 MR histories, no violation was observed.
-
-The RQ2 campaign recorded
-\RQTwoOperationSuccessfulCount/\RQTwoOperationAttemptedCount\ successful
-scheduled operations (\RQTwoOperationSuccessPercent\%) and a history
-completion rate of \RQTwoHistoryCompletionPercent\%. Its all-attempt latency
-p50/p95 was \RQTwoLatencyMedianMs/\RQTwoLatencyHighMs ms. The independent observer checked
-\RQTwoRollbackCheckedWriteCount\ acknowledged writes and found
-\RQTwoRolledBackWriteCount\ rollbacks (\RQTwoRollbackPercent\%).
-
-F2 had \RQTwoFtwoOperationSuccessfulCount/\RQTwoFtwoOperationAttemptedCount\
-successful scheduled operations and a median election interval of
-\RQTwoFtwoElectionMedianSeconds\ s across \RQTwoFtwoEpisodeCount\ episodes.
-The experiment issued no subject request during the election barrier, so this
-success rate is not continuous availability. For F3, all-attempt p95 latency
-was \RQTwoFthreeLatencyHighMs\ ms across
-\RQTwoFthreeOperationAttemptedCount\ timed operations; this includes
-\RQTwoFthreeIndeterminateCount\ timed-out operations. Among successful F3
-operations, p95 was \RQTwoFthreeSuccessfulLatencyHighMs\ ms, with a different
-denominator.
-
-\begin{table}[ht]
-\centering
-\small
-\setlength{\tabcolsep}{4pt}
-\caption{RQ2 fault-level summary. Latency uses all timed attempts and reports p50/p95 only.}
-\label{tab:rq2-summary}
+\caption{Fault-level outcome and completion summary.}
+\label{tab:fault-summary}
 \begin{tabular}{@{}l r r l l l l@{}}
 \toprule
 Fault & Histories & Episodes & P/V/U/I & Operation success & Completion & p50/p95 (ms) \\
@@ -267,14 +109,18 @@ Fault & Histories & Episodes & P/V/U/I & Operation success & Completion & p50/p9
 \end{tabular}
 \end{table}
 
-Fault-episode timing uses episodes as the unit; histories sharing an episode
-are not independent injections. The full configuration-property matrices,
-rollback counts, p99 values, and episode timings are in
-Appendix~\ref{app:full-results}.
+The successful-operation rate and the consistency outcome answer different
+questions. A timeout remains an observed client outcome; it is not counted as
+a consistency pass.
+
+\subsection{Mechanism evidence}
+
+The matched histories below explain selected results through operation routes,
+session timestamps, and final member observations. They are supporting
+evidence for the two questions, not separate benchmarks.
 
 \input{submission/generated-rq4.tex}
-
-The focused RQ3 contrasts below explain representative RQ1 and RQ2 outcomes
-through causal-session, read-concern, and write-concern mechanisms.
-\FloatBarrier
 \input{submission/generated-rq3.tex}
+
+The full configuration-property matrices, episode timings, selected history
+identities, and hashes remain in the analysis and raw-result directories.

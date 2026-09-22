@@ -61,7 +61,8 @@ recorded assumption cannot be implemented.
 - Report operation success, history completion, latency quantiles, election
   and recovery time, and exploratory factorial contrasts.
 - Freeze prediction and protocol commits before the pilot/main results.
-- Rebuild summaries, plots, and report macros offline from raw histories.
+- Rebuild summaries and plots offline from raw histories; maintain the report
+  prose in the checked-in LaTeX source.
 
 See experimental-protocol.md for the complete experiment definition and
 acceptance criteria.

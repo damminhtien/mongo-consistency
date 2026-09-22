@@ -1,101 +1,52 @@
-# Report plan
+# Report structure
 
-The report follows the Project 1 requirements in the order a reader needs to
-evaluate the work: database and deployment, consistency settings and
-predictions, experiment design and rationale, checked results, interpretation,
-limitations, and reproduction. Each aggregate result is generated from the
-campaign summary, which is rebuilt from canonical raw histories.
-The front matter places a short acknowledgements section after the abstract.
+The report is a manually maintained LaTeX document in
+[`../submission/report.tex`](../submission/report.tex). Its prose and table
+structure are written in the checked-in `.tex` files. Analysis commands may
+write numeric macros and table rows from saved results, but they do not write
+report prose or sections. The structure follows the reader's questions, not
+the order in which the project tasks happened.
 
-## Report structure
+## Sections
 
-1. Abstract: scope, campaigns, classification rules, and generated outcomes.
-2. Introduction: objective, scope, four client-centric properties, and RQ1-RQ4.
-3. Database System and Deployment: MongoDB, topology, recorded versions,
-   installation, and deployment verification.
-4. Consistency Configurations: read/write concerns, causal sessions, C1-C8,
-   expected behavior, and registered targets.
-5. Experimental Design: checkers, normal controls, secondary and primary
-   failures, network partition, property schedules, rationale, repetitions,
-   metrics, and outcome classes.
-6. Experiments and Results: RYW, MR, MW, and WFR, each with prediction,
-   experiment/rationale, results, and explanation; then cross-configuration and
-   cross-scenario tables, the RQ4 consistency/completion/latency evidence table,
-   and one RQ3 mechanism subsection with a timeline and evidence table.
-7. Discussion: predictions versus observations, configuration and fault
-   effects, consistency/availability distinctions, and behavior needing
-   interpretation.
-8. Limitations and Threats to Validity.
-9. Reproducibility.
-10. Conclusion.
-11. References and a separate AI Usage Statement.
-12. Appendices A-D: configuration details; installation/reproduction commands;
-    additional results; source structure and requirement map.
+1. Introduction: the problem, two central questions, and the experimental cube.
+2. Background and Expectations: the four properties, MongoDB mechanisms, C1-C8,
+   and predictions.
+3. Experimental Method: deployment, workloads, checkers, scenarios, outcomes,
+   and metrics.
+4. Results: baseline, configuration effects, fault effects, selected mechanism
+   evidence, and client-visible completion consequences.
+5. Discussion: three synthesis claims drawn across campaigns.
+6. Limitations: validity boundaries and unmeasured intervals.
+7. Reproducibility: commands and evidence locations.
+8. Conclusion: the three findings that answer the two central questions.
 
-## Requirement map
+The full configuration matrices, raw history identities, hashes, and CSV
+metrics remain in the repository as audit material. They are not reproduced as
+generated document fragments.
 
-| Project requirement | Report location |
-| --- | --- |
-| Chosen database and deployment architecture | Section 2 |
-| Software versions and installation | Sections 2.3-2.5 |
-| Consistency settings and relevant parameters | Sections 3.1-3.3 |
-| Expected behavior and property predictions | Section 3.4 |
-| RYW, MR, MW, and WFR experiments | Sections 4 and 5.1-5.4 |
-| Experiment design and rationale | Sections 4 and 5.1-5.4 |
-| Normal operation, node failures, and partition | Sections 4.3-4.5 |
-| Reported and explained observations | Section 5 |
-| Agreement between expectation and observation | Section 6.1 |
-| Mechanism explanation from matched, instrumented histories | RQ3 subsection after the RQ2 tables, linked to selected RQ1 anchor histories |
-| Limitations | Section 7 |
-| Sources and AI-use disclosure | References and AI Usage Statement |
-| Code and reproduction instructions | Section 8, Appendix B, and archive |
+## Narrative rules
 
-## Evidence and reporting rules
+- Use only two high-level questions. Mechanism evidence and completion/latency
+  analysis are supporting analyses, not independent research questions.
+- Explain the property definitions and MongoDB mechanisms before presenting
+  results.
+- Describe the experiment as a property by configuration by scenario cube.
+- Put prediction statements in Background and Expectations and method details
+  in Experimental Method. Results should report what happened and why it
+  matters without repeating the same template for every property.
+- Put cross-campaign interpretation in Discussion. Do not repeat the same
+  finding in Results, Discussion, and Conclusion.
+- Keep full caveats in Limitations. State the relevant qualification beside a
+  result only when omitting it would change the reader's interpretation.
+- Keep raw JSON histories and machine-readable CSV summaries as the evidence
+  boundary. Do not fabricate a value for an unavailable or indeterminate cell.
 
-- The protocol, schedules, prediction manifest, raw histories, checker, and
-  summary connect each reported claim to its source. Do not substitute examples or setup snapshots
-  for campaign observations.
-- Derive counts and metrics from analysis output. Keep PASS, VIOLATION,
-  UNAVAILABLE, INDETERMINATE, PRECONDITION_MISS, and HARNESS_ERROR distinct.
-- Only PASS and VIOLATION enter the consistency denominator. State the
-  numerator and denominator when reporting a rate.
-- Keep normal controls separate from adversarial RQ1 histories. Keep smoke and
-  pilot histories separate from the main campaigns.
-- Report fault timing by fault episode. Histories that share an episode are not
-  independent fault injections.
-- Treat RQ4 as a derived analysis of immutable RQ1/RQ2 histories. Define
-  violation, observed definitive completion, indeterminate rate, and the
-  client-observed critical-operation time before inspecting results. Keep
-  all-attempt and resolved (PASS/VIOLATION) latency samples separate. Use
-  p50/p95 for the small campaign cells and do not call observed definitive
-  completion formal CAP availability.
-- Keep outcome composition visible for each configuration, scenario, and
-  property. Use one-factor contrasts, especially C5 versus C6, and retain
-  missing cells such as C5 under the RQ2 partition as missing evidence.
-- Treat an unprobed interval as unmeasured availability. F2 has no subject call
-  during the election barrier; scheduled-call success is not continuous
-  availability.
-- A zero observed violation count is finite evidence for the registered
-  schedule, not proof of a universal guarantee or a zero true probability.
-- Explain internal database behavior only when the recorded trace supports it;
-  otherwise describe the observation and mark the mechanism as unobserved.
-- For RQ3, distinguish matched seeds from shared fault episodes, and describe a
-  timeout as no observed response rather than proof of server-side waiting.
-- Report the six registered historical RQ1 anchors separately from the
-  matched RQ3 replays. Verify their raw and canonical history hashes. The anchor
-  pairs have different seeds; the M3 pair also has different election paths.
-- For RQ3 replays, report control validity separately from consistency
-  outcomes. Re-derive validity from raw histories; invalid pairs are diagnostic
-  and do not enter signature counts. Select the first preregistered valid pair
-  for trace display rather than selecting by outcome. Retain anchor, protocol,
-  campaign, and topology-plan hashes with the analysis artifacts.
-- Read the replay manifest from `results/raw/rq3/campaign-manifest.json` and the
-  topology rehearsal from `results/raw/rq3-preflight.json`. Record the
-  `rq3-anchor-selection.v1`, `rq3-campaign.v2`, `rq3-preflight.v2`,
-  `rq3-analysis.v2`, and `rq3-selection.v2` schema versions. The six anchors
-  verify, and the eight-pair-per-contrast replay passes its topology and route
-  controls; report its raw-derived observations with control-valid counts and
-  keep the missing student IDs as a release-package blocker.
-- Identify the host operating-system release as not recorded when describing
-  campaign provenance. Do not replace historical provenance with the current
-  machine's state.
+## Submission boundary
+
+`make submission` builds two deliverables: the PDF compiled from the authored
+LaTeX source and an archive containing that PDF plus the MongoDB runner,
+Compose files, runtime configuration, schemas, and code needed to execute the
+campaigns. The archive excludes `.tex` and bibliography sources, document
+generators, tests, raw histories, and build output. `make
+check-submission-artifacts` enforces that boundary.

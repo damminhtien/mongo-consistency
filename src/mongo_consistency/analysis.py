@@ -1252,7 +1252,6 @@ def analyse(
     raw_root: Path,
     summary_root: Path,
     figures_root: Path,
-    submission_figures_root: Path | None = None,
 ) -> dict[str, Any]:
     """Rebuild every summary and figure from raw histories."""
 
@@ -1279,15 +1278,11 @@ def analyse(
     _write_json(summary_root / "factorial-contrasts.json", factorial)
     _write_summary_csv(summary_root / "summary.csv", summaries)
     _write_fault_episode_csv(summary_root / "fault-episodes.csv", episode_summaries)
-    figure_paths = generate_figures(
+    generate_figures(
         figures_root,
         summaries,
         factorial,
         rows,
         predictions=predictions,
     )
-    if submission_figures_root is not None:
-        submission_figures_root.mkdir(parents=True, exist_ok=True)
-        for figure in figure_paths:
-            shutil.copy2(figure, submission_figures_root / figure.name)
     return summary

@@ -577,8 +577,6 @@ def _check_rq3(root: Path, errors: list[str]) -> None:
         from mongo_consistency.rq3_anchors import verify_anchor_manifest
         from scripts.analyse_rq3 import (
             _counts,
-            _render_appendix_section,
-            _render_report_section,
             _row_for_pair,
             _summarize_historical_anchors,
         )
@@ -992,23 +990,6 @@ def _check_rq3(root: Path, errors: list[str]) -> None:
             or summary.get("selection_manifest") != selection_path.relative_to(root).as_posix()
         ):
             errors.append("rq3: analysis summary is not tied to the v2 campaign, rehearsal, and anchors")
-        generated_artifacts = summary.get("generated_artifacts")
-        expected_artifacts = {
-            "report_tex": "submission/generated-rq3.tex",
-            "appendix_tex": "submission/generated-rq3-appendix.tex",
-            "timeline_pdf": "submission/figures/rq3-causal-timeline.pdf",
-        }
-        if not isinstance(generated_artifacts, dict) or set(generated_artifacts) != set(expected_artifacts):
-            errors.append("rq3: analysis summary must bind the generated report TeX and timeline PDF")
-        else:
-            for artifact_name, relative_path in expected_artifacts.items():
-                entry = generated_artifacts.get(artifact_name)
-                if not isinstance(entry, dict) or entry.get("path") != relative_path:
-                    errors.append(f"rq3: analysis summary has an invalid {artifact_name} artifact path")
-                    continue
-                artifact_digest = _sha256(root / relative_path)
-                if not _is_sha256(entry.get("sha256")) or artifact_digest != entry.get("sha256"):
-                    errors.append(f"rq3: {artifact_name} differs from its analysis summary digest")
         contrast_summaries = summary.get("contrast_summaries")
         if not isinstance(contrast_summaries, dict) or set(contrast_summaries) != set(RQ3_CONTRASTS):
             errors.append("rq3: analysis summary must contain M1, M2, and M3")
@@ -1083,64 +1064,6 @@ def _check_rq3(root: Path, errors: list[str]) -> None:
                     ):
                         errors.append(f"rq3: {contrast_id} analysis selection differs from its selection manifest")
 
-    generated_tex = root / "submission/generated-rq3.tex"
-    try:
-        tex = generated_tex.read_text(encoding="utf-8")
-    except (OSError, UnicodeError) as error:
-        errors.append(f"rq3: generated report TeX is missing or unreadable: {error}")
-    else:
-        for marker in (
-            r"\subsection{Mechanism contrasts (RQ3)}",
-            r"\label{tab:rq3-mechanisms}",
-            r"\maybefigure[fig:rq3-causal-timeline]{submission/figures/rq3-causal-timeline.pdf}",
-        ):
-            if marker not in tex:
-                errors.append(f"rq3: generated report TeX is missing {marker}")
-        if selection is not None and isinstance(selection.get("selected_pairs"), dict):
-            try:
-                expected_tex = _render_report_section(
-                    valid_pair_rows,
-                    selection["selected_pairs"],
-                    manifest,
-                )
-            except (KeyError, TypeError, ValueError) as error:
-                errors.append(f"rq3: cannot regenerate report TeX from raw histories: {error}")
-            else:
-                if tex != expected_tex:
-                    errors.append("rq3: generated report TeX differs from its raw-derived rendering")
-    appendix_tex_path = root / "submission/generated-rq3-appendix.tex"
-    try:
-        appendix_tex = appendix_tex_path.read_text(encoding="utf-8")
-    except (OSError, UnicodeError) as error:
-        errors.append(f"rq3: generated appendix TeX is missing or unreadable: {error}")
-    else:
-        if selection is not None and isinstance(selection.get("selected_pairs"), dict):
-            try:
-                expected_appendix = _render_appendix_section(
-                    valid_pair_rows,
-                    selection["selected_pairs"],
-                )
-            except (KeyError, TypeError, ValueError) as error:
-                errors.append(f"rq3: cannot regenerate appendix TeX from raw histories: {error}")
-            else:
-                if appendix_tex != expected_appendix:
-                    errors.append("rq3: generated appendix TeX differs from its raw-derived rendering")
-    results_tex = root / "submission/sections/07-results.tex"
-    try:
-        results_source = results_tex.read_text(encoding="utf-8")
-    except (OSError, UnicodeError) as error:
-        errors.append(f"rq3: results section is missing or unreadable: {error}")
-    else:
-        if r"\input{submission/generated-rq3.tex}" not in results_source:
-            errors.append("rq3: generated report TeX is not included in the results section")
-    timeline = root / "submission/figures/rq3-causal-timeline.pdf"
-    try:
-        with timeline.open("rb") as handle:
-            header = handle.read(8)
-        if not header.startswith(b"%PDF-") or timeline.stat().st_size < 500:
-            errors.append("rq3: generated causal timeline is not a valid PDF artifact")
-    except OSError as error:
-        errors.append(f"rq3: generated causal timeline PDF is missing or unreadable: {error}")
 
 
 def check_release_readiness(root: Path = ROOT) -> list[str]:

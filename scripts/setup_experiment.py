@@ -13,6 +13,11 @@ import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 
+try:
+    from scripts.package_provenance import packaged_revision, packaged_tree_is_clean
+except ModuleNotFoundError:
+    from package_provenance import packaged_revision, packaged_tree_is_clean
+
 ROOT = Path(__file__).resolve().parents[1]
 COMPOSE_FILE = ROOT / "compose.yaml"
 PROVENANCE_PATHS = (
@@ -61,12 +66,18 @@ def version_from_output(value: str) -> str:
 
 
 def source_revision() -> str:
+    packaged = packaged_revision(ROOT)
+    if packaged:
+        return packaged
     result = run(["git", "rev-parse", "HEAD"], check=False)
     return result.stdout.strip() if result.returncode == 0 else "unknown"
 
 
 def working_tree_clean() -> bool:
     """Check only code and configuration inputs that can change runner behavior."""
+
+    if packaged_revision(ROOT):
+        return packaged_tree_is_clean(ROOT)
 
     result = run(
         [
@@ -85,6 +96,10 @@ def working_tree_clean() -> bool:
 def committed_file_revision(relative_path: str) -> str | None:
     """Return the latest committed revision even when a later draft is uncommitted."""
 
+    packaged = packaged_revision(ROOT)
+    if packaged:
+        return packaged
+
     result = run(["git", "log", "-1", "--format=%H", "--", relative_path], check=False)
     revision = result.stdout.strip()
     return revision if result.returncode == 0 and revision else None
@@ -92,6 +107,16 @@ def committed_file_revision(relative_path: str) -> str | None:
 
 def committed_file_hash(relative_path: str) -> str | None:
     """Hash the committed input recorded by its revision, not an edited worktree copy."""
+
+    if packaged_revision(ROOT):
+        path = ROOT / relative_path
+        if not path.is_file():
+            return None
+        digest = hashlib.sha256()
+        with path.open("rb") as handle:
+            for block in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(block)
+        return digest.hexdigest()
 
     result = run(["git", "show", f"HEAD:{relative_path}"], check=False)
     if result.returncode != 0:

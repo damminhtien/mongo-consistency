@@ -8,9 +8,9 @@ from pathlib import Path
 
 from build_submission import (
     ARCHIVE_FILENAME,
+    PACKAGE_RUNTIME_SCRIPTS,
     REPORT_FILENAME,
     BuildError,
-    validate_figure_inputs,
     validate_pdf_artifact,
 )
 
@@ -21,10 +21,6 @@ def check_artifacts(root: Path = ROOT) -> list[str]:
     """Return submission artifact failures without rebuilding the report."""
 
     errors: list[str] = []
-    try:
-        validate_figure_inputs(root)
-    except BuildError as error:
-        errors.append(str(error))
 
     pdf_path = root / "output/pdf" / REPORT_FILENAME
     try:
@@ -42,9 +38,41 @@ def check_artifacts(root: Path = ROOT) -> list[str]:
                 if broken is not None:
                     errors.append(f"Submission archive has a corrupt entry: {broken}")
                 names = set(archive.namelist())
-                for required in ("report.pdf", "README.md", "manifest.txt"):
+                for required in ("report.pdf", "README.md", "Makefile", "manifest.txt"):
                     if required not in names:
                         errors.append(f"Submission archive is missing {required}")
+                required_source_files = (
+                    "source/compose.yaml",
+                    "source/pyproject.toml",
+                    "source/requirements.txt",
+                    "source/docs/experimental-protocol.md",
+                    "source/infra/runner/Dockerfile",
+                    "source/infra/fault-controller/Dockerfile",
+                    *(f"source/{path}" for path in PACKAGE_RUNTIME_SCRIPTS),
+                )
+                for required in required_source_files:
+                    if required not in names:
+                        errors.append(f"Submission archive is missing {required}")
+                forbidden_suffixes = (".tex", ".ltx", ".bib", ".cls", ".aux", ".log", ".pdf")
+                forbidden = sorted(
+                    name
+                    for name in names
+                    if (name.endswith(forbidden_suffixes) and name != "report.pdf")
+                    or name.startswith(("tests/", "source/submission/"))
+                    or name == "source/scripts/build_submission.py"
+                    or name.startswith("source/scripts/analyse_")
+                )
+                if forbidden:
+                    errors.append(
+                        "Submission archive contains excluded report or test files: "
+                        + ", ".join(forbidden)
+                    )
+                if not any(name.startswith("source/configs/") for name in names):
+                    errors.append("Submission archive is missing experiment configs under source/configs/")
+                if not any(name.startswith("source/schemas/") for name in names):
+                    errors.append("Submission archive is missing record schemas under source/schemas/")
+                if not any(name.startswith("source/src/") for name in names):
+                    errors.append("Submission archive is missing runtime source under source/src/")
         except (OSError, zipfile.BadZipFile) as error:
             errors.append(f"Cannot inspect submission archive: {error}")
 
@@ -64,7 +92,7 @@ def main() -> int:
         for error in errors:
             print(f"ERROR: {error}")
         return 1
-    print("Submission artifacts passed: PDF, archive, manifest, and figure inputs.")
+    print("Submission artifacts passed: PDF, runtime-code archive, and manifest.")
     return 0
 
 

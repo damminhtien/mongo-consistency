@@ -14,8 +14,12 @@ import time
 from pathlib import Path
 from typing import Any
 
-from mongo_consistency.config import load_configurations, load_json
+try:
+    from scripts.package_provenance import packaged_revision
+except ModuleNotFoundError:
+    from package_provenance import packaged_revision
 from mongo_consistency.checkers import check_history
+from mongo_consistency.config import load_configurations, load_json
 from mongo_consistency.faults import FaultControllerClient
 from mongo_consistency.history import compute_history_hash, read_history, write_history
 from mongo_consistency.models import History
@@ -74,6 +78,9 @@ def _file_hash(path: Path) -> str | None:
 
 
 def _committed_file_revision(root: Path, relative_path: str) -> str | None:
+    packaged = packaged_revision(root)
+    if packaged:
+        return packaged
     try:
         status = subprocess.run(
             ["git", "-C", str(root), "status", "--porcelain", "--", relative_path],

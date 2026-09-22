@@ -1,6 +1,6 @@
-\section{Consistency Configurations}
+\subsubsection{Configuration matrix and registered expectations}
 
-\subsection{MongoDB consistency mechanisms}
+\subsubsection{Mechanisms and parameters}
 
 RQ1 varies read concern, write concern, and causal-session setting.
 Read concern governs which data state a read may return; write concern governs
@@ -15,7 +15,7 @@ test schedule selects a read preference and member to create the required
 observation. The runner records the requested member and the server that
 actually handled each operation; routing is not an independent factor in C1-C8.
 
-\subsection{Parameters explored}
+\paragraph{Parameters explored.}
 
 \begin{table}[ht]
 \centering
@@ -33,7 +33,7 @@ Read preference / member & Schedule-directed primary or secondary & Reaches the 
 \end{tabular}
 \end{table}
 
-\subsection{Experimental configurations}
+\paragraph{Configuration matrix.}
 
 \begin{table}[ht]
 \centering
@@ -55,7 +55,7 @@ C8 & local & majority & off & none \\
 \end{tabular}
 \end{table}
 
-\subsection{Mechanism basis for the sentinel configurations}
+\paragraph{Mechanism basis for the sentinel configurations.}
 
 The RQ2 sentinel configurations were chosen to separate the mechanisms named
 in the lecture and MongoDB documentation. The table states the mechanism used
@@ -82,7 +82,7 @@ substitute for the causal-session mechanism when the question concerns a
 dependency between operations \cite[slides 49 to 53]{cai-lecture-3}
 \cite{mongodb-causal-consistency}.
 
-\subsection{RQ1 predictions}
+\paragraph{Configuration expectations.}
 
 Before the campaign, we registered which configurations would be tested as
 targets for each client-centric property. C3 targets MR and WFR, C4 targets
@@ -103,7 +103,7 @@ documentation also distinguishes causal sessions and concern combinations,
 including the durability condition on majority reads and writes
 \cite{mongodb-causal-consistency}.
 
-\subsection{RQ2 fault predictions}
+\paragraph{Fault expectations.}
 
 Before the fault campaign, we made four predictions, labelled H2.1 through
 H2.4:

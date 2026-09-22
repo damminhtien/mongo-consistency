@@ -1,6 +1,6 @@
 # Work list
 
-RQ1 and RQ2 campaign results are complete. Smoke and pilot runs are machinery
+Q1 and Q2 campaign results are complete. Smoke and pilot runs are machinery
 checks kept separate from the main campaign histories; the checklist below
 tracks remaining project and submission work.
 
@@ -10,8 +10,8 @@ tracks remaining project and submission work.
 - [x] Preserve the DSA5208 slide-page mapping outside the source PDFs.
 - [x] Rewrite the protocol as the scientific source of truth and align the project
   plan, README, report plan, and six-outcome taxonomy.
-- [x] Rewrite all LaTeX sections and the package README to remove stale
-  parallel-campaign narratives and hard-coded historical measurements.
+- [x] Rewrite the report as a reader-oriented LaTeX document; keep the source
+  in the repository and package only its compiled PDF with the runtime code.
 - [x] Freeze protocol, schedules, schemas, and predictions before the main
   campaign; the RQ1 manifest records the committed input revisions and hashes.
 
@@ -55,7 +55,7 @@ tracks remaining project and submission work.
 ## Validation and campaigns
 
 - [x] Run `make test`, `make check-docs`, `make check-schemas`, and `make analyse`
-  after the LaTeX/package rewrite.
+  after the report/package rewrite.
 - [x] Start Docker Desktop and run make setup for the live campaigns.
 - [x] Run and inspect the smoke machinery diagnostic. Its dirty-runner failures
   are separate from the clean, frozen main campaign and are not RQ1 outcomes.
@@ -72,20 +72,20 @@ tracks remaining project and submission work.
   use RQ1 normal histories as the separate baseline.
 - [x] Validate manifests, hashes, routing, cleanup, and completeness before analysis.
 
-## Analysis and submission
+## Analysis and code submission
 
 - [x] Rebuild every summary and figure from raw histories without MongoDB.
 - [x] Publish generated RQ2 outcome, availability, latency, rollback, election,
   and recovery results in the report and experiment notes.
 - [x] Add generated-result drift checks to CI.
-- [x] Derive aggregate outcome counts and metrics in LaTeX from generated
-  macros; retain representative traces from canonical histories.
-- [x] Render and visually inspect the final PDF after RQ1/RQ2 evidence is complete.
-- [x] Build and inspect the checksummed archive from a clean CI checkout.
+- [x] Derive aggregate outcome counts and metrics as machine-readable JSON and
+  CSV from canonical histories.
+- [x] Build and inspect the checksummed PDF and runtime-code archive from a
+  clean CI checkout.
 - [x] Commit coherent slices, inspect staged diffs, run git diff --check, and
   push main.
 
-RQ1 / Task 1 status: complete. The canonical manifest is `COMPLETE` at
+Q1 / Task 1 status: complete. The canonical manifest is `COMPLETE` at
 1,280/1,280 histories: 320 normal controls and 960 adversarial histories. The
 outcomes are 415 PASS, 443 VIOLATION, 224 UNAVAILABLE, 175 INDETERMINATE, 23
 PRECONDITION_MISS, and zero HARNESS_ERROR. Of the 960 adversarial histories,
@@ -94,12 +94,13 @@ adversarial MR histories and remain outside the consistency denominator. Raw
 record validation passed; the clean runner is `cc702ab`. Offline summaries,
 the prediction/outcome matrix, factorial contrasts, figures, and report were
 rebuilt from the canonical histories. Smoke artifacts are separate
-development diagnostics and do not change the RQ1 result.
+development diagnostics and do not change the Q1 result.
 
-RQ2 / Task 2 status: complete. Execution evidence (20 September 2026):
+Q2 / Task 2 status: complete. Execution evidence (20 September 2026):
 `make rq2` completed 432/432
 histories and 36/36 episodes with verified fault application and converged
 recovery. Record/schema validation passed and `make analyse` rebuilt the summary
-and figures. `make check-release-ready` remains blocked by two pending team
-student IDs; it reported no RQ2 completeness or analysis errors. The full outcome
-table and signature-cell observations are in [docs/rq2-results.md](docs/rq2-results.md).
+and figures. The full outcome table and signature-cell observations are in
+[docs/rq2-results.md](docs/rq2-results.md). The compiled PDF and runtime-code
+archive are checked by `make check-submission-artifacts`; report source and
+tests remain outside the archive.

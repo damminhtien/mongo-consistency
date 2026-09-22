@@ -1,4 +1,4 @@
-"""Build the LaTeX report and a filtered, checksummed submission archive."""
+"""Compile the authored report and package it with the MongoDB runtime code."""
 
 from __future__ import annotations
 
@@ -17,12 +17,14 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 METADATA_PATH = Path("submission/metadata.mk")
-PACKAGE_README_PATH = Path("submission/package-readme.md")
+PACKAGE_README_PATH = Path("submission/README.md")
+PACKAGE_MAKEFILE_PATH = Path("submission/Makefile")
 REQUIRED_SUBMISSION_FILES = (
     Path("submission/report.tex"),
     Path("submission/report.bib"),
     Path("submission/metadata.mk"),
-    Path("submission/package-readme.md"),
+    PACKAGE_README_PATH,
+    PACKAGE_MAKEFILE_PATH,
 )
 REQUIRED_SECTIONS = tuple(
     Path("submission/sections") / f"{number:02d}-{name}.tex"
@@ -61,26 +63,26 @@ REPORT_FILENAME = "mongo-consistency-report.pdf"
 ARCHIVE_FILENAME = "mongo-consistency-submission.zip"
 FIGURE_INPUT_RE = re.compile(r"\\maybefigure(?:\[[^]]*\])?\{([^}]+)\}")
 PACKAGE_ROOT_FILES = (
-    "Makefile",
-    "README.md",
-    "TODO.md",
-    ".gitignore",
-    ".dockerignore",
     "compose.yaml",
     "pyproject.toml",
     "requirements.txt",
+    "docs/experimental-protocol.md",
 )
 PACKAGE_ROOT_DIRS = (
     "configs",
-    "docs",
-    "figures",
     "infra",
-    "results",
     "schemas",
-    "scripts",
     "src",
-    "submission",
-    "tests",
+)
+PACKAGE_RUNTIME_SCRIPTS = (
+    "scripts/package_provenance.py",
+    "scripts/setup_experiment.py",
+    "scripts/initialize_replica_set.py",
+    "scripts/run_campaign.py",
+    "scripts/run_rq2_coordinator.py",
+    "scripts/run_rq2_campaign.py",
+    "scripts/run_rq3_campaign.py",
+    "scripts/run_rq3_preflight.py",
 )
 EXCLUDED_PARTS = frozenset(
     {
@@ -152,7 +154,7 @@ def parse_metadata(path: Path) -> dict[str, str]:
 
 
 def escape_latex(value: str) -> str:
-    """Escape metadata for a generated LaTeX macro."""
+    """Escape a numeric or table value for a generated data macro."""
 
     replacements = {
         "\\": r"\textbackslash{}",
@@ -167,51 +169,6 @@ def escape_latex(value: str) -> str:
         "^": r"\textasciicircum{}",
     }
     return re.sub(r"[\\&%$#_{}~^]", lambda match: replacements[match.group()], value)
-
-
-def format_team_members(value: str, email_member: str) -> str:
-    """Render each member and place the report owner's email beneath their ID."""
-
-    rendered_members = []
-    for entry in value.split(";"):
-        member = entry.strip()
-        if not member:
-            continue
-        match = re.fullmatch(r"(.+?)\s+\(([^()]*)\)", member)
-        if match:
-            name, student_id = match.groups()
-            rendered = f"{escape_latex(name)}\\\\\n{escape_latex(student_id)}"
-            if name == email_member:
-                rendered += "\\\\\n" + r"\StudentEmail"
-            rendered_members.append(rendered)
-        else:
-            rendered_members.append(escape_latex(member))
-    return r"\\[0.6em] ".join(rendered_members)
-
-
-def write_generated_metadata(path: Path, values: dict[str, str]) -> None:
-    """Write build-only LaTeX macros from the metadata values."""
-
-    macros = {
-        "CourseCode": values["COURSE_CODE"],
-        "CourseTitle": values["COURSE_TITLE"],
-        "ProjectSupervisor": values["PROJECT_SUPERVISOR"],
-        "ProjectTitle": values["PROJECT_TITLE"],
-        "AcademicYear": values["ACADEMIC_YEAR"],
-        "TeamName": values["TEAM_NAME"],
-        "TeamMembers": format_team_members(
-            values["TEAM_MEMBERS"], values["STUDENT_EMAIL_MEMBER"]
-        ),
-        "StudentEmail": values["STUDENT_EMAIL"],
-        "SubmissionDate": values["SUBMISSION_DATE"],
-        "AiUseDisclosure": values["AI_USE_DISCLOSURE"],
-    }
-    lines = []
-    for name, value in macros.items():
-        rendered = value if name == "TeamMembers" else escape_latex(value)
-        lines.append(f"\\newcommand{{\\{name}}}{{{rendered}}}")
-    content = "\n".join(lines)
-    path.write_text(content + "\n", encoding="utf-8")
 
 
 def write_generated_analysis(path: Path, root: Path) -> None:
@@ -831,6 +788,22 @@ def validate_layout(root: Path) -> None:
         raise BuildError(f"Submission layout is incomplete; missing: {formatted}")
 
 
+def validate_package_sources(root: Path) -> None:
+    """Require every file and directory needed by the runtime package."""
+
+    required_files = tuple(Path(path) for path in PACKAGE_ROOT_FILES) + tuple(
+        Path(path) for path in PACKAGE_RUNTIME_SCRIPTS
+    )
+    missing_files = [path for path in required_files if not (root / path).is_file()]
+    missing_dirs = [
+        Path(path) for path in PACKAGE_ROOT_DIRS if not (root / path).is_dir()
+    ]
+    missing = [*missing_files, *missing_dirs]
+    if missing:
+        formatted = ", ".join(str(path) for path in missing)
+        raise BuildError(f"Submission runtime source is incomplete; missing: {formatted}")
+
+
 def _iter_files(root: Path, paths: Iterable[Path]) -> Iterable[tuple[Path, Path]]:
     """Yield source files and their repository-relative paths."""
 
@@ -865,6 +838,7 @@ def copy_source_tree(root: Path, destination: Path) -> list[Path]:
     destination.mkdir(parents=True, exist_ok=True)
     paths = [Path(path) for path in PACKAGE_ROOT_FILES]
     paths.extend(Path(path) for path in PACKAGE_ROOT_DIRS)
+    paths.extend(Path(path) for path in PACKAGE_RUNTIME_SCRIPTS)
     copied: list[Path] = []
     for source, relative in _iter_files(root, paths):
         target = destination / relative
@@ -910,11 +884,19 @@ def find_tool(name: str) -> str | None:
     return None
 
 
-def run_command(command: list[str], cwd: Path, log_path: Path) -> None:
+def run_command(
+    command: list[str],
+    cwd: Path,
+    log_path: Path,
+    *,
+    environment_overrides: dict[str, str] | None = None,
+) -> None:
     """Run one build command and retain its complete output in a log."""
 
     environment = os.environ.copy()
     environment.setdefault("SOURCE_DATE_EPOCH", "0")
+    if environment_overrides:
+        environment.update(environment_overrides)
     command_directory = str(Path(command[0]).resolve().parent)
     path_entries = environment.get("PATH", "").split(os.pathsep)
     if command_directory not in path_entries:
@@ -946,15 +928,38 @@ def run_command(command: list[str], cwd: Path, log_path: Path) -> None:
         )
 
 
-def compile_report(root: Path, build_root: Path, values: dict[str, str]) -> Path:
+def compile_report(root: Path, build_root: Path) -> Path:
     """Compile the report in an isolated temporary tree."""
 
     latex_root = build_root / "latex"
     source_target = latex_root / "submission"
     shutil.copytree(root / "submission", source_target)
-    write_generated_metadata(source_target / "generated-metadata.tex", values)
-    write_generated_analysis(source_target / "generated-analysis.tex", root)
     log_path = build_root / "latex-build.log"
+
+    run_command(
+        [sys.executable, "scripts/analyse_results.py"],
+        root,
+        log_path,
+        environment_overrides={"PYTHONPATH": str(root / "src")},
+    )
+    run_command(
+        [
+            sys.executable,
+            "scripts/analyse_rq4.py",
+            "--data-output",
+            str(source_target / "generated-rq4-data.tex"),
+        ],
+        root,
+        log_path,
+        environment_overrides={"PYTHONPATH": str(root / "src")},
+    )
+    generated_figures = root / "figures"
+    target_figures = source_target / "figures"
+    for figure in sorted(generated_figures.iterdir()):
+        if figure.is_file() and figure.suffix.lower() in {".pdf", ".png", ".svg"}:
+            shutil.copy2(figure, target_figures / figure.name)
+    validate_figure_inputs(latex_root)
+    write_generated_analysis(source_target / "generated-analysis.tex", root)
 
     latexmk = find_tool("latexmk")
     engine = find_tool("pdflatex") or find_tool("xelatex") or find_tool("lualatex")
@@ -1172,7 +1177,8 @@ def build(root: Path) -> tuple[Path, Path, Path]:
 
     root = root.resolve()
     validate_layout(root)
-    values = parse_metadata(root / METADATA_PATH)
+    parse_metadata(root / METADATA_PATH)
+    validate_package_sources(root)
 
     output_pdf_dir = root / "output/pdf"
     output_submission_dir = root / "output/submission"
@@ -1182,8 +1188,7 @@ def build(root: Path) -> tuple[Path, Path, Path]:
         path.mkdir(parents=True, exist_ok=True)
 
     check_documents(root, root)
-    validate_figure_inputs(root)
-    report_path = compile_report(root, build_root, values)
+    report_path = compile_report(root, build_root)
     validate_pdf_artifact(report_path)
 
     package_root = build_root / "package"
@@ -1191,16 +1196,9 @@ def build(root: Path) -> tuple[Path, Path, Path]:
     shutil.copy2(report_path, package_root / "report.pdf")
     package_readme = root / PACKAGE_README_PATH
     shutil.copy2(package_readme, package_root / "README.md")
+    shutil.copy2(root / PACKAGE_MAKEFILE_PATH, package_root / "Makefile")
     source_root = package_root / "source"
     copy_source_tree(root, source_root)
-    shutil.copy2(
-        build_root / "latex/submission/generated-metadata.tex",
-        source_root / "submission/generated-metadata.tex",
-    )
-    shutil.copy2(
-        build_root / "latex/submission/generated-analysis.tex",
-        source_root / "submission/generated-analysis.tex",
-    )
     manifest = write_manifest(package_root, root)
     check_documents(package_root, root)
 

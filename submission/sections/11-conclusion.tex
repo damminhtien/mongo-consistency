@@ -1,17 +1,16 @@
 \section{Conclusion}
 
-Of the \AdversarialDecidableCount\ resolved adversarial RQ1 histories,
-\AdversarialViolationCount\ violated a tested property and
-\AdversarialPassCount\ passed. Under the F3 partition, C1 produced stale-read
-and write-order counterexamples. The corresponding C6 histories remained
-indeterminate because majority-write timeouts prevented dependent operations
-from being issued. All scheduled F2 calls after the election completed, but no
-request was made during the election barrier; availability in that interval
-was not measured. These findings are specific to MongoDB \MongoDBServerVersion,
-PyMongo
-\PyMongoVersion, the registered schedules, and the single-host topology. The
-RQ4 analysis keeps this boundary explicit: its observed completion and
-client-observed all-attempt and resolved p50/p95 values are computed from the
-existing histories. Valid timeout timestamps remain in the all-attempt sample,
-while PASS/VIOLATION latency has its own denominator; missing partition cells
-remain missing evidence.
+The two campaigns show that concern settings and causal sessions change the
+form of a consistency failure visible to a MongoDB client. Under the recorded
+partition, C1 returned stale-read and write-order counterexamples. The matching
+C6 histories usually stopped at a majority-write timeout before the dependent
+operation could be issued. A stronger consistency setting can therefore avoid
+a returned counterexample by leaving the operation unresolved.
+
+The fault results also show why topology and completion need to be reported
+alongside the property result. The election interval was not probed by a
+subject request, and the post-recovery witness cannot describe every transient
+state before convergence. The conclusions apply to MongoDB
+\MongoDBServerVersion, PyMongo \PyMongoVersion, the recorded schedules, and
+the single-host deployment. They are not a universal availability or
+consistency guarantee.

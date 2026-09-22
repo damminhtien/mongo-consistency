@@ -9,7 +9,6 @@ from __future__ import annotations
 import argparse
 import os
 import re
-import shutil
 import subprocess
 from collections import Counter
 from collections.abc import Iterable
@@ -20,18 +19,13 @@ DOCUMENT_SUFFIXES = frozenset(
     {
         ".adoc",
         ".asciidoc",
-        ".bib",
-        ".cls",
         ".html",
         ".htm",
-        ".ltx",
         ".markdown",
         ".md",
         ".mdx",
         ".org",
-        ".pdf",
         ".rst",
-        ".tex",
         ".text",
         ".textile",
         ".txt",
@@ -67,11 +61,6 @@ DECORATIVE_CHARS = {
     "•": "bullet character",
 }
 DECORATIVE_CHAR_SET = frozenset(DECORATIVE_CHARS)
-
-# A normal LaTeX itemize environment produces a bullet in extracted PDF text.
-# Keep that expected output valid while still rejecting the other decorative
-# characters in the submitted PDF.
-PDF_ALLOWED_DECORATIVE_CHARS = frozenset({"•"})
 
 STOCK_PATTERNS = (
     (r"\bthis\s+(?:document|report|repository)\b", "stock self-reference"),
@@ -147,22 +136,6 @@ MARKDOWN_HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$")
 MARKDOWN_HEADING_LEVEL_RE = re.compile(r"^\s{0,3}(#{1,6})\s+")
 HTML_HEADING_RE = re.compile(r"^\s*<h[1-6][^>]*>(.*?)</h[1-6]>\s*$", re.IGNORECASE)
 HTML_HEADING_LEVEL_RE = re.compile(r"^\s*<h([1-6])\b", re.IGNORECASE)
-LATEX_HEADING_RE = re.compile(
-    r"^\s*\\(?:chapter|section|subsection|subsubsection|paragraph|subparagraph)\*?\{([^}]*)\}"
-)
-LATEX_HEADING_LEVELS = {
-    "chapter": 1,
-    "section": 2,
-    "subsection": 3,
-    "subsubsection": 4,
-    "paragraph": 5,
-    "subparagraph": 6,
-}
-LATEX_HEADING_LEVEL_RE = re.compile(
-    r"^\s*\\(chapter|section|subsection|subsubsection|paragraph|subparagraph)"
-)
-
-
 @dataclass(frozen=True)
 class Finding:
     """One actionable documentation finding."""
@@ -253,7 +226,6 @@ def _prose_lines(text: str) -> tuple[list[tuple[int, str]], bool]:
 
 
 def _normalise_heading(value: str) -> str:
-    value = re.sub(r"\\[a-zA-Z]+\*?(?:\[[^]]*\])?\{([^{}]*)\}", r"\1", value)
     value = re.sub(r"<[^>]+>", "", value)
     value = re.sub(r"[`*_{}]", "", value)
     return " ".join(value.split()).strip().casefold()
@@ -261,8 +233,6 @@ def _normalise_heading(value: str) -> str:
 
 def _heading_matches(path: str, line: str) -> re.Match[str] | None:
     suffix = Path(path).suffix.lower()
-    if suffix in {".tex", ".ltx"}:
-        return LATEX_HEADING_RE.match(line)
     if suffix in {".html", ".htm"}:
         return HTML_HEADING_RE.match(line)
     return MARKDOWN_HEADING_RE.match(line)
@@ -270,11 +240,7 @@ def _heading_matches(path: str, line: str) -> re.Match[str] | None:
 
 def _heading_level(path: str, line: str) -> int:
     suffix = Path(path).suffix.lower()
-    if suffix in {".tex", ".ltx"}:
-        match = LATEX_HEADING_LEVEL_RE.match(line)
-        if match:
-            return LATEX_HEADING_LEVELS[match.group(1)]
-    elif suffix in {".html", ".htm"}:
+    if suffix in {".html", ".htm"}:
         match = HTML_HEADING_LEVEL_RE.match(line)
         if match:
             return int(match.group(1))
@@ -285,7 +251,7 @@ def _heading_level(path: str, line: str) -> int:
     raise ValueError(f"could not determine heading level for {path!r}: {line!r}")
 
 
-def check_text(path: str, text: str, *, is_pdf: bool = False) -> list[Finding]:
+def check_text(path: str, text: str) -> list[Finding]:
     findings: list[Finding] = []
     lines = text.splitlines()
     prose_lines, unclosed_fence = _prose_lines(text)
@@ -301,17 +267,14 @@ def check_text(path: str, text: str, *, is_pdf: bool = False) -> list[Finding]:
             )
         )
 
-    allowed_decorative = PDF_ALLOWED_DECORATIVE_CHARS if is_pdf else frozenset()
     for line_number, line in enumerate(lines, start=1):
         for character in sorted(set(line) & DECORATIVE_CHAR_SET):
-            if character in allowed_decorative:
-                continue
             findings.append(
                 _finding(
                     path,
                     line_number,
                     "decorative-punctuation",
-                    f"replace {DECORATIVE_CHARS[character]} with plain text or LaTeX syntax",
+                    f"replace {DECORATIVE_CHARS[character]} with plain ASCII punctuation",
                     line,
                 )
             )
@@ -396,149 +359,66 @@ def check_text(path: str, text: str, *, is_pdf: bool = False) -> list[Finding]:
                 )
             )
 
-    if not is_pdf:
-        headings: dict[tuple[str, ...], int] = {}
-        heading_stack: list[tuple[int, str]] = []
-        for line_number, line in prose_lines:
-            match = _heading_matches(path, line)
-            if not match:
-                continue
-            heading = _normalise_heading(match.group(1))
-            if not heading:
-                continue
-            level = _heading_level(path, line)
-            while heading_stack and heading_stack[-1][0] >= level:
-                heading_stack.pop()
-            scope = tuple(item[1] for item in heading_stack)
-            heading_key = scope + (heading,)
-            if heading_key in headings:
-                findings.append(
-                    _finding(
-                        path,
-                        line_number,
-                        "duplicate-heading",
-                        f"heading repeats line {headings[heading_key]}: {match.group(1)!r}",
-                        line,
-                    )
+    headings: dict[tuple[str, ...], int] = {}
+    heading_stack: list[tuple[int, str]] = []
+    for line_number, line in prose_lines:
+        match = _heading_matches(path, line)
+        if not match:
+            continue
+        heading = _normalise_heading(match.group(1))
+        if not heading:
+            continue
+        level = _heading_level(path, line)
+        while heading_stack and heading_stack[-1][0] >= level:
+            heading_stack.pop()
+        scope = tuple(item[1] for item in heading_stack)
+        heading_key = scope + (heading,)
+        if heading_key in headings:
+            findings.append(
+                _finding(
+                    path,
+                    line_number,
+                    "duplicate-heading",
+                    f"heading repeats line {headings[heading_key]}: {match.group(1)!r}",
+                    line,
                 )
-            else:
-                headings[heading_key] = line_number
-            heading_stack.append((level, heading))
+            )
+        else:
+            headings[heading_key] = line_number
+        heading_stack.append((level, heading))
 
-        # Repeated paragraphs are usually copied boilerplate. Ignore short
-        # fragments, tables, lists, and fenced code because those have other
-        # legitimate repetition patterns.
-        paragraphs: dict[str, int] = {}
-        for match in re.finditer(r"(?s)(?:^|\n\s*\n)(.+?)(?=\n\s*\n|$)", text):
-            block = match.group(1).strip()
-            if (
-                len(block) < 40
-                or "```" in block
-                or "~~~" in block
-                or any(
-                    line.lstrip().startswith(("|", "- ", "* ", "+ "))
-                    for line in block.splitlines()
+    # Repeated paragraphs are usually copied boilerplate. Ignore short
+    # fragments, tables, lists, and fenced code because those have other
+    # legitimate repetition patterns.
+    paragraphs: dict[str, int] = {}
+    for match in re.finditer(r"(?s)(?:^|\n\s*\n)(.+?)(?=\n\s*\n|$)", text):
+        block = match.group(1).strip()
+        if (
+            len(block) < 40
+            or "```" in block
+            or "~~~" in block
+            or any(
+                line.lstrip().startswith(("|", "- ", "* ", "+ "))
+                for line in block.splitlines()
+            )
+        ):
+            continue
+        normalised = " ".join(block.split()).casefold()
+        line_number = text.count("\n", 0, match.start(1)) + 1
+        if normalised in paragraphs:
+            findings.append(
+                _finding(
+                    path,
+                    line_number,
+                    "duplicate-paragraph",
+                    f"paragraph repeats line {paragraphs[normalised]}",
+                    block.splitlines()[0],
                 )
-            ):
-                continue
-            normalised = " ".join(block.split()).casefold()
-            line_number = text.count("\n", 0, match.start(1)) + 1
-            if normalised in paragraphs:
-                findings.append(
-                    _finding(
-                        path,
-                        line_number,
-                        "duplicate-paragraph",
-                        f"paragraph repeats line {paragraphs[normalised]}",
-                        block.splitlines()[0],
-                    )
-                )
-            else:
-                paragraphs[normalised] = line_number
+            )
+        else:
+            paragraphs[normalised] = line_number
 
     return findings
-
-
-def _pdf_finding(path: str, rule: str, message: str) -> Finding:
-    return Finding(path, 1, rule, message, path)
-
-
-def _read_pdf(path: Path, relative_path: str) -> tuple[str | None, list[Finding]]:
-    pdfinfo = shutil.which("pdfinfo")
-    pdftotext = shutil.which("pdftotext")
-    if not pdfinfo or not pdftotext:
-        return None, [
-            _pdf_finding(
-                relative_path,
-                "pdf-tooling",
-                "PDF checks require both pdfinfo and pdftotext from Poppler",
-            )
-        ]
-
-    findings: list[Finding] = []
-    try:
-        metadata = subprocess.run(
-            [pdfinfo, str(path)],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=60,
-            check=False,
-        )
-    except (OSError, subprocess.TimeoutExpired) as error:
-        return None, [
-            _pdf_finding(relative_path, "pdf-metadata", f"pdfinfo failed: {error}")
-        ]
-
-    if metadata.returncode != 0:
-        details = metadata.stderr.strip() or "no diagnostic output"
-        findings.append(
-            _pdf_finding(relative_path, "pdf-metadata", f"pdfinfo failed: {details}")
-        )
-    else:
-        page_match = re.search(r"^Pages:\s*(\d+)\s*$", metadata.stdout, re.MULTILINE)
-        if not page_match or int(page_match.group(1)) < 1:
-            findings.append(
-                _pdf_finding(
-                    relative_path,
-                    "pdf-pages",
-                    "PDF metadata must report at least one page",
-                )
-            )
-
-    try:
-        extracted = subprocess.run(
-            [pdftotext, "-layout", str(path), "-"],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=60,
-            check=False,
-        )
-    except (OSError, subprocess.TimeoutExpired) as error:
-        return None, findings + [
-            _pdf_finding(relative_path, "pdf-text", f"pdftotext failed: {error}")
-        ]
-
-    if extracted.returncode != 0:
-        details = extracted.stderr.strip() or "no diagnostic output"
-        findings.append(
-            _pdf_finding(relative_path, "pdf-text", f"pdftotext failed: {details}")
-        )
-        return None, findings
-    if not extracted.stdout.strip():
-        findings.append(
-            _pdf_finding(
-                relative_path,
-                "pdf-text",
-                "PDF text extraction is empty; check the LaTeX build or OCR boundary",
-            )
-        )
-        return None, findings
-
-    return extracted.stdout, findings
 
 
 def check_repository(root: Path) -> tuple[list[Path], list[Finding]]:
@@ -549,13 +429,6 @@ def check_repository(root: Path) -> tuple[list[Path], list[Finding]]:
     findings: list[Finding] = []
     for path in files:
         relative_path = _relative_path(path, root)
-        if path.suffix.lower() == ".pdf":
-            text, pdf_findings = _read_pdf(path, relative_path)
-            findings.extend(pdf_findings)
-            if text is not None:
-                findings.extend(check_text(relative_path, text, is_pdf=True))
-            continue
-
         try:
             text = path.read_text(encoding="utf-8")
         except (OSError, UnicodeError) as error:

@@ -1,74 +1,46 @@
 \section{Discussion}
 
-\subsection{Predictions and observations}
+\subsection{What the two campaigns show together}
 
-The RQ1 prediction matrix and the RQ2 target/outcome table put each registered
-expectation beside the checked histories. A prediction target applies to
-successful histories under its schedule; it does not predict that every
-repetition will pass. For targeted cells, completed counterexamples disagree
-with the expected behavior. UNAVAILABLE and INDETERMINATE outcomes do not
-resolve that comparison because the required value or dependent operation was
-not observed. Non-target cells are descriptive, not failed predictions.
+The configuration and fault campaigns point to the same distinction. A weak
+setting can return a completed value from a lagging branch or acknowledge a
+write that is not retained after recovery. A stronger setting can withhold the
+operation until the required state is available. The client then sees a wait,
+timeout, or unresolved history instead of a returned stale value. These are
+different outcomes, and the latter is not evidence of continuous availability.
 
-\subsection{Effect of consistency configuration}
+The C1-C8 matrix is better read as an experimental cube than as a single
+ranking. The result depends on the property predicate, operation order, session
+state, read and write concern, and member that receives the request. Majority
+read and majority write do not replace the causal dependency carried by a
+session when the property concerns an ordered sequence of operations.
 
-The C1-C8 design varies read concern, write concern, and causal-session
-setting. C3 targets MR and WFR, C4 targets MW, and C6 targets all four
-properties. The observed cell matrix must be read with its durability
-definition: a write acknowledged with \texttt{w:1} may later roll back, whereas
-the project evaluates acknowledged writes as part of the recorded durable
-history. C5 also shows why concern settings and causal-session state are
-reported separately. The contrasts are descriptive and do not establish
-statistical significance.
+\subsection{Effect of topology changes}
 
-\subsection{Effect of node failure}
+The secondary crash removed redundancy without producing a recorded anomaly in
+the tested schedule. Primary failure produced an election interval, but the
+protocol did not send a subject operation during that interval. The partition
+was the informative fault: it kept one branch client-reachable while removing
+its replication path. C1 then exposed stale or reordered state, whereas C6
+usually remained unresolved at the majority-write boundary.
 
-F1 removes a secondary but leaves the primary and one secondary. F2 removes the
-primary and requires an election. All scheduled post-election F2 operations
-completed. The election interval is reported separately, and election and
-recovery quantiles use fault episodes rather than histories as their
-denominator.
+\subsection{Completion and latency}
 
-\subsection{Effect of network partition}
+Completion and consistency must be reported separately. The completion tables
+use PASS and VIOLATION as definitive outcomes and retain UNAVAILABLE and
+INDETERMINATE as their own categories. All-attempt latency includes timed-out
+critical operations; resolved latency uses only histories with a definitive
+PASS or VIOLATION. This separation prevents a timeout from disappearing from
+the measurement or being counted as a successful consistency check.
 
-F3 preserves a client path to the isolated member while blocking its
-replication path to the other two members. The C1 signature histories include
-completed stale-read and write-order counterexamples, while the corresponding
-C6 histories stop at majority-write timeouts and remain indeterminate. The
-independent observer also records acknowledged writes that are absent after
-recovery. These observations describe C1 and C6 under the tested topology.
+The matched mechanism histories support these explanations but do not reveal
+MongoDB's internal wait state. A client timeout shows that the operation did
+not return within the deadline. It does not by itself show whether the server
+applied the operation, continued waiting, or later completed it.
 
-\subsection{Consistency and availability}
+\subsection{Interpretation boundary}
 
-Operation success and consistency outcome are separate measures. UNAVAILABLE
-means an operation did not complete; INDETERMINATE means its effect or required
-observation could not be resolved. Neither is a consistency pass. F2 has no
-request during its election interval. F3 timeouts remain in all-attempt latency
-quantiles rather than being dropped in favor of successful-call latency.
-
-\subsection{RQ4 trade-off interpretation}
-
-RQ4 treats consistency, observed definitive completion, and client-observed
-time to the critical operation as separate measures. Under the tested
-partition, C1's RYW P/V/U/I counts were \RQFourPartitionCOneRYWCounts, with
-observed definitive completion \RQFourPartitionCOneRYWCompletion; its MW
-signature was \RQFourPartitionCOneMWCounts, with
-\RQFourPartitionCOneMWCompletion. The corresponding C6 RYW signature was
-\RQFourPartitionCsixRYWCounts, with \RQFourPartitionCsixRYWCompletion, and
-its MW signature was \RQFourPartitionCsixMWCounts, with
-\RQFourPartitionCsixMWCompletion. These balanced rows support a conditional
-statement for the recorded schedule; they do not rank configurations or
-establish universal availability. RQ4 keeps all-attempt time, including valid
-timeout outcomes, separate from resolved PASS/VIOLATION time. The C5/C6 normal
-and RQ1 fault deltas in Table~\ref{tab:rq4-c5-c6} report the latency and
-completion changes while holding the registered one-factor contrast fixed.
-RQ3 supplies mechanism evidence for selected traces; RQ4 reports the recorded
-client outcomes.
-
-\subsection{Unexpected behavior and interpretation}
-
-The C6 F3 majority-write timeouts match the registered expectation that stronger
-durability may leave a dependent history waiting or unresolved rather than
-return a stale value. A \texttt{w:1} write that is acknowledged and later
-rolled back is recorded as a rollback under the project's durable-history
-definition. The limits section gives the resulting boundary on interpretation.
+The observations are conditional on the recorded MongoDB and PyMongo versions,
+the C1-C8 settings, the registered schedules, and the single-host Docker
+topology. They describe the measured client histories. They do not establish a
+universal guarantee for every deployment or application.

@@ -76,6 +76,7 @@ figures/rq4_c5_c6_contrast.pdf
 The primary figures show paired partition signature outcomes, client-observed
 all-attempt p95 time against observed definitive completion, and the C5/C6
 one-factor contrast. Claims stay conditional on the recorded schedules and
-sample sizes; p99 is intentionally not used for the small cells. The command also regenerates
-`submission/generated-rq4.tex` and copies the three RQ4 PDFs under
-`submission/figures/` so `make submission` includes the current report section.
+sample sizes; p99 is intentionally not used for the small cells. The command
+writes only machine-readable summaries and figures under `results/summary/rq4/`
+and `figures/`; it does not create a document source or modify the code
+submission package.

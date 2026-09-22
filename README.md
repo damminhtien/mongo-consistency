@@ -1,126 +1,81 @@
 # MongoDB consistency experiment
 
-The project contains source, tests, protocol, experiment runner,
-offline checker, analysis, and LaTeX package for the DSA5208 MongoDB
-client-consistency study. The experiment and its evidence rules are defined in
-[docs/experimental-protocol.md](docs/experimental-protocol.md).
+The project contains the MongoDB replica-set runner, fault controller,
+client workloads, offline checkers, experiment protocol, and raw-derived
+analysis. The scientific source of truth is
+[`docs/experimental-protocol.md`](docs/experimental-protocol.md).
 
-## Project documents
+The report is authored in [`submission/report.tex`](submission/report.tex).
+`make submission` compiles that source to a PDF and packages the PDF with the
+MongoDB runtime code. The LaTeX source, analysis scripts, tests, raw histories,
+and local build output stay in the repository.
 
-- [Assignment summary](docs/assignment.md)
-- [Project plan](docs/project-plan.md)
-- [Slide alignment](docs/slide-alignment.md)
-- [Step 1 decisions](docs/step-1-decisions.md)
-- [Experimental protocol](docs/experimental-protocol.md)
-- [Report plan](docs/report-plan.md)
-- [Work list](TODO.md)
+## Development checks
 
-## Commands
+Install the pinned host dependencies:
 
-~~~bash
+```text
+python3 -m pip install -r requirements-dev.txt
+```
+
+Run the local checks:
+
+```text
 make test
 make check-docs
 make check-schemas
 make check-runner-isolation
+make analyse
+make rq3-analyse
+make rq4-analyse
+make check-release-ready
+```
+
+The analysis commands read saved histories and do not connect to MongoDB.
+Smoke, pilot, campaign, and fault-coordinator commands require Docker:
+
+```text
 make setup
 make smoke
 make pilot
 make experiment
-# Requires a clean checkout with frozen provenance and a running Docker daemon.
 make rq2
 make rq3-preflight
 make rq3
-make rq3-analyse
-make analyse
-make submission
-~~~
+```
 
-Install the pinned host-side Python dependencies before running these checks:
-`python3 -m pip install -r requirements-dev.txt`. The Docker runner uses the
-smaller runtime-only `requirements.txt`.
+## Code submission
 
-make setup, make smoke, make pilot, make experiment, and make rq2 require a
-running Docker daemon. make analyse rebuilds summaries and plots from saved raw
-histories without connecting to MongoDB. make submission builds the report PDF
-and checksummed reproduction archive.
+`make submission` creates `output/pdf/mongo-consistency-report.pdf` and
+`output/submission/mongo-consistency-submission.zip`. The archive is built
+from an explicit runtime allowlist and contains the compiled PDF, package
+instructions, and the Compose deployment, runtime configuration, schemas,
+runner and offline-analysis scripts, fault controller, and Python package
+needed to execute the MongoDB campaigns.
 
-make smoke runs 32 histories and is a machinery check, not scientific
-evidence. make pilot runs 192 separate histories. RQ1 is a sequential
-1,280-history campaign: 320 normal controls and 960 adversarial histories.
-The complete campaign is stored under the single canonical
-`results/raw/experiment/` directory.
-The manifest is complete at 1,280/1,280 histories. Across those histories,
-there are 415 PASS, 443 VIOLATION, 224 UNAVAILABLE, 175 INDETERMINATE, 23
-PRECONDITION_MISS, and no HARNESS_ERROR. All 23 precondition misses are
-adversarial MR histories. Of the 960 adversarial histories, 96 were PASS and
-442 were VIOLATION, giving 538 resolved histories. Smoke runs are separate
-machinery diagnostics and are not included in these counts.
-RQ2 is registered for C1/C3/C4/C6, three fault conditions, and all four
-properties. Its 384-history core is extended by 48 histories in four partition
-signature cells, for 432 histories total. RQ2 reuses the RQ1 normal histories
-as its descriptive baseline and runs no additional normal condition.
-
-The RQ2 design groups trials into 24 core fault episodes and 12 partition
-extension episodes. Histories use unique keys and sessions; election and
-recovery timing is summarized once per episode. The grouped runner and
-`make rq2` campaign completed on 20 September 2026: 432 histories across 36
-episodes, all with verified fault application and converged recovery. Outcomes
-were 352 PASS, 40 VIOLATION, and 40 INDETERMINATE; the latter are not counted as
-consistency passes or violations. The C1 partition RYW and MW violations were
-reproduced in all 20 signature repetitions. See [RQ2 results](docs/rq2-results.md).
-The host coordinator controls faults through a temporary, narrowly mounted IPC
-directory; the runner receives no Docker socket.
-
-RQ3 explains three mechanisms using six selected RQ1 anchor histories and eight
-matched-seed replay pairs per contrast (48 new histories). The anchors are
-registered in `configs/rq3-anchors.json`; they provide context, not replay
-outcomes or probability estimates. Each replay pair checks its named topology
-and actual routes, and the analyzer derives control validity from raw histories
-separately from consistency outcomes. The v2 preflight passed all ten topology
-rehearsals and the replay campaign completed all 48 histories with every pair
-control-valid. The preflight is recorded in
-`results/raw/rq3-preflight.json`; the campaign lives under `results/raw/rq3/`
-with an `rq3-campaign.v2` manifest. Analysis writes
-`results/analysis/rq3/summary.json` (`rq3-analysis.v2`) and
-`results/analysis/rq3/selection-manifest.json` (`rq3-selection.v2`). The
-previous campaign is retained in Git history when the canonical outputs are regenerated.
-
-## Release package
-
-CI rebuilds analysis from committed raw histories before producing its PDF, ZIP
-archive, and checksum manifest. A `v*` tag publishes those three files as
-GitHub Release assets. The release workflow requires complete RQ1 and RQ2
-campaigns and all team student IDs before creating a release.
-
-A first SIGINT or SIGTERM asks the runner to finish the current trial,
-clean up faults, and write an INTERRUPTED manifest. Rerunning the same
-campaign with resume enabled validates existing histories and continues from
-the deterministic plan. A fresh run is allowed only with an empty campaign
-directory.
+`make check-submission-artifacts` verifies the PDF, manifest, and archive. It
+also rejects report source, generated document fragments, tests, raw histories,
+and local build output inside the archive.
 
 ## Layout
 
-~~~text
-configs/       settings, schedules, predictions, and campaign definitions
-src/           history model, topology oracle, workloads, checkers, analysis
-scripts/       setup, campaign, analysis, build, and validation entry points
-tests/         offline fixtures and harness checks
-schemas/       versioned history and outcome contracts
-docs/          project decisions, protocol, slide mapping, report plan
-submission/    LaTeX sources, metadata, and package instructions
-results/raw/   canonical campaign histories
-results/summary/ generated tables and summaries
-figures/       generated plots
-~~~
+```text
+configs/       runtime configurations, schedules, predictions, campaign plans
+src/           history model, topology oracle, workloads, checkers, runner code
+scripts/       setup and campaign entry points plus offline analysis tools
+infra/         runner and fault-controller images
+schemas/       versioned runtime record contracts
+docs/           protocol, decisions, and analysis notes
+results/raw/    canonical campaign histories and manifests
+results/summary/ derived JSON and CSV analysis
+submission/     authored LaTeX report, references, figures, and package files
+tests/          offline tests, kept outside the code submission archive
+```
 
-## Evidence and safety
+## Evidence boundary
 
 Each trial uses a unique namespace, explicit client session, deterministic seed,
-and logged requested and actual routing. Possible writes with lost responses
-are INDETERMINATE. The six history outcomes are PASS, VIOLATION, UNAVAILABLE,
-INDETERMINATE, PRECONDITION_MISS, and HARNESS_ERROR. Only PASS and VIOLATION
-enter the consistency denominator.
-
-The runner has no Docker socket, Docker credentials, or unrelated host-data
-mount. Predictions and protocol are committed before scientific campaigns.
-Generated summaries and report macros are rebuilt from raw histories.
+and logged requested and actual routing. A possible write with a lost response
+is `INDETERMINATE`. The six outcomes are `PASS`, `VIOLATION`, `UNAVAILABLE`,
+`INDETERMINATE`, `PRECONDITION_MISS`, and `HARNESS_ERROR`. Only `PASS` and
+`VIOLATION` enter a resolved consistency comparison.

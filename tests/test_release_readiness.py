@@ -343,29 +343,6 @@ def _rq3_valid_root(root: Path) -> None:
         "selected_pairs": selected_pairs,
     }
     selection_path.write_text(json.dumps(selection, indent=2, sort_keys=True) + "\n")
-    submission = root / "submission"
-    (submission / "sections").mkdir(parents=True, exist_ok=True)
-    (submission / "figures").mkdir(parents=True, exist_ok=True)
-    (submission / "sections/07-results.tex").write_text(
-        "\\input{submission/generated-rq3.tex}\n", encoding="utf-8"
-    )
-    generated_tex = submission / "generated-rq3.tex"
-    generated_tex.write_text(
-        analyse_rq3._render_report_section(
-            grouped_rows,
-            selected_pairs,
-            manifest,
-            analyse_rq3._summarize_historical_anchors(anchors, repository_root=root),
-        ),
-        encoding="utf-8",
-    )
-    generated_appendix = submission / "generated-rq3-appendix.tex"
-    generated_appendix.write_text(
-        analyse_rq3._render_appendix_section(grouped_rows, selected_pairs),
-        encoding="utf-8",
-    )
-    timeline_path = submission / "figures/rq3-causal-timeline.pdf"
-    timeline_path.write_bytes(b"%PDF-1.4\n" + b"synthetic timeline fixture\n" * 32 + b"%%EOF\n")
     summary = {
         "schema_version": "rq3-analysis.v2",
         "protocol_id": "rq3-protocol.v2",
@@ -377,20 +354,6 @@ def _rq3_valid_root(root: Path) -> None:
         "repetitions_per_contrast": 8,
         "contrast_summaries": contrast_summaries,
         "selection_manifest": selection_path.relative_to(root).as_posix(),
-        "generated_artifacts": {
-            "report_tex": {
-                "path": "submission/generated-rq3.tex",
-                "sha256": _sha256(generated_tex),
-            },
-            "appendix_tex": {
-                "path": "submission/generated-rq3-appendix.tex",
-                "sha256": _sha256(generated_appendix),
-            },
-            "timeline_pdf": {
-                "path": "submission/figures/rq3-causal-timeline.pdf",
-                "sha256": _sha256(timeline_path),
-            },
-        },
     }
     (analysis_root / "summary.json").write_text(
         json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8"

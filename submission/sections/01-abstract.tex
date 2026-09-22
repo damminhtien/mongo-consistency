@@ -1,24 +1,22 @@
 \section*{Abstract}
 \addcontentsline{toc}{section}{Abstract}
 
-We tested four client-centric consistency properties on a three-member MongoDB
-replica set: read-your-writes (RYW), monotonic reads (MR), monotonic writes
-(MW), and writes-follow-reads (WFR). The first set of schedules varied read
-concern, write concern, and causal-session settings across eight configurations.
-A separate fault campaign covered a secondary failure, a primary failure and
-election, and a partition that isolated the former primary. In normal
-operation, \NormalPassCount\ of
-\NormalHistoryCount\ histories passed and \NormalViolationCount\ showed a
-violation. Of \AdversarialHistoryCount\ adversarial histories,
+This study examines four client-centric consistency properties on a three-member
+MongoDB replica set: read-your-writes (RYW), monotonic reads (MR), monotonic
+writes (MW), and writes-follow-reads (WFR). The configuration campaign varied
+read concern, write concern, and causal sessions across eight settings. A
+second campaign introduced a secondary crash, a primary election, and a
+replication-path partition.
+
+The normal controls contained \NormalPassCount\ PASS and
+\NormalViolationCount\ VIOLATION outcomes in \NormalHistoryCount\ histories.
+Among \AdversarialHistoryCount\ adversarial histories,
 \AdversarialPassCount\ passed and \AdversarialViolationCount\ violated a
-property. A further \AdversarialUnavailableCount\ did not complete,
-\AdversarialIndeterminateCount\ could not be resolved, and
-\AdversarialPreconditionMissCount\ failed a precondition; precondition misses
-were excluded from the consistency denominator. The fault campaign recorded
-\RQTwoHistoryCount\ histories across \RQTwoFaultEpisodeCount\ fault episodes:
-\RQTwoPassCount\ passed, \RQTwoViolationCount\ violated a property, and
-\RQTwoIndeterminateCount\ remained indeterminate. All its violations were
-recorded in the primary-isolating partition condition. In four test cells,
-majority-write timeouts prevented the dependent operation from being
-issued. The findings are limited to MongoDB \MongoDBServerVersion, PyMongo
-\PyMongoVersion, the registered schedules, and the single-host topology.
+property. The remaining histories were unavailable, indeterminate, or missed
+a precondition, so they were kept outside the resolved consistency comparison.
+The fault campaign contained \RQTwoHistoryCount\ histories across
+\RQTwoFaultEpisodeCount\ episodes. Under the partition, C1 returned stale or
+reordered results while matching C6 histories usually ended at a majority-write
+timeout before the dependent operation was issued. These observations apply to
+MongoDB \MongoDBServerVersion, PyMongo \PyMongoVersion, the registered
+schedules, and the single-host topology.
