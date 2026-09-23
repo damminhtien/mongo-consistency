@@ -209,7 +209,8 @@ indeterminate.
 ### WFR: dependent write after a read from the old branch
 
 For F1 and F2, create `SETUP W1(x,v1)` outside the subject session on the
-stable primary using the configuration's registered write concern. The subject
+stable primary using majority write concern. This seed must be available to
+the first read even when the subject configuration uses `w:1`. The subject
 then issues `R1(x)` on that primary and must observe `v1` before the secondary
 crash or primary election. After the fault, issue `SUBJECT W2(x,v2)` with the
 R1 dependency.
@@ -409,7 +410,7 @@ Each history places the related client operations around the fault transition:
 | Property | Client operations | Checker |
 | --- | --- | --- |
 | RYW | `W1(x,v1) -> fault transition -> R1(x)` | A read older than the acknowledged W1 is a violation. |
-| MR | `W1(x,v1) -> R1(x,v1) -> fault transition -> R2(x)` | A second read older than R1 is a violation. |
+| MR | `SETUP W1(x,v1) -> R1(x,v1) -> fault transition -> R2(x)` | The setup write uses majority acknowledgement; a second read older than R1 is a violation. |
 | MW | `W1(x) -> fault transition -> W2(x,parent=W1)` | Check whether W1's write ID is present in W2's atomic pre-image; absence is a violation. |
 | WFR | F1/F2: `SETUP W1 -> R1(x,v1) -> fault transition -> W2(x,v2)`; F3: `partition -> SETUP W1 -> R1(x,v1) -> election -> W2(x,v2)` | Compare W2's atomic pre-image version with the value returned by R1. An older pre-image is a violation. |
 

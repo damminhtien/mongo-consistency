@@ -46,10 +46,11 @@ issue a successor write after the topology change.
 election, and issue a dependent write on the new primary.
 \end{description}
 
-In the fault campaign, MR creates its seed write outside the subject session
-and requires the first subject read to return version~1 before the fault. For
-WFR, F1 and F2 use the configuration's registered write concern for the setup
-write and read version~1 before the fault. F3 isolates the former primary,
+In the fault campaign, MR creates a majority-acknowledged seed write outside
+the subject session and requires the first subject read to return version~1
+before the fault. For WFR, F1 and F2 also use a majority-acknowledged setup
+write, independent of the subject configuration, before reading version~1.
+F3 isolates the former primary,
 creates the setup write with \texttt{w:1}, verifies version~1 on that branch
 and version~0 on the majority side, and then reads version~1 before the
 election. In every case, W2 is issued only after R1 has returned a concrete

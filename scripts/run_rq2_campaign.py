@@ -6,21 +6,12 @@ import argparse
 import json
 import os
 import signal
-import sys
 import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-
-from mongo_consistency.checkers import check_history
-from mongo_consistency.config import load_configurations, load_json
-from mongo_consistency.faults import HostFaultCoordinatorClient
-from mongo_consistency.history import read_history, write_history
-from mongo_consistency.models import History, OperationRecord
-from mongo_consistency.topology import TopologyError, TopologyOracle
-from mongo_consistency.trial import TIMEOUT_POLICY, MongoTrial
 
 from run_campaign import (
     _require_frozen_provenance,
@@ -30,6 +21,14 @@ from run_campaign import (
     schedule_id_for,
     trial_id_for,
 )
+
+from mongo_consistency.checkers import check_history
+from mongo_consistency.config import load_configurations, load_json
+from mongo_consistency.faults import HostFaultCoordinatorClient
+from mongo_consistency.history import read_history, write_history
+from mongo_consistency.models import History, OperationRecord
+from mongo_consistency.topology import TopologyError, TopologyOracle
+from mongo_consistency.trial import TIMEOUT_POLICY, MongoTrial
 
 ROOT = Path(__file__).resolve().parents[1]
 PROPERTIES = ("RYW", "MR", "MW", "WFR")
@@ -388,7 +387,7 @@ def _run_first_operation(
                 primary,
                 write_id="w1",
                 version=1,
-                write_concern=str(case.configuration["write_concern"]),
+                write_concern="majority",
             )
             setup_route_verified = trial.verify_setup_route(setup, primary)
             if setup.get("status") != "SUCCESS" or not setup_route_verified:
@@ -397,7 +396,7 @@ def _run_first_operation(
                     expected={
                         "status": "SUCCESS",
                         "member": primary,
-                        "write_concern": case.configuration["write_concern"],
+                        "write_concern": "majority",
                     },
                     actual=setup,
                 )
@@ -431,7 +430,7 @@ def _run_first_operation(
             _run_wfr_first_operation(
                 case,
                 primary,
-                write_concern=str(case.configuration["write_concern"]),
+                write_concern="majority",
             )
             return
         case.first_operation = operation
@@ -1352,7 +1351,7 @@ def run_campaign(output_root: Path, *, resume: bool = False) -> dict[str, Any]:
                 )
         else:
             status = "COMPLETE"
-    except Exception as error:  # noqa: BLE001 - persist episode-level failure and completed work.
+    except Exception as error:  # Persist episode-level failure and completed work.
         status = "FAILED"
         error_message = str(error)
         raise

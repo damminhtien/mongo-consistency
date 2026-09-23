@@ -9,13 +9,14 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from mongo_consistency.models import OperationRecord
 from run_rq2_campaign import (
     CasePlan,
     CaseState,
     _run_after_fault,
     _run_first_operation,
 )
+
+from mongo_consistency.models import OperationRecord
 
 
 class FakeTrial:
@@ -169,6 +170,28 @@ def make_case(property_name: str) -> CaseState:
 
 
 class RQ2ScheduleTests(unittest.TestCase):
+    def test_mr_seed_is_majority_acked_when_subject_uses_w1(self) -> None:
+        case = make_case("MR")
+        case.configuration.update(id="C3", read_concern="majority", write_concern="w:1")
+        assert case.trial is not None
+        case.trial.configuration.update(case.configuration)
+
+        _run_first_operation(case, "mongo1", signature_deferred=False)
+
+        self.assertEqual("majority", case.trial.setup_calls[0]["write_concern"])
+        self.assertEqual(1, case.read_version)
+
+    def test_wfr_seed_is_majority_acked_before_f1_f2_fault(self) -> None:
+        case = make_case("WFR")
+        case.configuration.update(id="C3", read_concern="majority", write_concern="w:1")
+        assert case.trial is not None
+        case.trial.configuration.update(case.configuration)
+
+        _run_first_operation(case, "mongo1", signature_deferred=False)
+
+        self.assertEqual("majority", case.trial.setup_calls[0]["write_concern"])
+        self.assertEqual(1, case.read_version)
+
     def test_mr_seed_is_setup_outside_the_subject_history(self) -> None:
         case = make_case("MR")
 
