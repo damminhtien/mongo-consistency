@@ -1,4 +1,4 @@
-"""Load and verify the small, preregistered RQ1 trace set used by RQ3."""
+"""Load and verify the historical RQ1 traces used to frame RQ3."""
 
 from __future__ import annotations
 
@@ -63,9 +63,11 @@ def verify_anchor_manifest(repository_root: Path) -> tuple[dict[str, Any], str]:
                 raise ValueError(f"RQ3 {contrast_id} anchor path must be repository-relative")
             path = (root / relative_path).resolve()
             try:
-                path.relative_to((root / "results/raw/experiment").resolve())
+                path.relative_to((root / "results/raw/rq3-historical-anchors").resolve())
             except ValueError as error:
-                raise ValueError(f"RQ3 anchor path escapes the RQ1 raw results: {relative_path}") from error
+                raise ValueError(
+                    f"RQ3 anchor path escapes the historical anchor archive: {relative_path}"
+                ) from error
             if not path.is_file() or sha256_file(path) != record.get("raw_sha256"):
                 raise ValueError(f"RQ3 anchor raw-file digest differs: {relative_path}")
             history = read_history(path)

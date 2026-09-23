@@ -132,7 +132,7 @@ class SchemaValidationTests(unittest.TestCase):
             "property": "RYW",
             "adversarial": True,
             "seed": 20260916,
-            "path": "results/raw/experiment/trial.json",
+            "path": "results/raw/rq3-historical-anchors/trial.json",
             "history_hash": "0" * 64,
             "outcome": "PASS",
             "precondition_status": "SATISFIED",
