@@ -13,6 +13,7 @@ from scripts.build_submission import (
     REQUIRED_SECTIONS,
     REQUIRED_SUBMISSION_FILES,
     BuildError,
+    _format_fault_outcomes,
     copy_source_tree,
     parse_metadata,
     validate_figure_inputs,
@@ -26,6 +27,21 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class SubmissionLayoutTests(unittest.TestCase):
+    def test_fault_outcome_vector_includes_precondition_misses(self) -> None:
+        self.assertEqual(
+            "1/2/3/4/5",
+            _format_fault_outcomes(
+                {
+                    "PASS": 1,
+                    "VIOLATION": 2,
+                    "UNAVAILABLE": 3,
+                    "INDETERMINATE": 4,
+                    "PRECONDITION_MISS": 5,
+                    "HARNESS_ERROR": 6,
+                }
+            ),
+        )
+
     def test_required_submission_sources_exist(self) -> None:
         paths = (*REQUIRED_SUBMISSION_FILES, *REQUIRED_SECTIONS)
         missing = [str(path) for path in paths if not (ROOT / path).is_file()
@@ -264,6 +280,7 @@ class SubmissionLayoutTests(unittest.TestCase):
             content = target.read_text(encoding="utf-8")
         self.assertIn(r"\newcommand{\AnalysisStatus}{NO\_DATA}", content)
         self.assertIn(r"\newcommand{\LatencyMedian}{NO\_DATA}", content)
+        self.assertIn(r"\newcommand{\RQTwoDecidableHistoryCount}{--}", content)
         self.assertNotIn("This report", content)
 
 

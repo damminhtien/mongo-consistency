@@ -170,6 +170,13 @@ def escape_latex(value: str) -> str:
     return re.sub(r"[\\&%$#_{}~^]", lambda match: replacements[match.group()], value)
 
 
+def _format_fault_outcomes(outcomes: dict[str, Any]) -> str:
+    """Format fault outcomes in the order used by the report table."""
+
+    names = ("PASS", "VIOLATION", "UNAVAILABLE", "INDETERMINATE", "PRECONDITION_MISS")
+    return "/".join(str(int(outcomes.get(name, 0) or 0)) for name in names)
+
+
 def write_generated_analysis(path: Path, root: Path) -> None:
     """Write main-campaign report macros, keeping pilot and test modes separate."""
 
@@ -486,6 +493,10 @@ def write_generated_analysis(path: Path, root: Path) -> None:
         macros.update(
             {
                 "RQTwoHistoryCount": str(count_value(rq2_campaign, "history_count")),
+                "RQTwoDecidableHistoryCount": str(
+                    int(rq2_outcomes.get("PASS", 0) or 0)
+                    + int(rq2_outcomes.get("VIOLATION", 0) or 0)
+                ),
                 "RQTwoFaultEpisodeCount": str(
                     sum(
                         count_value(episode, "episode_count")
@@ -712,10 +723,6 @@ def write_generated_analysis(path: Path, root: Path) -> None:
                 f"{converged_count} & "
                 f"{second_value((episode.get('recovery_ms') or {}).get('p50'))} \\\\"
             )
-            fault_outcome_values = [
-                int(fault_outcomes.get(outcome, 0) or 0)
-                for outcome in ("PASS", "VIOLATION", "UNAVAILABLE", "INDETERMINATE")
-            ]
             operation_successful = count_value(
                 fault_summary, "operation_successful_count"
             )
@@ -725,7 +732,7 @@ def write_generated_analysis(path: Path, root: Path) -> None:
             fault_summary_rows.append(
                 f"{fault} & {count_value(fault_summary, 'history_count')} & "
                 f"{count_value(episode, 'episode_count')} & "
-                f"{'/'.join(map(str, fault_outcome_values))} & "
+                f"{_format_fault_outcomes(fault_outcomes)} & "
                 f"{operation_successful}/{operation_attempted} "
                 f"({percent_value(fault_summary.get('operation_success_rate'))}\\%) & "
                 f"{millisecond_value((fault_summary.get('latency_ms') or {}).get('p50'))}/"
@@ -743,6 +750,7 @@ def write_generated_analysis(path: Path, root: Path) -> None:
         macros.update(
             {
                 "RQTwoHistoryCount": "--",
+                "RQTwoDecidableHistoryCount": "--",
                 "RQTwoFaultEpisodeCount": "--",
                 "RQTwoPassCount": "--",
                 "RQTwoViolationCount": "--",
