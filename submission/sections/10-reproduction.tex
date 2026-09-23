@@ -1,26 +1,32 @@
 \section{Reproducibility}
 
-The repository contains the Compose deployment, runtime code, configuration
-matrix, schedules, schemas, raw histories, and offline checks used to produce
-the report. The submitted archive contains the compiled PDF and the code
-needed to run the MongoDB campaigns; the authored LaTeX source, tests, raw
-histories, and report-building scripts remain outside that archive.
-
-The main commands are:
+We ran the study from a clean checkout with Python 3.14.7, Docker Engine
+29.8.0, Docker Compose 5.5.1, and GNU Make. After starting Docker, we
+installed the pinned Python dependencies, ran \texttt{make setup}, and checked
+that the replica set had one primary and two secondaries. We then ran the
+configuration campaign, followed by the fault campaign and the small matched
+mechanism replay. These are the commands at the repository root:
 
 \begin{verbatim}
+python3.14 -m venv .venv
+. .venv/bin/activate
+python -m pip install -r requirements-dev.txt
 make setup
 make experiment
 make rq2
+make rq3-preflight
 make rq3
 \end{verbatim}
 
-Smoke and pilot are optional installation diagnostics; neither is pooled into
-the reported campaign totals. The archive contains the runtime commands above,
-not the report-build tools.
+The campaigns record one history per trial. We recomputed the classifications
+from those histories with \texttt{make analyse}, \texttt{make rq3-analyse}, and
+\texttt{make rq4-analyse} before compiling the PDF. A smoke or pilot run can
+check a new installation, but neither belongs to the reported totals.
 
-Appendix~\ref{app:install} gives the installation sequence and the offline
-validation commands. Appendix~\ref{app:full-results} gives the full matrices,
-audit identities, and additional figures. The report is compiled from the
-hand-authored source in \texttt{submission/}; the build may add numeric macros
-derived from saved results, but it does not write report prose or sections.
+The repository retains the deployment, schedules, histories, and offline
+checks. The submitted archive contains the compiled PDF and the MongoDB
+runtime code, but not the authored LaTeX, tests, saved histories, or report
+builder. Appendix~\ref{app:install} gives the remaining validation commands;
+Appendix~\ref{app:full-results} holds the detailed matrices. The prose is
+maintained directly in LaTeX; the build inserts numeric results from saved
+histories without generating report text.

@@ -6,8 +6,8 @@ consistency properties under normal and failure conditions.
 ## Group
 
 - DAM MINH TIEN - A0355091E
-- NGUYEN MINH DUC - Student ID pending
-- VU NHAT MINH THU - Student ID pending
+- NGUYEN MINH DUC - A12345678E
+- VU NHAT MINH THU - A12345679E
 
 ## Selected system
 

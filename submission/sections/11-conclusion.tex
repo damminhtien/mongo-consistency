@@ -1,20 +1,16 @@
 \section{Conclusion}
 
-The configuration campaign answers the first study question. All normal
-controls passed. Under the adversarial schedules, C1 produced violations for
-all four properties in every trial. C6 produced unavailable RYW and MR
-histories and indeterminate MW and WFR histories, rather than a completed
-counterexample.
+We set out to learn what a client sees when MongoDB's consistency controls
+and replica-set topology change. Under normal operation, the tested
+dependencies held. When we made replicas diverge, weak settings could
+complete with stale or reordered state. Majority reads, majority writes, and
+a causal session did not yield a completed counterexample in the target C6
+histories, but those histories were often unresolved rather than successful.
 
-The fault campaign answers the second question. F1 and F2 produced no
-violations among decidable histories; the F2 schedule resumed after the
-election barrier and did not test calls during the election interval. F3
-produced all \RQTwoViolationCount\ RQ2 violations and
-\RQTwoIndeterminateCount\ indeterminate histories. Its C1 signature
-cells returned stale or reordered values, while C6 majority-write timeouts
-often prevented the dependent operation from being issued.
-
-Across the tested schedules, stronger settings shifted some outcomes from
-completed counterexamples to unavailable or indeterminate operations. These
-results apply to the recorded schedules, software versions, and single-host
-deployment.
+Losing a secondary or probing after a primary election did not produce a
+counterexample in our schedules. Partitioning the replication path did: it
+let a weak client complete on a state that the majority side had not kept,
+while stronger settings could wait or time out. The comparison supports our
+main prediction about the change from a stale answer to a withheld one. It
+does not establish behaviour during election or across physical sites beyond
+this single-host experiment.

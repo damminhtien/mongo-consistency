@@ -18,6 +18,9 @@ Run these commands from the directory containing this README after Docker is
 ready:
 
 ```text
+python3.14 -m venv .venv
+. .venv/bin/activate
+python -m pip install -r source/requirements.txt
 make setup
 make experiment
 make rq2

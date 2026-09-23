@@ -7,9 +7,10 @@ different states while an update is propagating. For an application, the
 important question is therefore not only whether replicas eventually converge.
 It is what a client can observe across successive operations.
 
-This project studies that client view in a three-member MongoDB replica set.
-The application assigns increasing versions to one logical document, so each
-trial has an explicit write or read dependency. The four properties are
+We study that client view in a three-member MongoDB replica set. We vary read
+concern, write concern, and causal sessions while keeping the document and
+operation sequence fixed. Increasing versions give each trial an explicit
+write or read dependency. The four properties are
 read-your-writes (RYW), monotonic reads (MR), monotonic writes (MW), and
 writes-follow-reads (WFR). Section~2.1 states the Lecture~3 definitions before
 separating them from the project's measurement evidence.
@@ -28,14 +29,14 @@ Q_2:\quad
 \text{How does the behaviour change under node failure and network partition?}
 \]
 
-We first derive expectations from the configuration matrix. We then run
-property-specific schedules that create controlled replica divergence and
-classify each history with an offline checker. Finally, we repeat selected
-settings under a secondary crash, a primary election, and a replication-path
-partition. The fault campaign reuses matching normal controls as a descriptive
-baseline.
+We first state what each configuration should allow a client to observe. We
+then run the same property-specific schedules across configurations, create
+controlled replica divergence, and check the resulting histories. Finally, we
+repeat selected settings under a secondary crash, a primary election, and a
+replication-path partition. Matching normal controls tell us whether the
+schedule itself caused a failure before we interpret its fault result.
 
-In the tested schedules, weak settings sometimes returned stale or reordered
-values. Majority acknowledgement combined with a causal session prevented some
-completed counterexamples, but during partition the dependent operation could
-remain unavailable or unresolved.
+The central distinction in our results is between an operation that completes
+with a stale or reordered value and one that does not return a decidable
+answer. Stronger settings sometimes changed the failure mode rather than
+making the fault disappear.

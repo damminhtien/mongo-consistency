@@ -1,19 +1,29 @@
 \subsection{System and deployment}
 
-The selected database is MongoDB, deployed as a three-member replica set with
-one data-bearing primary and two data-bearing secondaries. Docker Compose
-provides a client network and a separate replication network. The experiment
-runner issues client operations, while a restricted fault controller changes
-member availability and replication-path reachability. A topology oracle and
-an independent observer verify the roles and final document state recorded in
-each history.
+We selected MongoDB because it exposes the three consistency controls under
+study and provides replica-set failover in one system
+\cite{mongodb-replication,mongodb-causal-consistency}. We use three
+data-bearing members, initially one primary and two secondaries. This gives
+the majority side two copies during an election and lets us compare it with an
+isolated former primary without adding an arbiter. Docker Compose fixes the
+deployment for repeated trials.
+
+We separate client traffic from replication traffic. This matters in the
+partition experiment: we can interrupt replication while leaving the client
+able to reach the isolated member. A runner issues the operations; a fault
+controller changes member availability or replication reachability; and a
+topology oracle checks which member is primary before the next scheduled
+step. An independent observer examines all three copies after recovery. The
+runner has no Docker socket, so fault control is kept outside the client
+process.
 
 \maybefigure[fig:architecture]{submission/figures/architecture.pdf}{Experimental deployment. The runner reaches all three data-bearing members through the client network. The fault controller changes member availability or replication-path reachability while the client route is retained. Member names are fixed, but the primary role can change after an election.}
 
-The main campaigns used the software versions recorded in the campaign
-manifest. The detailed image digest, container ports, network subnets, setup
-commands, and runner-isolation evidence are retained in Appendices~\ref{app:configuration}
-and~\ref{app:install}.
+We installed the pinned Python dependencies and used \texttt{make setup} to
+start the Compose services, initialise the replica set, and verify its roles
+before running a campaign. The setup record supplies the observed versions in
+Table~\ref{tab:environment-versions}. Appendix~\ref{app:install} gives the
+commands; Appendix~\ref{app:configuration} retains network and image details.
 
 \begin{table}[ht]
 \centering
@@ -29,7 +39,6 @@ PyMongo & \texttt{\PyMongoVersion} \\
 Runner Python & \texttt{\RunnerPythonVersion} \\
 Docker Engine & \texttt{\DockerEngineVersion} \\
 Docker Compose & \texttt{\DockerComposeVersion} \\
-Docker VM kernel & \texttt{\DockerKernelVersion} \\
 \bottomrule
 \end{tabular}
 \end{table}

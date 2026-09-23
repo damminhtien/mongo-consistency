@@ -9,16 +9,17 @@ the order in which the project tasks happened.
 
 ## Sections
 
-1. Introduction: the problem, two central questions, and the experimental cube.
-2. Background and Expectations: the four properties, MongoDB mechanisms, C1-C8,
-   and predictions.
-3. Experimental Method: deployment, workloads, checkers, scenarios, outcomes,
-   and metrics.
-4. Results: baseline, configuration effects, fault effects, selected mechanism
-   evidence, and client-visible completion consequences.
-5. Discussion: three synthesis claims drawn across campaigns.
-6. Reproducibility: commands and evidence locations.
-7. Conclusion: the three findings that answer the two central questions.
+1. Introduction: the client problem and two study questions.
+2. Background and Predictions: the four course properties, MongoDB controls,
+   C1-C8, and fault expectations.
+3. Experimental Method: database choice, deployment rationale, trial model,
+   schedules, fault design, and outcome definitions.
+4. Results: configuration observations, fault observations, and the three
+   mechanism contrasts, with predictions checked against completed histories.
+5. Discussion: interpretation of consistency, completion, and latency, followed
+   by the single-host and post-election-probe limits.
+6. Reproducibility: installation sequence and campaign commands.
+7. Conclusion: answers to the two study questions.
 
 The full configuration matrices, raw history identities, hashes, and CSV
 metrics remain in the repository as audit material. They are not reproduced as
@@ -38,8 +39,9 @@ generated document fragments.
 - Put prediction statements in Background and Expectations and method details
   in Experimental Method. Results should report what happened and why it
   matters without repeating the same template for every property.
-- Put cross-campaign interpretation in Discussion. Do not repeat the same
-  finding in Results, Discussion, and Conclusion.
+- Put cross-campaign interpretation in Discussion. Keep the limitations there
+  rather than restoring a stand-alone limitations section. Do not repeat the
+  same finding in Results, Discussion, and Conclusion.
 - State scope qualifications beside the relevant result when omitting them
   would change the reader's interpretation.
 - Keep raw JSON histories and machine-readable CSV summaries as the evidence

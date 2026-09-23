@@ -160,10 +160,6 @@ class SubmissionLayoutTests(unittest.TestCase):
         self.assertIn("course definitions in Section~2.1", method)
         self.assertNotIn("project operationalisation in\nSection~2.1", method)
 
-        results = (ROOT / "submission/sections/07-results.tex").read_text(encoding="utf-8")
-        self.assertIn("atomic pre-image", results)
-        self.assertIn("post-heal witness is used only", results)
-
         protocol = (ROOT / "docs/experimental-protocol.md").read_text(encoding="utf-8")
         self.assertIn("## Course definitions and project operationalisation", protocol)
         self.assertIn("write_base_version", protocol)

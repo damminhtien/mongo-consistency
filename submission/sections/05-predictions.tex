@@ -1,9 +1,12 @@
 \subsection{Configuration matrix and predictions}
 
-The eight configurations combine local or majority read concern, \texttt{w:1}
-or majority write concern, and causal sessions that are off or on. The
-configuration matrix changes these settings while the property schedule,
-logical document, and replica-set topology remain fixed.
+We combine the two read concerns (\texttt{local}, \texttt{majority}), two write
+concerns (\texttt{w:1}, \texttt{majority}), and causal sessions switched off or
+on. This produces eight configurations. For each property, we keep the
+operation sequence, logical document, and replica-set topology fixed while
+changing these controls. Table~\ref{tab:configurations} marks the
+configuration-property pairs for which we made a positive prediction; the
+other cells are descriptive comparisons, not claims of a guarantee.
 
 \begin{table}[ht]
 \centering
@@ -27,36 +30,38 @@ C8 & local & majority & off & Descriptive only \\
 \end{tabular}
 \end{table}
 
-C3 combines a majority read with a causal session, so the read and the
-dependent operation carry a lower bound through the session even though the
-write uses \texttt{w:1}. C4 gives the write a majority acknowledgement while
-keeping the read local, which makes it useful for the monotonic-write
-schedule. C6 combines majority read, majority write, and a causal session; it
-is the strongest setting in the matrix for the four tested dependencies.
+C1 leaves reads local, acknowledges one replica, and carries no causal
+dependency; we therefore expect a stale or reordered result to be possible
+when the schedule splits the replicas. C3 asks whether majority reads and a
+causal session preserve MR and WFR in the tested sequence even though its
+write uses \texttt{w:1}; this is a schedule-specific prediction, not a general
+MongoDB guarantee for that combination. C4 tests whether an acknowledged
+majority write preserves MW when a successor write follows it; its local read
+does not protect WFR. C6 combines majority reads, majority writes, and a
+causal session. We expect its dependencies not to produce a completed
+counterexample, although a partition may prevent an operation from finishing.
 
-The matrix gives the settings; the expectations explain what observations would
-contradict them. A target prediction is falsified only by a completed,
-decidable counterexample. An unavailable or indeterminate trial does not
-provide that comparison. C7 is deliberately descriptive for RYW: a completed
-stale read there is an observation of the setting, not a failed protected
-prediction.
+We compare these predictions only with completed, decidable histories. A
+timeout or missing precondition leaves the prediction untested in that trial.
+In particular, a stale RYW read in C7 describes an unprotected setting; it
+does not falsify a guarantee we assigned to C7.
 
 \subsection{Fault expectations}
 
-The configuration campaign changes consistency settings while the schedule
-creates controlled replica divergence. The fault campaign asks whether the
-same behaviour persists when the topology itself changes.
+The first campaign changes settings while its schedule creates controlled
+replica divergence. The second asks how the same client dependencies behave
+when we change the topology.
 
 \begin{description}
-\item[F1, secondary loss] Removing one secondary should reduce redundancy
-without forcing an election. Operations that remain routable should not create
-a new consistency anomaly in the tested schedule.
-\item[F2, primary loss] Stopping the primary should produce an election
-interval and possible temporary unavailability. The scheduled calls after
-recovery should not form a completed invalid history; the election interval is
-not directly probed by a subject call.
-\item[F3, replication partition] Isolating the former primary from the
-majority side should separate a weak acknowledged write from a majority
-acknowledgement. A weak setting may return a stale or reordered value, while a
-stronger setting may wait or leave the dependent operation unresolved.
+\item[F1, secondary loss] Removing one secondary should leave the primary and
+a majority side intact. We expect the scheduled calls to complete without a
+new consistency counterexample.
+\item[F2, primary loss] Stopping the primary should trigger an election. We
+expect calls made after the election barrier to preserve the tested
+dependencies, but we make no prediction about a call during the election
+because our schedule does not issue one.
+\item[F3, replication partition] Isolating the former primary should separate
+a \texttt{w:1} acknowledgement from a majority acknowledgement. We predict
+that weak settings may complete with stale or reordered state, whereas C6 may
+wait or leave a dependent operation unresolved.
 \end{description}

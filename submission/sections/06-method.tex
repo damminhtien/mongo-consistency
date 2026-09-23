@@ -1,20 +1,20 @@
 \subsection{Trial model and consistency checkers}
 
-One trial uses a unique document, one explicit PyMongo session, and a
-property-specific sequence of subject operations. The logical writer assigns
-integer versions. Each write records its parent write, and each dependent
-write records the version returned by its preceding read. The recorder keeps
-the requested member, actual server, observed role, concern settings, session
-state, operation status, operation time, and returned document state.
+We give each trial a new document so that an earlier trial cannot supply the
+version being tested. The subject uses one explicit PyMongo session and a
+sequence chosen for one property. Increasing application versions and write
+identifiers make its dependencies visible in the record. We log both the
+requested member and the server that answered, because a routed request alone
+does not prove which copy supplied the value. The record also includes concern
+settings, session state, operation status, timing, and returned document state.
 
-The subject client issues the tested operations. An independent observer reads
-all three members after recovery without using the subject session. A
-restricted controller applies the fault and replication-path changes. The
-checker first verifies the attempted operations and their client-visible
-evidence. RYW and MR use the versions returned to the subject client. MW uses
-the preceding write identifier in the atomic pre-image returned to the
-successive write, and WFR uses the application version in that pre-image. The
-four checkers evaluate the course definitions in Section~2.1.
+After each trial, an independent observer reads the members without the
+subject's session. A separate controller applies and removes the fault. Our
+offline checker first asks whether the intended operations took place. For
+RYW and MR it compares values returned to the subject. For MW it checks
+whether W1's identifier was in the atomic pre-image of W2; for WFR it compares
+the value read by R1 with W2's pre-image. These are the observations available
+for the course definitions in Section~2.1, not a new definition of them.
 
 The post-heal observer is not used to infer MW or WFR. It records whether
 acknowledged writes remain after recovery and whether replicas agree on the
@@ -23,14 +23,15 @@ the client-centric consistency outcome.
 
 \subsection{Configuration campaign}
 
-To isolate the effect of consistency settings, the first campaign runs the
-same property-specific schedules across all eight configurations. Three
-repetitions per configuration and property form
+To isolate the effect of the settings, we run the same four schedules across
+all eight configurations. We first run normal controls, then deliberately
+create replica divergence for the adversarial histories. Three repetitions
+per configuration and property form
 \(3\times8\times4=96\) normal controls. Five repetitions form
 \(5\times8\times4=160\) adversarial histories, for 256 histories in total.
 Smoke and pilot histories are kept separate.
 
-The schedules create the observation needed by each checker:
+Each schedule creates the observation needed for its property:
 
 \begin{description}
 \item[RYW] Keep a secondary at version 0, acknowledge a write of version 1
@@ -64,11 +65,14 @@ dependent operation is not issued.
 
 \subsection{Fault campaign}
 
-The fault campaign crosses C1, C3, C4, and C6 with three topology conditions
-and the four property schedules. F1 stops one secondary. F2 stops the primary,
-waits for the remaining members to elect, and then resumes the scheduled calls.
-F3 blocks replication traffic between the former primary and the other two
-members while preserving the subject client's route to the isolated member.
+We select C1, C3, C4, and C6 for the fault campaign because they include a
+weak baseline, two partial settings, and the majority-read/majority-write
+causal setting. We cross them with the four property schedules and three
+faults. F1 stops one secondary. F2 stops the primary, waits for the remaining
+members to elect, and then resumes the scheduled calls. F3 blocks replication
+between the former primary and the other two members while preserving the
+subject client's route to the isolated member. This last case separates a
+client-visible old branch from the majority side.
 
 The core design contains \(4\times3\times4\times8=384\) histories. Four F3
 signature cells receive twelve additional repetitions each, giving

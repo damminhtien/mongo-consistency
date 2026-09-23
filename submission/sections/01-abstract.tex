@@ -1,20 +1,22 @@
 \section*{Abstract}
 \addcontentsline{toc}{section}{Abstract}
 
-Replica sets keep data available across failures, but a client may still meet
-different versions as its requests move between members. We examined four
-client-centric properties in MongoDB: read-your-writes, monotonic reads,
-monotonic writes, and writes-follow-reads. Eight combinations of read concern,
-write concern, and causal sessions were tested with property-specific schedules.
-We then repeated selected configurations during secondary loss, primary
-election, and a replication-path partition. The analysis covers 256
-configuration histories and \RQTwoHistoryCount\ fault histories.
+Replication lets a database survive member failures, but it does not ensure
+that a client sees successive operations in the order it expects. We chose
+MongoDB because its read concern, write concern, and causal-session settings
+let us change that client experience without changing the application
+workload. In a three-member replica set, we tested read-your-writes, monotonic
+reads, monotonic writes, and writes-follow-reads under normal operation,
+controlled replica divergence, and three topology faults. We stated our
+predictions before comparing the recorded histories with them.
 
-All normal controls passed. Under deliberately divergent replica states, weak
-settings sometimes returned a completed stale or reordered result. In contrast,
-the majority-acknowledged causal setting often left a dependent operation
-unresolved. The partition exposed this difference most clearly: it produced
-every completed fault-campaign violation, while simpler member failures did
-not. Atomic write pre-images provided the evidence used to decide the two
-write-ordering properties. The findings describe the tested schedules and
-single-host deployment, not the frequency of these outcomes in general use.
+The normal controls satisfied all four checks. When replicas diverged, weak
+settings could return a completed stale or reordered result. The
+majority-acknowledged causal setting often gave no decidable result instead:
+an operation timed out or its dependency remained unresolved. Partitioning
+the replication path made this contrast clearest; the two simpler member
+failures produced no completed counterexample in the scheduled calls. These
+observations fit the predicted distinction between a stale answer and a
+withheld answer, but unresolved histories cannot confirm a consistency
+guarantee. Our conclusions are limited to the tested schedules and the
+single-host deployment.

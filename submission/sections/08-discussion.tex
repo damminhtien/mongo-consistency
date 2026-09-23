@@ -2,33 +2,33 @@
 
 \subsection{From stale results to waiting and unresolved operations}
 
-All normal controls passed. Under the adversarial schedules, C1 produced a
-completed violation for each property in all five trials. C6 produced no
-completed counterexample: its RYW and MR histories were unavailable, and its
-MW and WFR histories were indeterminate. A run without an observed violation
-is therefore not always a PASS; the required operation may not complete or the
-history may not provide a decidable result.
+We interpret the contrast as a change in what the client can obtain, not as a
+simple progression from failure to success. On a lagging branch, C1 can return
+a value that contradicts the client's earlier operation. C6 often withholds
+the answer or leaves a write unresolved. This is consistent with the roles of
+majority acknowledgement and causal ordering, but the histories do not reveal
+MongoDB's internal reason for every wait.
 
-All \RQTwoViolationCount\ RQ2 violations occurred during F3, the
-replication-path partition.
-Under C6, the majority write often timed out before the dependent operation
-could be issued. The timeout is a client observation; it does not establish
-what internal state MongoDB was waiting for, and it is not a consistency pass.
-
-The mechanism contrasts support this interpretation. In all eight valid M3
-pairs, C3 acknowledged W1 at \texttt{w:1}, but W2's atomic pre-image lacked W1's
-identifier; C6's majority W1 timed out in all eight pairs. In M2, C8's local
-reads returned v1 in all eight pairs, and five dependent writes completed on a
-v0 pre-image. The matched histories show the client-visible evidence for these
-outcomes, but they do not expose MongoDB's internal wait state.
+The paired histories explain how the controls changed the observations.
+Read concern determined whether R1 could use the isolated branch's value;
+write concern determined whether W1 could be acknowledged there; the causal
+session carried a dependency into the next read. We can explain completed
+counterexamples from the states used by the operations. A timeout, however,
+does not expose the server's internal wait state.
 
 \subsection{Consistency, completion, and latency}
 
-The property result answers whether a completed history contradicted the
-dependency. The completion result asks whether the client obtained a
-decidable answer at all. Latency then asks how long the critical operation
-took. A stronger setting can therefore improve the consistency outcome while
-reducing completion under partition.
+The checker asks whether a completed history contradicted a dependency. We
+also ask whether the client received a decidable answer and how long it waited
+for the critical operation. During a partition, a setting that avoids a stale
+answer may instead impose a timeout. Figure~\ref{fig:completion-latency}
+places completion and latency beside the consistency result; it does not
+represent a universal performance ranking.
 
 \input{submission/generated-rq4.tex}
+
+Two limits matter when reading these results. All three members ran on one
+Docker host, so the network fault was controlled but not a physical-site
+failure. We also resumed F2 calls after the election barrier; we cannot infer
+client behaviour during the election interval from those histories.
 \FloatBarrier

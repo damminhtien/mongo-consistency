@@ -49,12 +49,17 @@ than inventing a PASS or VIOLATION.
 
 \subsection{MongoDB mechanisms}
 
-The experiment varies three mechanisms. Read concern affects which data state a
-read may return. Write concern affects when a write is acknowledged. A causal
-session carries an operation dependency from one client action to the next.
-Read preference and the selected member determine where the scheduled
-observation is attempted; the history records the server that actually handled
-the request.
+We vary three mechanisms. A \texttt{local} read can see a member's current
+state, including an update that has not been majority committed; a
+\texttt{majority} read is limited to majority-committed data
+\cite{mongodb-read-concern}. With \texttt{w:1}, a write can be acknowledged by
+the primary before it reaches a majority. \texttt{majority} write concern
+waits for majority acknowledgement \cite{mongodb-write-concern}. A causal
+session carries ordering information between operations; MongoDB documents
+its strongest causal guarantees for majority reads and majority writes
+\cite{mongodb-causal-consistency}. We also choose where a read is attempted
+through read preference and routing. The history records the member that
+actually handled it \cite{mongodb-read-preference}.
 
 \[
 \text{read concern}\ \longrightarrow\ \text{which state may be returned}
@@ -66,8 +71,8 @@ the request.
 \text{causal session}\ \longrightarrow\ \text{which dependency is carried forward}
 \]
 
-These mechanisms suggest different expectations for the four client-centric
-properties. The configuration matrix and those expectations are stated before
-the method.
+Together, these controls let us ask whether a dependency is returned, delayed,
+or lost from the client's view. We state the configuration predictions before
+describing how we tested them.
 
 \input{submission/sections/05-predictions.tex}
