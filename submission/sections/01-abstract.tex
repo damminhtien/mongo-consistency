@@ -1,25 +1,20 @@
 \section*{Abstract}
 \addcontentsline{toc}{section}{Abstract}
 
-This project examines how MongoDB replica-set settings shape what a client
-observes from four consistency properties: read-your-writes (RYW), monotonic
-reads (MR), monotonic writes (MW), and writes-follow-reads (WFR). We first
-varied read concern, write concern, and causal sessions across eight
-configurations. We then repeated selected configurations while a secondary
-failed, a primary changed during an election, or a replication path was
-partitioned.
+Replica sets keep data available across failures, but a client may still meet
+different versions as its requests move between members. We examined four
+client-centric properties in MongoDB: read-your-writes, monotonic reads,
+monotonic writes, and writes-follow-reads. Eight combinations of read concern,
+write concern, and causal sessions were tested with property-specific schedules.
+We then repeated selected configurations during secondary loss, primary
+election, and a replication-path partition. The analysis covers 256
+configuration histories and \RQTwoHistoryCount\ fault histories.
 
-The configuration campaign contains \NormalHistoryCount\ normal controls and
-\AdversarialHistoryCount\ adversarial histories. The normal controls contain
-\NormalPassCount\ PASS outcomes and one genuine C7 RYW violation: a write
-acknowledged with \texttt{w:1} was followed by a majority read from a lagging
-secondary that returned version 0 instead of version 1. C7 has no causal-session
-target, so this history is descriptive evidence of a weak dependency rather
-than a failed protected prediction. The fault campaign contains
-\RQTwoHistoryCount\ histories.
-
-The main result is a change in failure mode. Weak settings can return a
-completed stale or reordered value, while majority concerns with a causal
-session can leave a dependent operation waiting, timing out, or unresolved
-under partition. These observations apply to the recorded MongoDB and PyMongo
-versions, schedules, and single-host container topology.
+All normal controls passed. Under deliberately divergent replica states, weak
+settings sometimes returned a completed stale or reordered result. In contrast,
+the majority-acknowledged causal setting often left a dependent operation
+unresolved. The partition exposed this difference most clearly: it produced
+every completed fault-campaign violation, while simpler member failures did
+not. Atomic write pre-images provided the evidence used to decide the two
+write-ordering properties. The findings describe the tested schedules and
+single-host deployment, not the frequency of these outcomes in general use.

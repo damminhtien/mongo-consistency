@@ -38,12 +38,12 @@ Contrast & Config & Trial ID & SHA-256 prefix \\
 \endhead
 \bottomrule
 \endfoot
-M1 & C5 & \texttt{rq3-m1-00001-C5-ryw} & \texttt{15a79f38308e43b5...} \\
-M1 & C6 & \texttt{rq3-m1-00002-C6-ryw} & \texttt{e49b3ad758c02193...} \\
-M2 & C8 & \texttt{rq3-m2-00001-C8-wfr} & \texttt{7797629eca818d99...} \\
-M2 & C5 & \texttt{rq3-m2-00002-C5-wfr} & \texttt{ddaf986baa345fbd...} \\
-M3 & C3 & \texttt{rq3-m3-00001-C3-mw} & \texttt{6c23b81f953a68d0...} \\
-M3 & C6 & \texttt{rq3-m3-00002-C6-mw} & \texttt{4798d3fb3465d97d...} \\
+M1 & C5 & \texttt{rq3-m1-00001-C5-ryw} & \texttt{2d1eefdf69ac4992...} \\
+M1 & C6 & \texttt{rq3-m1-00002-C6-ryw} & \texttt{7bcd28fdf0bf59d9...} \\
+M2 & C8 & \texttt{rq3-m2-00001-C8-wfr} & \texttt{4079456bc811049a...} \\
+M2 & C5 & \texttt{rq3-m2-00002-C5-wfr} & \texttt{04b600f3e87778b4...} \\
+M3 & C3 & \texttt{rq3-m3-00001-C3-mw} & \texttt{34252303417af8a1...} \\
+M3 & C6 & \texttt{rq3-m3-00002-C6-mw} & \texttt{de49dff990a557f2...} \\
 \end{longtable}
 
 \begin{longtable}{@{}l p{0.25\linewidth} p{0.61\linewidth}@{}}
@@ -61,6 +61,6 @@ Contrast & Selected pair & Signature counts \\
 \bottomrule
 \endlastfoot
 M1 & \texttt{m1-r01} & C5 stale read: 8/8; C6 causal bound present: 8/8; C6 read unavailable: 8/8 \\
-M2 & \texttt{m2-r01} & C8 local v1: 8/8; C5 majority v0: 8/8; C8 WFR proxy violations: 3; C5 WFR proxy passes: 3; dependent write non-success: 5/8 in both arms \\
-M3 & \texttt{m3-r01} & C3 W1 acknowledged: 8/8; C3 W1 absent after convergence: 8/8; C6 W1 timeout: 8/8; W1 present after timeout: 0/8 \\
+M2 & \texttt{m2-r01} & C8 local v1: 8/8; C5 majority v0: 8/8; C8 WFR violations: 5/8 and indeterminate: 3/8; C5 WFR passes: 4/8 and indeterminate: 4/8; W2 present on every final member in both arms: 8/8 \\
+M3 & \texttt{m3-r01} & C3 W1 acknowledged: 8/8; W1 absent from W2's atomic pre-image: 8/8; C3 MW violations: 8/8; C6 majority W1 timed out: 8/8; C6 MW indeterminate: 8/8 \\
 \end{longtable}

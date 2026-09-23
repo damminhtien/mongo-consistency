@@ -7,49 +7,15 @@ returned completed counterexamples under the adversarial schedules. Stronger
 settings often stopped before returning an inconsistent value, leaving an
 unavailable or indeterminate history instead.
 
-The normal controls contained \NormalPassCount\ PASS and
-\NormalViolationCount\ VIOLATION outcomes. The single VIOLATION is a genuine
-normal-control observation, not a malformed record. In
-\texttt{experiment-00192-C7-ryw}, C7 acknowledged version 1 on primary
-\texttt{mongo2:27017} with \texttt{w:1}. The following majority read reached
-secondary \texttt{mongo1:27017} without a causal session and returned version
-0. The post-trial observer later found versions 0 and 1 on every member. The
-checker therefore reports a completed stale read, exactly as the C7
-descriptive setting permits.
+All \NormalPassCount\ normal controls passed. Figure~\ref{fig:prediction-observation}
+shows the adversarial results against the configuration predictions. C1
+produced a completed violation in every property trial. C6 produced no
+decidable result: its RYW and MR reads were unavailable, while its MW and WFR
+histories remained indeterminate. The schedules deliberately created replica
+divergence, so these counts are not estimates for ordinary traffic. The full
+configuration matrix is in Appendix~\ref{app:full-results}.
 
-The adversarial campaign contained \AdversarialPassCount\ PASS,
-\AdversarialViolationCount\ VIOLATION, \AdversarialUnavailableCount\
-UNAVAILABLE, \AdversarialIndeterminateCount\ INDETERMINATE,
-\AdversarialPreconditionMissCount\ PRECONDITION\_MISS, and
-\AdversarialHarnessErrorCount\ HARNESS\_ERROR outcomes. The precondition misses
-occurred in MR histories and are excluded from the decidable comparison.
-
-\begin{table}[ht]
-\centering
-\small
-\setlength{\tabcolsep}{3pt}
-\caption{Observed configuration outcomes and the properties targeted by the matrix.}
-\label{tab:prediction-observation}
-\begin{tabular}{@{}l*{4}{p{0.19\textwidth}}@{}}
-\toprule
-Config. & RYW & MR & MW$^\dagger$ & WFR$^\dagger$ \\
-\midrule
-\RQOnePredictionObservationRows
-\bottomrule
-\end{tabular}
-\par\smallskip
-\begin{minipage}{\linewidth}
-\footnotesize
-G marks a property for which the setting was used as a prediction target; N
-marks a descriptive cell. P, V, U, I, PM, and HE mean PASS, VIOLATION,
-UNAVAILABLE, INDETERMINATE, PRECONDITION\_MISS, and HARNESS\_ERROR. Only P and
-V enter the resolved comparison. The dagger marks the MW and WFR columns whose
-direct course-definition checks use write pre-image identifiers and write
-pre-image versions, respectively.
-\end{minipage}
-\end{table}
-
-\maybefigure[fig:prediction-observation]{submission/figures/prediction-observation.pdf}{Configuration predictions and observed outcomes across the four client-centric properties.}
+\maybefigure[fig:prediction-observation]{submission/figures/prediction-observation.pdf}{Adversarial configuration histories by property. Each cell reports violations over decidable histories (PASS plus VIOLATION); ``unresolved'' means no history in that cell was decidable. Dark borders mark prediction targets. Each cell contains five scheduled histories; the denominator excludes unavailable and indeterminate outcomes.}
 
 The RYW and MR schedules show the clearest separation between a completed
 regression and an unresolved dependency. Weak or non-causal settings can reach
@@ -62,20 +28,29 @@ for the separate durability analysis.
 
 \subsection{Effect of failures and network partition}
 
-The fault campaign tests whether the configuration effects persist when the
-topology changes. It contains \RQTwoHistoryCount\ histories across
-\RQTwoFaultEpisodeCount\ fault episodes, with
-\RQTwoPassCount\ PASS, \RQTwoViolationCount\ VIOLATION,
-\RQTwoUnavailableCount\ UNAVAILABLE, and \RQTwoIndeterminateCount\
-INDETERMINATE outcomes.
+The fault campaign tests whether these configuration effects persist when
+the topology changes. It contains \RQTwoHistoryCount\ histories across
+\RQTwoFaultEpisodeCount\ shared fault episodes. Of the
+\RQTwoDecidableHistoryCount\ decidable histories, \RQTwoViolationCount\
+were violations. A further \RQTwoPreconditionMissCount\ histories did not
+meet the schedule prerequisite and are not counted as passes or violations.
 
-F1, the secondary loss, removed redundancy but did not produce a new
-consistency anomaly in the scheduled calls. F2, the primary loss, produced an
-election and recovery; the protocol resumed calls after the election barrier,
-so it does not measure a request issued during that interval. F3, the
-replication-path partition, produced the clearest separation. C1 completed
-stale or reordered outcomes in the signature cells, while C6 commonly timed
-out at the majority-write boundary before the dependent operation was issued.
+F1, the secondary loss, and F2, the primary loss, produced no violations among
+decidable histories. F2 produced an election and recovery; the protocol resumed
+calls after the election barrier, so it does not measure a request issued during
+that interval.
+F3, the replication-path partition, produced every violation and indeterminate
+history. In C6, the majority write often timed out before the dependent
+operation could be issued.
+
+The completed F3 counterexamples came from C1 RYW and MW, and from WFR under
+C1 and C4. The WFR schedule first wrote version 1 with \texttt{w:1} on the
+isolated former primary, outside the subject session. C4's local read returned
+that version, but the dependent majority write ran on the elected primary
+whose pre-image contained only version 0. The setup write did not use C4's
+majority write concern. This WFR result does not contradict the MW prediction
+for C4. Under C3 and C6, the required WFR read did not return version 1, so
+those histories were precondition misses rather than passes.
 
 \begin{table}[ht]
 \centering
@@ -85,7 +60,7 @@ out at the majority-write boundary before the dependent operation was issued.
 \label{tab:fault-summary}
 \begin{tabular}{@{}l r r l l l@{}}
 \toprule
-Fault & Histories & Episodes & P/V/U/I & Operation success & p50/p95 (ms) \\
+Fault & Histories & Episodes & P/V/U/I/PM & Operation success & p50/p95 (ms) \\
 \midrule
 \RQTwoFaultSummaryRows
 \bottomrule
@@ -105,4 +80,4 @@ history.
 
 \input{submission/generated-rq3.tex}
 
-\maybefigure[fig:representative-trace]{submission/figures/representative-trace.pdf}{Representative operation trace linking a returned value or timeout to route and session metadata.}
+\maybefigure[fig:representative-trace]{submission/figures/representative-trace.pdf}{Representative C6 RYW history during a replication-path partition. A majority-acknowledged write completed before the causal majority read was attempted. That read returned no value, so the history is UNAVAILABLE rather than a consistency pass. The figure abbreviates the event sequence; the raw record retains routing, session, and timeout metadata.}

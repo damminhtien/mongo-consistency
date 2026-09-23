@@ -173,7 +173,7 @@ class RQ4Tests(unittest.TestCase):
             self.assertTrue((root / "summary/rq4/contrasts.csv").is_file())
             self.assertTrue((root / "summary/rq4/fault_deltas.csv").is_file())
             for name in summary["figures"]:
-                self.assertTrue((root / "figures" / name).is_file())
+                self.assertTrue((root / "figures" / name).read_bytes().startswith(b"%PDF-"))
             with (root / "summary/rq4/metrics.csv").open(newline="") as handle:
                 self.assertEqual("C5", next(csv.DictReader(handle))["configuration_id"])
             self.assertEqual("DATA", json.loads((root / "summary/rq4/summary.json").read_text())["status"])

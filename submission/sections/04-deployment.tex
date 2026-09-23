@@ -8,7 +8,7 @@ member availability and replication-path reachability. A topology oracle and
 an independent observer verify the roles and final document state recorded in
 each history.
 
-\maybefigure[fig:architecture]{submission/figures/architecture.pdf}{Three-member MongoDB deployment with separate client and replication paths.}
+\maybefigure[fig:architecture]{submission/figures/architecture.pdf}{Experimental deployment. The runner reaches all three data-bearing members through the client network. The fault controller changes member availability or replication-path reachability while the client route is retained. Member names are fixed, but the primary role can change after an election.}
 
 The main campaigns used the software versions recorded in the campaign
 manifest. The detailed image digest, container ports, network subnets, setup
@@ -30,8 +30,6 @@ Runner Python & \texttt{\RunnerPythonVersion} \\
 Docker Engine & \texttt{\DockerEngineVersion} \\
 Docker Compose & \texttt{\DockerComposeVersion} \\
 Docker VM kernel & \texttt{\DockerKernelVersion} \\
-Host OS release & \HostOSVersion \\
-Image digest & {\footnotesize\texttt{\MongoImageDigest}} \\
 \bottomrule
 \end{tabular}
 \end{table}

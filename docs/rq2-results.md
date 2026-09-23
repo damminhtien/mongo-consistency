@@ -1,137 +1,103 @@
 # RQ2 results
 
-> Status: previous development run, not final submission evidence. The records
-> below predate the corrected RQ2 WFR schedule and the current write pre-image
-> checker contract. Keep them for traceability only; rerun RQ2 before citing
-> any count, rate, latency, or mechanism conclusion.
+The corrected RQ2 campaign completed 432 histories in 36 fault episodes: eight
+secondary losses (F1), eight primary losses and elections (F2), and twenty
+replication partitions (F3). The F3 total includes twelve extension episodes
+for four registered signature cells. All 36 episodes converged after recovery;
+all 28 elections in F2 and F3 succeeded.
 
-The previous RQ2 run completed on 20 September 2026 with the then-locked design:
-four configurations
-(C1/C3/C4/C6), three faults (F1/F2/F3), four properties (RYW/MR/MW/WFR), and
-eight repetitions, plus 12 F3 extension episodes that bring four signature
-cells to 20 repetitions. The campaign contains 432 histories in 36 fault
-episodes. It reuses the RQ1 normal histories as its baseline and adds no normal
-histories.
+The runner commit is `77ce48d503de0a2cd08364edb7786abb85627598`; the
+protocol commit is `05c5b655de0866f5587d36ba8722de3e573b10c5`. The raw
+histories and episode records are under
+[results/raw/rq2/](../results/raw/rq2/). The tables below use the
+RQ2 rows from the offline analysis in
+[results/summary/summary.json](../results/summary/summary.json).
 
-The canonical history files and episode manifest are under
-[`results/raw/rq2/`](../results/raw/rq2/). Offline summaries and figures were
-rebuilt with `make analyse`; the generated machine-readable summary is
-`results/summary/summary.json`. Runner and protocol provenance use commit
-`3c35e94` with MongoDB 7.0.34, PyMongo 4.18.1, Docker Engine 29.8.0, and
-Docker Compose 5.5.1.
-The setup snapshots are preserved in [`toolchain.json`](../results/provenance/rq2-20260920/toolchain.json)
-and [`replica-status.json`](../results/provenance/rq2-20260920/replica-status.json).
+## Outcomes
 
-## Coverage and recovery
+| Fault | Episodes | Histories | Recovered | Elections | PASS | VIOLATION | UNAVAILABLE | INDETERMINATE | PRECONDITION\_MISS | HARNESS\_ERROR |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| F1 | 8 | 128 | 8/8 | not applicable | 128 | 0 | 0 | 0 | 0 | 0 |
+| F2 | 8 | 128 | 8/8 | 8/8 | 128 | 0 | 0 | 0 | 0 | 0 |
+| F3 | 20 | 176 | 20/20 | 20/20 | 62 | 56 | 0 | 42 | 16 | 0 |
+| Total | 36 | 432 | 36/36 | 28/28 | 318 | 56 | 0 | 42 | 16 | 0 |
 
-| Fault | Episodes | Fault application | Recovery converged | Election success |
+The 56 violations are 15.0% of the 374 decidable histories (PASS plus
+VIOLATION). This is a description of this campaign matrix, not an estimate of
+a general violation probability. PRECONDITION\_MISS histories did not establish
+the registered schedule state and are kept outside that denominator. The 56
+violations arose from four repeated F3 cells: C1 RYW (20), C1 MW (20), C1 WFR
+(8), and C4 WFR (8). They do not represent 56 distinct fault mechanisms.
+The previous run used a `w:1` diagnostic seed before a majority read in C3;
+31 additional histories missed their setup precondition. The rerun used a
+majority-acknowledged seed for MR and for WFR under F1/F2. F3 WFR still uses
+`w:1` to create the isolated-branch read.
+
+| Fault | Property | Histories | PASS | VIOLATION | INDETERMINATE | PRECONDITION\_MISS |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| F1 | RYW | 32 | 32 | 0 | 0 | 0 |
+| F1 | MR | 32 | 32 | 0 | 0 | 0 |
+| F1 | MW | 32 | 32 | 0 | 0 | 0 |
+| F1 | WFR | 32 | 32 | 0 | 0 | 0 |
+| F2 | RYW | 32 | 32 | 0 | 0 | 0 |
+| F2 | MR | 32 | 32 | 0 | 0 | 0 |
+| F2 | MW | 32 | 32 | 0 | 0 | 0 |
+| F2 | WFR | 32 | 32 | 0 | 0 | 0 |
+| F3 | RYW | 56 | 16 | 20 | 20 | 0 |
+| F3 | MR | 32 | 32 | 0 | 0 | 0 |
+| F3 | MW | 56 | 14 | 20 | 22 | 0 |
+| F3 | WFR | 32 | 0 | 16 | 0 | 16 |
+
+## WFR schedule
+
+F1 and F2 use a majority-acknowledged diagnostic setup write of version 1
+outside the subject session. R1 must return version 1 before the fault is
+applied. After recovery, W2 is issued with a dependency on that version.
+For F3, the campaign
+partitions the old primary first, writes version 1 on that isolated branch
+with `w:1`, verifies version 0 on the majority side, and requires R1
+to read version 1 before the majority side elects a new primary. The checker
+compares R1's returned version with the version in W2's atomic pre-image.
+
+| Fault | Histories | PASS | VIOLATION | PRECONDITION\_MISS |
 | --- | ---: | ---: | ---: | ---: |
-| F1 secondary crash | 8 | 8/8 | 8/8 | Not applicable |
-| F2 primary crash/election | 8 | 8/8 | 8/8 | 8/8 |
-| F3 network partition | 20 | 20/20 | 20/20 | 20/20 |
+| F1 | 32 | 32 | 0 | 0 |
+| F2 | 32 | 32 | 0 | 0 |
+| F3 | 32 | 0 | 16 | 16 |
 
-There were no harness errors, precondition misses, or unavailable histories.
-The 432 histories share 36 fault injections; histories within an episode are
-separate workloads, not independent fault events.
+All F3 WFR violations occurred in C1 and C4, eight histories per
+configuration. Each had a successful R1 at version 1 followed by a completed
+W2 whose pre-image was version 0. For example,
+`rq2-00036-C1-wfr` records R1 at version 1 on the isolated primary and
+a successful W2 on the elected primary with
+`write_base_version = 0`. C3 and C6 each had eight
+PRECONDITION\_MISS histories because the required read did not return version
+1 on the isolated branch. Those records do not count as WFR passes.
 
-F3 isolated each member from replication traffic in multiple episodes while
-leaving its client route available. The table counts subject operations whose
-recorded start time was at or after fault application and whose actual server
-address was the isolated member.
+The F3 setup W1 uses `w:1` for every configuration and runs outside the subject
+session. In C4, R1 uses `local` read concern and can return this version from the
+isolated old primary; the subject W2 uses C4's `majority` write concern on the
+new primary. The C4 WFR violations therefore do not show a failure of a
+majority-acknowledged setup write or contradict C4's targeted MW prediction.
 
-| Isolated member | Episodes | Routed operations | SUCCESS | INDETERMINATE |
-| --- | ---: | ---: | ---: | ---: |
-| mongo1 | 8 | 48 | 32 | 16 |
-| mongo2 | 5 | 28 | 18 | 10 |
-| mongo3 | 7 | 36 | 22 | 14 |
+## Operations and recovery
 
-Every isolated member served successful client operations during the fault.
-Indeterminate operations are retained as timeouts and do not imply loss of the
-client route.
-
-## Scheduled operation outcomes, latency, and rollback
-
-| Fault | Histories | Successful/attempted operations | Scheduled operation success rate | All-attempt latency p50/p95/p99 (ms) | Acknowledged writes checked/rolled back |
+| Fault | Successful / attempted subject operations | Success rate | All-attempt p50 / p95 (ms) | Successful-only p95 (ms) | Acknowledged writes / rolled back |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| F1 | 128 | 288/288 | 100.0% | 1.28 / 7.38 / 108.22 | 160/0 |
-| F2 | 128 | 288/288 | 100.0% | 1.37 / 6.65 / 8.28 | 160/0 |
-| F3 | 176 | 304/344 | 88.4% | 1.36 / 4993.57 / 4996.67 | 172/40 |
+| F1 | 256 / 256 | 100.0% | 1.33 / 7.44 | 7.44 | 128 / 0 |
+| F2 | 256 / 256 | 100.0% | 1.36 / 8.45 | 8.45 | 128 / 0 |
+| F3 | 254 / 296 | 85.8% | 1.71 / 4994.19 | 8.26 | 122 / 40 |
+| Total | 766 / 808 | 94.8% | 1.46 / 4984.64 | 8.00 | 378 / 40 |
 
-The success rate counts completed scheduled subject operations, not continuous
-service availability during intervals with no request. For F2, all scheduled
-post-election operations completed successfully; the failover nevertheless
-introduced a median election interval of 10.36 s during which the experiment
-deliberately issued no second subject operation. The 288/288 F2 result therefore
-does not measure request success during that election interval. F2 operation
-latency quantiles also cover scheduled calls only and exclude the election wait.
+All-attempt latency retains operations with valid start and end times,
+including timeouts. The F3 p95 is therefore close to the five-second client
+timeout. Successful-only latency excludes those timed-out operations. The
+independent observer checked all 378 acknowledged writes after recovery and
+found 40 absent from the converged histories; all 40 were in F3.
 
-All-attempt latency quantiles use every subject operation with recorded start
-and end times, including timed-out operations. For F3, the all-attempt p95 is
-4,993.57 ms because the 40 INDETERMINATE timeouts are retained. Among the 304
-successful F3 operations, p95 latency is 6.97 ms; this conditional quantile
-excludes those timeouts. Overall, 880/920 scheduled operations succeeded
-(95.7%). All 432 histories reached a classified outcome. The independent
-observer checked all 492 acknowledged writes; 40 later rolled back (8.13%).
-That rollback rate describes this fixed campaign and is not a real-world
-probability estimate. `make analyse` generates
-`results/summary/summary.csv` with the 48 fault/configuration/property groups,
-including per-cell outcomes, operation denominators, both all-attempt and
-successful-only latency, rollback counts, and the matching RQ1 normal baseline.
-
-## Consistency outcomes
-
-RYW and MR use direct client-visible version comparisons. MW uses the
-preceding write ID in the successive write's atomic pre-image, and WFR uses
-the application version in that pre-image. Post-recovery observations are
-separate durability evidence.
-
-| Fault | Property | Histories | PASS | VIOLATION | INDETERMINATE |
-| --- | --- | ---: | ---: | ---: | ---: |
-| F1 | RYW | 32 | 32 | 0 | 0 |
-| F1 | MR | 32 | 32 | 0 | 0 |
-| F1 | MW | 32 | 32 | 0 | 0 |
-| F1 | WFR | 32 | 32 | 0 | 0 |
-| F2 | RYW | 32 | 32 | 0 | 0 |
-| F2 | MR | 32 | 32 | 0 | 0 |
-| F2 | MW | 32 | 32 | 0 | 0 |
-| F2 | WFR | 32 | 32 | 0 | 0 |
-| F3 | RYW | 56 | 16 | 20 | 20 |
-| F3 | MR | 32 | 32 | 0 | 0 |
-| F3 | MW | 56 | 16 | 20 | 20 |
-| F3 | WFR | 32 | 32 | 0 | 0 |
-
-Overall, the campaign recorded 352 PASS, 40 VIOLATION, and 40 INDETERMINATE
-histories. The analysis rate is 40/(352+40) = 10.2% among resolved histories;
-this is descriptive of this fixed campaign matrix and is not an estimate of a
-universal violation probability.
-
-The observer checked all 492 acknowledged writes after recovery; 40 were
-observed to have rolled back (8.13%).
-
-## Signature cells
-
-| Configuration × F3 × property | Repetitions | Observed result |
-| --- | ---: | --- |
-| C1 × RYW | 20 | The same stale-read violation occurred in 20/20 histories: acknowledged version 1 was followed by version 0. |
-| C1 × MW | 20 | The direct MW result checks whether W1's write ID is present in W2's atomic pre-image; an acknowledged write absent after recovery is reported separately as rollback evidence. |
-| C6 × RYW | 20 | INDETERMINATE in 20/20 histories: the majority write to the isolated primary timed out, so the required read was not issued. |
-| C6 × MW | 20 | INDETERMINATE in 20/20 histories: the first majority write timed out, so dependent write `w2` was not issued. |
-
-The C6 timeouts are not counted as consistency passes or violations because the
-required schedule did not reach its later operation. The outcome counts above
-retain those histories explicitly.
-
-The other 44 core configuration/fault/property cells passed all eight
-repetitions. The four signature cells above received 12 additional
-repetitions each, for 20 histories per cell.
-
-## Episode timing
-
-| Fault | Election p50 | Recovery p50 |
-| --- | ---: | ---: |
-| F1 | Not applicable | 7.52 s (8 episodes) |
-| F2 | 10.36 s (8 episodes) | 9.52 s (8 episodes) |
-| F3 | 10.80 s (20 episodes) | 5.05 s (20 episodes) |
-
-These quantiles use fault episodes as the timing unit. All F2 and F3 elections
-succeeded, and every fault episode converged after recovery.
+F1 and F2 produced no consistency violations in the scheduled calls. The
+protocol places post-failover calls after the election barrier, so F2 does not
+measure request success during the election interval. F3 produced the
+counterexamples and unresolved operations shown above. Histories sharing one
+episode also share its topology event; they are not independent fault
+injections.

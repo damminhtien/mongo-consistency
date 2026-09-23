@@ -103,6 +103,9 @@ EXCLUDED_RELATIVE_PATHS = (
     Path("results/smoke"),
     Path("results/smoke-dport"),
     Path("results/smoke-verified"),
+    Path("src/mongo_consistency/analysis.py"),
+    Path("src/mongo_consistency/figures.py"),
+    Path("src/mongo_consistency/rq4.py"),
 )
 
 
@@ -962,7 +965,7 @@ def compile_report(root: Path, build_root: Path) -> Path:
     generated_figures = root / "figures"
     target_figures = source_target / "figures"
     for figure in sorted(generated_figures.iterdir()):
-        if figure.is_file() and figure.suffix.lower() in {".pdf", ".png", ".svg"}:
+        if figure.is_file() and figure.suffix.lower() == ".pdf":
             shutil.copy2(figure, target_figures / figure.name)
     validate_figure_inputs(latex_root)
     write_generated_analysis(source_target / "generated-analysis.tex", root)

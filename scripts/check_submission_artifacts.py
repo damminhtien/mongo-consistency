@@ -58,9 +58,13 @@ def check_artifacts(root: Path = ROOT) -> list[str]:
                     name
                     for name in names
                     if (name.endswith(forbidden_suffixes) and name != "report.pdf")
-                    or name.startswith(("tests/", "source/submission/"))
+                    or name.startswith(("tests/", "source/submission/", "source/scripts/analyse_"))
                     or name == "source/scripts/build_submission.py"
-                    or name.startswith("source/scripts/analyse_")
+                    or name in {
+                        "source/src/mongo_consistency/analysis.py",
+                        "source/src/mongo_consistency/figures.py",
+                        "source/src/mongo_consistency/rq4.py",
+                    }
                 )
                 if forbidden:
                     errors.append(

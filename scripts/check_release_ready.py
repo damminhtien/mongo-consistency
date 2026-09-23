@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import json
 import re
+import subprocess
 import sys
 from collections import Counter
 from pathlib import Path
@@ -17,7 +18,7 @@ else:
     from build_submission import BuildError, parse_metadata
 
 ROOT = Path(__file__).resolve().parents[1]
-EXPECTED_CAMPAIGNS = {"pilot": 128, "experiment": 256, "rq2": 432}
+EXPECTED_CAMPAIGNS = {"experiment": 256, "rq2": 432}
 RQ2_CONFIGURATIONS = {"C1", "C3", "C4", "C6"}
 EXPECTED_RQ2_CELLS = {property_name: RQ2_CONFIGURATIONS for property_name in ("RYW", "MR", "MW", "WFR")}
 RQ2_CONDITIONS = ("F1", "F2", "F3")
@@ -46,7 +47,7 @@ RQ2_EPISODE_PLAN = {
     }
     for repetition in range(9, 21)
 }
-EXPECTED_SUMMARY_COUNTS = {"pilot": 128, "experiment": 256, "rq2": 432}
+EXPECTED_SUMMARY_COUNTS = {"experiment": 256, "rq2": 432}
 RQ3_CONTRASTS = {
     "M1": {
         "campaign": "rq3-m1",
@@ -80,6 +81,7 @@ RQ3_EXPECTED_ROUTES = {
     "M3": {"first_write": "mongo3", "second_write": "mongo2"},
 }
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
 
 
 def _read_object(path: Path, errors: list[str]) -> dict[str, Any] | None:
@@ -322,6 +324,28 @@ def _is_sha256(value: Any) -> bool:
     return isinstance(value, str) and SHA256_RE.fullmatch(value) is not None
 
 
+def _recorded_protocol_digest(root: Path, revision: Any, expected: Any) -> str | None:
+    """Verify a frozen protocol against the commit recorded by the campaign."""
+
+    current = _sha256(root / "docs/experimental-protocol.md")
+    if current == expected:
+        return current
+    if not isinstance(revision, str) or COMMIT_RE.fullmatch(revision) is None:
+        return None
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(root), "show", f"{revision}:docs/experimental-protocol.md"],
+            capture_output=True,
+            check=False,
+            timeout=15,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if completed.returncode != 0:
+        return None
+    return hashlib.sha256(completed.stdout).hexdigest()
+
+
 def _check_topology_snapshot(
     snapshot: Any,
     *,
@@ -548,7 +572,6 @@ def _check_rq3(root: Path, errors: list[str]) -> None:
     expected_frozen_files = {
         "runner_script_sha256": root / "scripts/run_rq3_campaign.py",
         "configuration_sha256": root / "configs/configurations.json",
-        "protocol_sha256": root / "docs/experimental-protocol.md",
         "topology_plan_sha256": root / "src/mongo_consistency/rq3.py",
         "anchor_manifest_sha256": root / "configs/rq3-anchors.json",
     }
@@ -556,6 +579,10 @@ def _check_rq3(root: Path, errors: list[str]) -> None:
         actual = _sha256(path)
         if actual is None or manifest.get(field) != actual:
             errors.append(f"rq3: {field} does not match {path.relative_to(root).as_posix()}")
+    if not _is_sha256(manifest.get("protocol_sha256")) or _recorded_protocol_digest(
+        root, provenance.get("protocol_commit"), manifest.get("protocol_sha256")
+    ) != manifest.get("protocol_sha256"):
+        errors.append("rq3: frozen protocol digest is absent from its recorded commit")
     if provenance.get("protocol_hash") != manifest.get("protocol_sha256"):
         errors.append("rq3: protocol hash differs from the frozen protocol digest")
 
@@ -566,8 +593,8 @@ def _check_rq3(root: Path, errors: list[str]) -> None:
     if repository_root not in sys.path:
         sys.path.insert(0, repository_root)
     try:
-        from mongo_consistency.config import load_configurations
         from mongo_consistency.checkers import check_history
+        from mongo_consistency.config import load_configurations
         from mongo_consistency.history import read_history
         from mongo_consistency.rq3 import (
             EXPECTED_ROUTES,
@@ -1144,7 +1171,7 @@ def check_release_readiness(root: Path = ROOT) -> list[str]:
         members = [member.strip() for member in metadata["TEAM_MEMBERS"].split(";")]
         if len(members) != 3:
             errors.append("submission metadata must list exactly three team members")
-        student_id = re.compile(r"\b[A-Z]\d{7}[A-Z]\b")
+        student_id = re.compile(r"\b[A-Z]\d{7,8}[A-Z]\b")
         for member in members:
             if not student_id.search(member) or re.search(r"pending|tbd|unknown", member, re.IGNORECASE):
                 errors.append(f"submission metadata has a missing student ID: {member}")

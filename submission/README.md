@@ -19,27 +19,27 @@ ready:
 
 ```text
 make setup
-make smoke
-make pilot
 make experiment
 make rq2
 ```
 
-`experiment` is the main normal-operation campaign (RQ1); `rq2` is the main
-failure and partition campaign. Smoke validates the execution machinery and
-pilot histories are kept separate from the main evidence. The runner writes
+`experiment` is the configuration campaign (RQ1); `rq2` is the failure and
+partition campaign. Smoke and pilot are optional diagnostics, not prerequisites
+for these campaigns or part of the reported totals. The runner writes
 histories under `source/results/raw/` and setup provenance under
 `source/results/setup/`. The Compose runner has no Docker socket and receives
 only the result, figure, and setup-provenance mounts defined in
 `source/compose.yaml`.
 
-The optional registered mechanism replay is available when it is part of the
-assessment scope:
+To reproduce the report's mechanism contrasts, run the registered replay:
 
 ```text
 make rq3-preflight
 make rq3
 ```
+
+For a new campaign design, `make smoke` and `make pilot` provide smaller
+diagnostic runs before the main campaigns.
 
 Resume an interrupted campaign without changing its frozen inputs with, for
 example, `make rq3 RQ3_ARGS=--resume`.

@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-import json
 import hashlib
+import json
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -12,20 +13,20 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 
-import scripts.analyse_rq3 as analyse_rq3
 from mongo_consistency.checkers import check_history
 from mongo_consistency.config import load_configurations
 from mongo_consistency.history import write_history
 from mongo_consistency.models import History
 from mongo_consistency.rq3 import TOPOLOGY_PLANS, pair_control
-
+from scripts import analyse_rq3
 from scripts.check_release_ready import (
     EXPECTED_RQ2_CELLS,
-    RQ3_CONTRASTS,
     RQ2_CONDITIONS,
     RQ2_EPISODE_PLAN,
     RQ2_SIGNATURE_CELLS,
+    RQ3_CONTRASTS,
     _check_rq3,
+    _recorded_protocol_digest,
     check_release_readiness,
 )
 
@@ -519,10 +520,42 @@ def _valid_root(root: Path) -> None:
 
 
 class ReleaseReadinessTests(unittest.TestCase):
+    def test_revised_protocol_uses_the_recorded_commit_without_rewriting_provenance(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            protocol = root / "docs/experimental-protocol.md"
+            protocol.parent.mkdir()
+            protocol.write_text("Frozen RQ3 protocol\n", encoding="utf-8")
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            subprocess.run(["git", "-C", str(root), "add", "docs/experimental-protocol.md"], check=True)
+            subprocess.run(
+                ["git", "-C", str(root), "-c", "user.name=Test", "-c", "user.email=test@example.org", "commit", "-qm", "freeze protocol"],
+                check=True,
+            )
+            revision = subprocess.check_output(["git", "-C", str(root), "rev-parse", "HEAD"], text=True).strip()
+            frozen_hash = _sha256(protocol)
+            protocol.write_text("Revised RQ2 protocol\n", encoding="utf-8")
+            self.assertEqual(frozen_hash, _recorded_protocol_digest(root, revision, frozen_hash))
+            self.assertNotEqual(_sha256(protocol), frozen_hash)
+
     def test_complete_campaigns_and_metadata_pass(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             _valid_root(root)
+            self.assertEqual([], check_release_readiness(root))
+
+    def test_pilot_is_optional_and_confirmed_eight_digit_ids_are_recorded(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _valid_root(root)
+            shutil.rmtree(root / "results/raw/pilot")
+            summary_path = root / "results/summary/summary.json"
+            summary = json.loads(summary_path.read_text(encoding="utf-8"))
+            del summary["campaign_summaries"]["pilot"]
+            summary_path.write_text(json.dumps(summary), encoding="utf-8")
+            metadata = root / "submission/metadata.mk"
+            value = metadata.read_text(encoding="utf-8").replace("A0000000X", "A12345678E").replace("A0000001X", "A12345679E")
+            metadata.write_text(value, encoding="utf-8")
             self.assertEqual([], check_release_readiness(root))
 
     def test_rq3_rigor_gate_passes_without_student_metadata(self) -> None:

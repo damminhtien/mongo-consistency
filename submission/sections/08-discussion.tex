@@ -2,26 +2,25 @@
 
 \subsection{From stale results to waiting and unresolved operations}
 
-The configuration campaign shows that consistency settings change the form of
-failure visible to the client. C7 provides the simplest normal example: a
-\texttt{w:1} write returned successfully, but a later majority read without a
-causal session reached a secondary that still returned version 0. The final
-state converged to version 1, but convergence did not repair the value already
-returned to the client.
+All normal controls passed. Under the adversarial schedules, C1 produced a
+completed violation for each property in all five trials. C6 produced no
+completed counterexample: its RYW and MR histories were unavailable, and its
+MW and WFR histories were indeterminate. A run without an observed violation
+is therefore not always a PASS; the required operation may not complete or the
+history may not provide a decidable result.
 
-The partition makes the contrast sharper. Under C1, a weak write can complete
-on the isolated branch and the following operation can expose stale or
-reordered state. Under C6, majority acknowledgement and the causal dependency
-constrain the operation at the partition boundary. The client then sees a
-timeout or an unissued dependent operation rather than a completed
-counterexample. This is a change in failure mode, not evidence that the
-operation succeeded.
+All \RQTwoViolationCount\ RQ2 violations occurred during F3, the
+replication-path partition.
+Under C6, the majority write often timed out before the dependent operation
+could be issued. The timeout is a client observation; it does not establish
+what internal state MongoDB was waiting for, and it is not a consistency pass.
 
-The mechanism contrasts support this interpretation. C5 and C6 differ in
-causal-session state; C8 and C5 differ in read concern; C3 and C6 differ in
-write concern while preserving the other mechanism choices needed for the
-comparison. The histories show what the client received and when, but they do
-not expose MongoDB's internal wait state.
+The mechanism contrasts support this interpretation. In all eight valid M3
+pairs, C3 acknowledged W1 at \texttt{w:1}, but W2's atomic pre-image lacked W1's
+identifier; C6's majority W1 timed out in all eight pairs. In M2, C8's local
+reads returned v1 in all eight pairs, and five dependent writes completed on a
+v0 pre-image. The matched histories show the client-visible evidence for these
+outcomes, but they do not expose MongoDB's internal wait state.
 
 \subsection{Consistency, completion, and latency}
 
@@ -32,3 +31,4 @@ took. A stronger setting can therefore improve the consistency outcome while
 reducing completion under partition.
 
 \input{submission/generated-rq4.tex}
+\FloatBarrier

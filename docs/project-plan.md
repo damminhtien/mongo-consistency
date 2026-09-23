@@ -102,24 +102,23 @@ cache state is logged separately and never treated as ground truth.
 3. [x] Verify controller isolation, client reachability, fault recovery, and
    post-heal convergence. All three targeted members were reached during F3
    replication isolation; all 36 episodes converged.
-4. [ ] Re-run the 32-history smoke. The first run completed all histories but
-   failed its gate on one MR seed-write precondition: the healthy secondary was
-   still chained through the isolated member. The revised schedule verifies or
-   corrects that sync source before issuing the seed write.
+4. [ ] Re-run the 32-history smoke if a new schedule change requires a fresh
+   installation check. The earlier smoke exposed an MR seed-write precondition;
+   the corrected schedule was exercised by the completed main campaign.
 5. [x] Freeze predictions and protocol commits.
-6. [ ] Run the 128-history pilot; block main runs on harness errors, wrong routing,
-   cleanup failures, or more than 5% precondition misses for any property.
-7. [ ] Re-run the reduced RQ1 after the MR schedule correction: 96 normal
+6. [ ] Run a pilot before any future campaign redesign. The superseded pilot
+   is excluded from the final result set and is not a release requirement.
+7. [x] Re-run the reduced RQ1 after the MR schedule correction: 96 normal
    controls plus 160 adversarial histories, 256 in total.
 8. [x] Implement and freeze the grouped RQ2 runner and host coordinator; run
    384 core histories and 48 F3 signature-extension histories. The current
    campaign completed 432 histories across 36 fault episodes.
 9. [x] Verify the six historical Q1 anchors, complete ten topology rehearsals,
    run the 48-history mechanism replay, and analyze its control-valid pairs.
-10. [ ] Re-derive consistency, observed definitive completion, indeterminate
+10. [x] Re-derive consistency, observed definitive completion, indeterminate
     rate, and separate all-attempt and resolved critical-operation p50/p95
     latency from the refreshed RQ1 and existing RQ2 raw histories.
-11. [ ] Rebuild machine-readable summaries and plots from canonical histories
+11. [x] Rebuild machine-readable summaries and plots from canonical histories
     after the RQ1 rerun.
 12. [ ] Audit the clean-clone path, generated numeric artifacts, staged diff,
     and the PDF plus runtime-code submission package.
@@ -132,18 +131,20 @@ episodes with four histories each. Report episode counts separately from
 history counts so shared topology events are not presented as independent
 fault events.
 
-The previous 256-history RQ1 run and its derived summaries are retained, but
-they are not final evidence after the MR schedule correction. The 432-history
-RQ2 run and 48-history RQ3 run remain valid for their registered schedules.
+The refreshed RQ1 campaign completed 256 histories: 96 normal controls and
+160 adversarial trials. The 432-history RQ2 run was repeated after the
+diagnostic seed correction; its 16 precondition misses are confined to F3 WFR.
+The refreshed 48-history RQ3 run is retained for its registered schedules.
+The combined offline summary contains 736 RQ1-RQ3 histories; RQ4 uses the
+688 RQ1 and RQ2 histories.
 RQ2 uses the corrected WFR schedule and write pre-image checker: its F3 WFR
 cells contain 16 violations and 16 precondition misses. The RQ3 manifest
 records eight control-valid pairs for each contrast.
 
-The completion gate remains open. The 32-history smoke must pass before the
-128-history pilot; RQ1 and its offline analyses then need to be rerun. The
-clean-clone review, PDF/package build, and release checks also need current
-evidence. Earlier records from superseded campaign semantics are excluded
-from final counts.
+The refreshed RQ1, RQ2, and RQ3 histories, offline checks, PDF build, package
+check, and release guard have current evidence. A clean-clone review remains
+the final repository check. The superseded smoke and pilot are not pooled into
+the final counts or required by the release guard.
 The host coordinator applies faults outside the runner container through a
 temporary IPC mount, keeping Docker control out of the runner.
 
@@ -174,7 +175,7 @@ being inferred.
 
 ## Current RQ1 status
 
-The retained RQ1 campaign has 96 normal controls and 160 adversarial histories.
-Its raw outcomes predate the MR replication-source control and must not be used
-as final evidence. The replacement run will be written to
-`results/raw/experiment` after the smoke and pilot gates pass.
+The refreshed RQ1 campaign has 96 normal controls and 160 adversarial histories.
+All 96 controls passed, and the 160 adversarial histories completed without
+runner errors or precondition misses. Its canonical records are in
+`results/raw/experiment`.

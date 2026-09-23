@@ -26,7 +26,8 @@ Run from the repository root in a clean checkout. \texttt{make setup} verifies
 the local toolchain and initializes the Docker Compose replica set. The
 campaign commands require the Docker services. Offline analysis and report
 building use saved artifacts and remain development commands outside the
-runtime archive.
+runtime archive. Smoke and pilot are optional diagnostics before a new campaign;
+they are not part of the final result set.
 
 \begin{verbatim}
 python3 -m pip install -r requirements-dev.txt
@@ -73,6 +74,21 @@ latency from the campaign histories and writes
 \texttt{fault\_deltas.csv}.
 
 \subsection{Full fault and configuration matrices}
+
+\begin{table}[ht]
+\centering
+\small
+\setlength{\tabcolsep}{3pt}
+\caption{Configuration campaign outcomes by property. G marks a prediction target and N a descriptive cell. P, V, U, I, PM, and HE denote PASS, VIOLATION, UNAVAILABLE, INDETERMINATE, PRECONDITION\_MISS, and HARNESS\_ERROR. Only P and V enter the decidable comparison.}
+\label{tab:prediction-observation}
+\begin{tabular}{@{}l*{4}{p{0.19\textwidth}}@{}}
+\toprule
+Config. & RYW & MR & MW & WFR \\
+\midrule
+\RQOnePredictionObservationRows
+\bottomrule
+\end{tabular}
+\end{table}
 
 The main report uses the fault-level summary in Table~\ref{tab:fault-summary}.
 These tables retain the configuration-property rows, p99 values, rollback
@@ -141,8 +157,11 @@ Fault & Episodes & Applied & Elections & Election p50 & Converged & Recovery p50
 
 The following figures are retained for audit and interpretation. They are
 descriptive views of the measured histories, not additional experiments.
+They were exported as vector PDFs with Matplotlib 3.11.2 and SciencePlots
+2.2.2~\cite{scienceplots}. Plot generation reads the saved histories and does
+not write report sections.
 
-\maybefigure[fig:factorial-interactions]{submission/figures/factorial-interactions.pdf}{Descriptive factorial contrasts for adversarial configuration histories.}
-\maybefigure[fig:outcome-heatmap]{submission/figures/outcome-heatmap.pdf}{Outcome heatmap by configuration and property.}
-\maybefigure[fig:latency]{submission/figures/latency.pdf}{Operation latency quantiles by configuration condition; pilot excluded.}
+\maybefigure[fig:factorial-interactions]{submission/figures/factorial-interactions.pdf}{Descriptive factorial contrasts from adversarial configuration histories. RC, WC, and CS denote read concern, write concern, and causal session; interaction columns compare combinations of these factors. Values are signed contrasts for the checked metric, not causal effect estimates. NA means the contrast could not be calculated.}
+\maybefigure[fig:outcome-heatmap]{submission/figures/outcome-heatmap.pdf}{Adversarial configuration outcome matrix without prediction borders. Each cell gives violations over decidable histories; unresolved cells contain no decidable history. This view repeats Figure~\ref{fig:prediction-observation} for audit rather than adding a new experiment.}
+\maybefigure[fig:latency]{submission/figures/latency.pdf}{Operation latency quantiles for normal controls and adversarial configuration histories. The vertical scale is logarithmic when timings are available. The plot includes all timed subject operations, including failed attempts, and excludes pilot histories.}
 \FloatBarrier

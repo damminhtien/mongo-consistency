@@ -3,12 +3,7 @@
 from __future__ import annotations
 
 import csv
-import html
 import json
-import math
-import shutil
-import subprocess
-import tempfile
 from collections import defaultdict
 from collections.abc import Iterable
 from pathlib import Path
@@ -487,270 +482,29 @@ FAULT_DELTA_FIELDS = [
 ]
 
 
-def _svg_text(x: float, y: float, value: Any, *, size: int = 14, anchor: str = "start", color: str = "#172033") -> str:
-    return (
-        f'<text x="{x:g}" y="{y:g}" font-family="Arial,sans-serif" '
-        f'font-size="{size}px" fill="{color}" text-anchor="{anchor}">{html.escape(str(value))}</text>'
-    )
-
-
-def _svg_document(title: str, body: str, width: int, height: int) -> str:
-    return (
-        f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
-        f'viewBox="0 0 {width} {height}"><rect width="100%" height="100%" fill="white"/>'
-        f'{_svg_text(32, 38, title, size=22)}{body}</svg>'
-    )
-
-
-def _render_pdf(path: Path, title: str, body: str, width: int, height: int) -> None:
-    converter = shutil.which("rsvg-convert")
-    if converter is None:
-        raise RuntimeError("rsvg-convert is required to render RQ4 PDF figures")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="mongo-consistency-rq4-") as directory:
-        svg_path = Path(directory) / "figure.svg"
-        svg_path.write_text(_svg_document(title, body, width, height), encoding="utf-8")
-        completed = subprocess.run(
-            [converter, "-f", "pdf", "-o", str(path), str(svg_path)],
-            capture_output=True,
-            check=False,
-            timeout=30,
-            text=True,
-        )
-        if completed.returncode != 0 or not path.is_file():
-            raise RuntimeError(f"rsvg-convert failed for {path}: {completed.stderr.strip()}")
-
-
 def _partition_counts(rows: list[dict[str, Any]]) -> dict[tuple[str, str], dict[str, int]]:
-    """Return outcome counts for the balanced C1/C6 RYW and MW signatures."""
+    """Keep the four balanced partition signatures separate from other cells."""
 
     values = {
         signature: {outcome: 0 for outcome in OUTCOMES}
         for signature in PARTITION_SIGNATURES
     }
     for row in rows:
-        if row["scenario"] != "partition":
+        if row.get("scenario") != "partition":
             continue
-        signature = (row["configuration_id"], row["property"])
-        if signature not in values:
-            continue
-        for outcome in OUTCOMES:
-            values[signature][outcome] += int(row[outcome])
+        signature = (row.get("configuration_id"), row.get("property"))
+        if signature in values:
+            for outcome in OUTCOMES:
+                values[signature][outcome] += int(row.get(outcome, 0))
     return values
 
 
-def _outcomes_partition_body(rows: list[dict[str, Any]]) -> tuple[str, int]:
-    counts = _partition_counts(rows)
-    colors = {
-        "PASS": "#15803d",
-        "VIOLATION": "#dc2626",
-        "UNAVAILABLE": "#d97706",
-        "INDETERMINATE": "#7c3aed",
-    }
-    left, top, bar_width, row_height = 190, 105, 660, 46
-    body = _svg_text(
-        left,
-        68,
-        "F3 partition cells; each bar is one C1/C6 RYW or MW comparison",
-        size=13,
-        color="#475569",
-    )
-    for offset, outcome in enumerate(OUTCOMES):
-        x = left + offset * 165
-        body += _svg_text(
-            x + 70, 88, outcome, size=12, anchor="middle", color=colors[outcome]
-        )
-    max_total = max((sum(values.values()) for values in counts.values()), default=0) or 1
-    for index, signature in enumerate(PARTITION_SIGNATURES):
-        y = top + index * row_height
-        configuration, property_name = signature
-        body += _svg_text(
-            left - 18,
-            y + 22,
-            f"{configuration} {property_name}",
-            size=14,
-            anchor="end",
-        )
-        total = sum(counts[signature].values())
-        if not total:
-            body += f'<rect x="{left}" y="{y + 3}" width="{bar_width}" height="24" fill="#f1f5f9" stroke="#cbd5e1"/>'
-            body += _svg_text(left + bar_width / 2, y + 20, "no recorded cell", size=12, anchor="middle", color="#64748b")
-            continue
-        cursor = left
-        for outcome in OUTCOMES:
-            value = counts[signature][outcome]
-            segment = bar_width * value / max_total
-            if segment <= 0:
-                continue
-            body += f'<rect x="{cursor:g}" y="{y + 3}" width="{segment:g}" height="24" fill="{colors[outcome]}"/>'
-            if segment >= 24:
-                body += _svg_text(cursor + segment / 2, y + 20, value, size=11, anchor="middle", color="white")
-            cursor += segment
-        body += _svg_text(left + bar_width + 12, y + 20, f"n={total}", size=11, color="#475569")
-    body += _svg_text(
-        540,
-        top + len(PARTITION_SIGNATURES) * row_height + 18,
-        "Counts are not pooled across MR or WFR; unrecorded cells are left unfilled.",
-        size=12,
-        anchor="middle",
-        color="#475569",
-    )
-    return body, top + len(PARTITION_SIGNATURES) * row_height + 45
-
-
-def _latency_completion_body(rows: list[dict[str, Any]]) -> tuple[str, int]:
-    partition_rows = [
-        row
-        for row in rows
-        if row["scenario"] == "partition"
-        and row["definitive_completion_rate"] is not None
-    ]
-    points = [row for row in partition_rows if row["p95_ms"] is not None]
-    unresolved = [row for row in partition_rows if row["p95_ms"] is None]
-    width, height = 1120, 760
-    left, right, top, bottom = 145, 70, 90, 105
-    plot_width, plot_height = width - left - right, height - top - bottom
-    body = _svg_text(
-        left,
-        67,
-        "Partition cells; client-observed time to the critical operation",
-        size=13,
-        color="#475569",
-    )
-    legend = (
-        ("#dc2626", "VIOLATION"),
-        ("#15803d", "decidable"),
-        ("#64748b", "unresolved/no p95"),
-    )
-    for index, (color, label) in enumerate(legend):
-        x = width - 315 + index * 105
-        body += f'<circle cx="{x:g}" cy="65" r="5" fill="{color}"/>'
-        body += _svg_text(x + 9, 69, label, size=10, color=color)
-    body += f'<line x1="{left}" y1="{top}" x2="{left}" y2="{top + plot_height}" stroke="#334155"/><line x1="{left}" y1="{top + plot_height}" x2="{left + plot_width}" y2="{top + plot_height}" stroke="#334155"/>'
-    for tick in range(6):
-        value = tick / 5
-        y = top + plot_height * (1 - value)
-        body += f'<line x1="{left - 5}" y1="{y:g}" x2="{left + plot_width}" y2="{y:g}" stroke="#e2e8f0"/>'
-        body += _svg_text(left - 12, y + 5, f"{value:.1f}", size=11, anchor="end", color="#475569")
-    max_latency = max((float(row["p95_ms"]) for row in points), default=1.0)
-    max_latency = max(max_latency, 1.0)
-    max_log_latency = math.log10(max_latency + 1)
-    tick_values = [0.0, 1.0, 10.0, 100.0, 1000.0, max_latency]
-    seen_ticks: set[float] = set()
-    for tick_value in tick_values:
-        if tick_value > max_latency or tick_value in seen_ticks:
-            continue
-        seen_ticks.add(tick_value)
-        x = left + plot_width * math.log10(tick_value + 1) / max_log_latency
-        body += f'<line x1="{x:g}" y1="{top + plot_height}" x2="{x:g}" y2="{top}" stroke="#e2e8f0"/>'
-        body += _svg_text(x, top + plot_height + 18, f"{tick_value:g}", size=10, anchor="middle", color="#475569")
-    top_rank = 0
-    for row in points:
-        x = left + plot_width * math.log10(float(row["p95_ms"]) + 1) / max_log_latency
-        y = top + plot_height * (1 - float(row["definitive_completion_rate"]))
-        decidable = int(row["PASS"]) + int(row["VIOLATION"])
-        if int(row["VIOLATION"]) > 0:
-            color = "#dc2626"
-        elif decidable > 0:
-            color = "#15803d"
-        else:
-            color = "#64748b"
-        label = f'{row["configuration_id"]}-{row["property"]}'
-        body += f'<circle cx="{x:g}" cy="{y:g}" r="6" fill="{color}"/>'
-        if y <= top + 8:
-            label_x = x + 9
-            label_y = top + 20 + top_rank * 14
-            top_rank += 1
-        else:
-            label_x = min(left + plot_width - 72, x + 9)
-            label_y = y + 4
-        body += _svg_text(label_x, label_y, label, size=11, color=color)
-    unresolved_top = top + 20
-    for index, row in enumerate(unresolved):
-        x = left + plot_width - 130
-        y = unresolved_top + index * 18
-        label = f'{row["configuration_id"]}-{row["property"]} unresolved'
-        body += f'<circle cx="{x:g}" cy="{y:g}" r="6" fill="#64748b"/>'
-        body += _svg_text(x + 10, y + 4, label, size=10, color="#64748b")
-    body += _svg_text(
-        left + plot_width / 2,
-        height - 48,
-        f"client-observed p95 time to outcome (ms; all attempts; log scale; max shown {max_latency:.2f})",
-        size=13,
-        anchor="middle",
-    )
-    axis_y = top + plot_height / 2
-    body += f'<g transform="rotate(-90 48 {axis_y:g})">{_svg_text(48, axis_y, "definitive completion rate", size=13, anchor="middle")}</g>'
-    if not partition_rows:
-        body += _svg_text(width / 2, height / 2, "no recorded partition cells", size=18, anchor="middle", color="#64748b")
-    return body, height
-
-
-def _contrast_body(contrasts: list[dict[str, Any]]) -> tuple[str, int]:
-    rows = [
-        row
-        for row in contrasts
-        if row["left_config"] == "C5"
-        and row["right_config"] == "C6"
-        and row["scenario"] in {"normal", "rq1_fault", "partition"}
-    ]
-    width, row_height = 1120, 36
-    left, top, bar_width = 255, 95, 560
-    body = _svg_text(left, 68, "Normal and property-specific fault schedules; C5 is absent from F3", size=13, color="#475569")
-    body += _svg_text(left + bar_width / 2, 88, "critical-operation p95 latency (ms)", size=12, anchor="middle")
-    max_value = max(
-        (float(row[field]) for row in rows for field in ("left_p95_ms", "right_p95_ms") if row[field] is not None),
-        default=1.0,
-    )
-    max_value = max(max_value, 1.0)
-    visible = list(rows)
-    for index, row in enumerate(visible):
-        y = top + index * row_height
-        label = f'{row["scenario"]}/{row["property"]}'
-        body += _svg_text(left - 12, y + 17, label, size=11, anchor="end")
-        if row["status"] != "LATENCY_COMPLETE":
-            status_label = {
-                "NO_LATENCY_DATA": "not compared",
-                "MISSING_CELL": "not recorded",
-            }.get(row["status"], row["status"].replace("_", " "))
-            body += _svg_text(
-                left,
-                y + 17,
-                status_label,
-                size=11,
-                color="#64748b",
-            )
-        for config, field, color in (("C5", "left_p95_ms", "#64748b"), ("C6", "right_p95_ms", "#2563eb")):
-            value = row[field]
-            if value is not None:
-                bar = bar_width * float(value) / max_value
-                body += f'<rect x="{left}" y="{y + (1 if config == "C5" else 18)}" width="{bar:g}" height="12" fill="{color}"/>'
-                body += _svg_text(left + bar + 6, y + (11 if config == "C5" else 28), f"{config} {float(value):.2f}", size=10, color=color)
-        delta = row.get("delta_p95_ms")
-        completion = row.get("delta_definitive_completion_rate")
-        body += _svg_text(left + bar_width + 170, y + 17, f"Delta L95={delta:.2f} ms" if delta is not None else "Delta L95=NA", size=10, color="#475569")
-        body += _svg_text(left + bar_width + 170, y + 30, f"Delta D={completion:+.3f}" if completion is not None else "Delta D=NA", size=10, color="#475569")
-    if not visible:
-        body += _svg_text(width / 2, 210, "no recorded C5/C6 latency pairs", size=18, anchor="middle", color="#64748b")
-    footer_y = top + max(len(visible), 1) * row_height + 36
-    body += _svg_text(width / 2, footer_y, "Bars use the critical operation only; no p99 is reported for these small cells.", size=12, anchor="middle", color="#475569")
-    return body, footer_y + 30
-
-
 def generate_figures(figures_root: Path, rows: list[dict[str, Any]], contrasts: list[dict[str, Any]]) -> list[Path]:
-    """Generate the three completion and latency figures from aggregate rows."""
+    """Generate the three completion and latency figures as vector PDFs."""
 
-    figures_root.mkdir(parents=True, exist_ok=True)
-    outputs = [
-        (figures_root / "rq4_outcomes_partition.pdf", _outcomes_partition_body(rows), "Paired partition signature outcomes"),
-        (figures_root / "rq4_latency_completion.pdf", _latency_completion_body(rows), "Client-observed time versus completion"),
-        (figures_root / "rq4_c5_c6_contrast.pdf", _contrast_body(contrasts), "C5 versus C6 contrast"),
-    ]
-    paths: list[Path] = []
-    for path, (body, height), title in outputs:
-        _render_pdf(path, title, body, 1120, height)
-        paths.append(path)
-    return paths
+    from .figures import generate_rq4_figures
+
+    return generate_rq4_figures(figures_root, rows, contrasts)
 
 
 def analyse(

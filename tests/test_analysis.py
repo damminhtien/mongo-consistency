@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -9,7 +11,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from mongo_consistency.analysis import _trace_body, analyse, load_rows
+from mongo_consistency.analysis import analyse, load_rows
+from mongo_consistency.figures import representative_trace
 from mongo_consistency.history import write_history
 from mongo_consistency.models import History, OperationRecord
 
@@ -82,12 +85,14 @@ class AnalysisTests(unittest.TestCase):
             ],
         }
 
-        body, _height = _trace_body([row])
-
-        self.assertIn("afterClusterTime=(t=1789885744, i=2)", body)
-        self.assertIn("NetworkTimeout after 5.00 s", body)
-        self.assertIn("UNAVAILABLE", body)
-        self.assertIn("history SHA-256", body)
+        with tempfile.TemporaryDirectory() as directory:
+            path = representative_trace(Path(directory) / "trace.pdf", [row])
+            self.assertTrue(path.read_bytes().startswith(b"%PDF-"))
+            if shutil.which("pdftotext"):
+                body = subprocess.check_output(["pdftotext", str(path), "-"], text=True)
+                self.assertIn("afterClusterTime: (1789885744, 2)", body)
+                self.assertIn("NetworkTimeout after 5.00 s", body)
+                self.assertIn("UNAVAILABLE", body)
 
     def test_empty_analysis_is_explicitly_no_data(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -101,7 +106,7 @@ class AnalysisTests(unittest.TestCase):
             self.assertEqual(0, summary["history_count"])
             self.assertEqual({}, summary["campaign_summaries"])
             self.assertTrue((root / "summary/summary.json").is_file())
-            self.assertTrue((root / "figures/outcome-heatmap.svg").is_file())
+            self.assertTrue((root / "figures/outcome-heatmap.pdf").read_bytes().startswith(b"%PDF-"))
 
     def test_analysis_rebuilds_counts_from_raw_history(self) -> None:
         history = History(
@@ -155,6 +160,8 @@ class AnalysisTests(unittest.TestCase):
             self.assertEqual(0, summary["campaign_summaries"]["normal"]["adversarial"]["history_count"])
             parsed = json.loads((root / "summary/summary.json").read_text())
             self.assertEqual("DATA", parsed["status"])
+            for name in ("architecture", "property-timelines", "prediction-observation", "representative-trace"):
+                self.assertTrue((root / "figures" / f"{name}.pdf").read_bytes().startswith(b"%PDF-"))
 
     def test_analysis_keeps_fault_durations_and_factorial_metrics(self) -> None:
         history = History(
@@ -219,7 +226,13 @@ class AnalysisTests(unittest.TestCase):
                 summary_root=root / "summary",
                 figures_root=root / "figures",
             )
-            latency_svg = (root / "figures/latency.svg").read_text(encoding="utf-8")
+            latency_pdf = root / "figures/latency.pdf"
+            self.assertTrue(latency_pdf.read_bytes().startswith(b"%PDF-"))
+            latency_text = (
+                subprocess.check_output(["pdftotext", str(latency_pdf), "-"], text=True)
+                if shutil.which("pdftotext")
+                else ""
+            )
         self.assertEqual(2.1, summary["overall"]["election_ms"]["p50"])
         self.assertEqual(2.0001, summary["overall"]["recovery_ms"]["p50"])
         self.assertEqual(1, summary["campaign_summaries"]["experiment"]["adversarial"]["history_count"])
@@ -228,9 +241,10 @@ class AnalysisTests(unittest.TestCase):
             summary["campaign_summaries"]["experiment"]["properties"]["RYW"]["history_count"],
         )
         self.assertIn("metrics", summary["factorial"]["properties"]["RYW"])
-        self.assertIn("Normal control", latency_svg)
-        self.assertIn("Adversarial", latency_svg)
-        self.assertIn("log10(ms + 1)", latency_svg)
+        if latency_text:
+            self.assertIn("Normal control", latency_text)
+            self.assertIn("Adversarial", latency_text)
+            self.assertIn("log scale", latency_text)
 
 
 if __name__ == "__main__":

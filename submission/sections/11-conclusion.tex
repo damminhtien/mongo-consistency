@@ -1,18 +1,20 @@
 \section{Conclusion}
 
-The configuration campaign answers the first study question: read concern,
-write concern, and causal sessions change whether a stale or dependency-breaking
-result can complete. The normal C7 history shows that a majority read does not
-by itself protect a preceding \texttt{w:1} write when the session carries no
-causal dependency.
+The configuration campaign answers the first study question. All normal
+controls passed. Under the adversarial schedules, C1 produced violations for
+all four properties in every trial. C6 produced unavailable RYW and MR
+histories and indeterminate MW and WFR histories, rather than a completed
+counterexample.
 
-The fault campaign answers the second question. The tested secondary loss and
-post-election calls did not produce a new anomaly in their scheduled windows.
-The replication partition created the clearest separation: C1 returned
-completed stale or reordered outcomes, while C6 commonly stopped at a
-majority-write timeout before the dependent operation could be issued.
+The fault campaign answers the second question. F1 and F2 produced no
+violations among decidable histories; the F2 schedule resumed after the
+election barrier and did not test calls during the election interval. F3
+produced all \RQTwoViolationCount\ RQ2 violations and
+\RQTwoIndeterminateCount\ indeterminate histories. Its C1 signature
+cells returned stale or reordered values, while C6 majority-write timeouts
+often prevented the dependent operation from being issued.
 
-The combined finding is that stronger settings can shift the client-visible
-failure mode from an inconsistent completed result to waiting, timeout, or
-unresolved completion. This conclusion is limited to the recorded schedules,
-software versions, and single-host deployment.
+Across the tested schedules, stronger settings shifted some outcomes from
+completed counterexamples to unavailable or indeterminate operations. These
+results apply to the recorded schedules, software versions, and single-host
+deployment.

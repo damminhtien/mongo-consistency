@@ -35,7 +35,7 @@ settings under a secondary crash, a primary election, and a replication-path
 partition. The fault campaign reuses matching normal controls as a descriptive
 baseline.
 
-The central result is that stronger consistency does not mean free success:
-weak settings can return a stale or reordered value, while stronger settings
-can withhold the operation and expose waiting, timeout, or unresolved
-completion instead.
+In the tested schedules, weak settings sometimes returned stale or reordered
+values. Majority acknowledgement combined with a causal session prevented some
+completed counterexamples, but during partition the dependent operation could
+remain unavailable or unresolved.

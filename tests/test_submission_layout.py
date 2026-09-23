@@ -62,7 +62,11 @@ class SubmissionLayoutTests(unittest.TestCase):
         self.assertIn("Dam Minh Tien", cover)
         self.assertIn("A0355091E", cover)
         self.assertIn("damminhtien@u.nus.edu", cover)
-        self.assertIn("Project supervisor: Zhenning Cai", cover)
+        self.assertIn("Nguyen Minh Duc", cover)
+        self.assertIn("A12345678E", cover)
+        self.assertIn("Vu Nhat Minh Thu", cover)
+        self.assertIn("A12345679E", cover)
+        self.assertIn("Project supervisor: Prof. Zhenning Cai", cover)
         self.assertNotIn("Email:", cover)
         self.assertNotIn(r"\ProjectTitle", cover)
         self.assertNotIn(r"\ProjectSupervisor", cover)
@@ -208,7 +212,15 @@ class SubmissionLayoutTests(unittest.TestCase):
         self.assertNotIn('"submission"', "\n".join(PACKAGE_ROOT_DIRS))
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            for relative in ("compose.yaml", "src/mongo_consistency/trial.py", "tests/test_x.py", "submission/report.tex"):
+            for relative in (
+                "compose.yaml",
+                "src/mongo_consistency/trial.py",
+                "src/mongo_consistency/analysis.py",
+                "src/mongo_consistency/figures.py",
+                "src/mongo_consistency/rq4.py",
+                "tests/test_x.py",
+                "submission/report.tex",
+            ):
                 path = root / relative
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text("placeholder\n", encoding="utf-8")
@@ -217,6 +229,8 @@ class SubmissionLayoutTests(unittest.TestCase):
         self.assertIn("compose.yaml", copied_paths)
         self.assertNotIn("tests/test_x.py", copied_paths)
         self.assertNotIn("submission/report.tex", copied_paths)
+        for filename in ("analysis.py", "figures.py", "rq4.py"):
+            self.assertNotIn(f"src/mongo_consistency/{filename}", copied_paths)
 
     def test_submission_runtime_sources_and_commands_are_complete(self) -> None:
         validate_package_sources(ROOT)
