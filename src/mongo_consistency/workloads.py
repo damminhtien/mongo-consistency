@@ -280,6 +280,56 @@ def _observe_member(
     return observation
 
 
+def _ensure_mr_fresh_source(
+    trial: MongoTrial,
+    *,
+    member: str,
+    source_address: str,
+) -> bool:
+    """Keep the healthy MR branch independent of the isolated replica."""
+
+    source_before: str | None = None
+    source_after: str | None = None
+    try:
+        source_before = trial.oracle.sync_source(member)
+        trial.record_diagnostic(
+            "mr-fresh-sync-source-before",
+            {"member": member, "sync_source": source_before},
+        )
+        if source_before != source_address:
+            reply = trial.oracle.sync_from(member, source_address)
+            trial.record_diagnostic(
+                "mr-fresh-sync-source-request",
+                {
+                    "member": member,
+                    "requested_source": source_address,
+                    "previous_source": reply.get("prevSyncTarget"),
+                    "request_accepted": reply.get("ok") == 1,
+                },
+            )
+            source_after = trial.oracle.wait_for_sync_source(
+                member,
+                source_address,
+                timeout_seconds=min(ELECTION_BARRIER_SECONDS, trial.remaining_seconds()),
+            )
+        else:
+            source_after = source_before
+    except Exception as error:  # noqa: BLE001 - branch setup failure invalidates MR.
+        trial.record_diagnostic(
+            "mr-fresh-sync-source-error",
+            {"member": member, "error_type": type(error).__name__, "error": str(error)},
+        )
+
+    satisfied = source_after == source_address
+    trial.record_precondition(
+        "mr-fresh-sync-source-primary",
+        satisfied=satisfied,
+        expected=source_address,
+        actual={"before": source_before, "after": source_after},
+    )
+    return satisfied
+
+
 def _wait_for_member_state(
     trial: MongoTrial,
     member: str,
@@ -423,6 +473,21 @@ def _mr_schedule(
         )
         _check_member_access(trial, stale, expected_role="SECONDARY")
         _observe_member(trial, stale, expected_version=0, expected_write_ids=["init"])
+        primary_address = initial.members[primary].get("me")
+        if not isinstance(primary_address, str) or not primary_address:
+            trial.record_precondition(
+                "mr-fresh-sync-source-primary",
+                satisfied=False,
+                expected="primary replica-set address",
+                actual=primary_address,
+            )
+            return
+        if not _ensure_mr_fresh_source(
+            trial,
+            member=fresh,
+            source_address=primary_address,
+        ):
+            return
     setup = trial.setup_write(
         primary,
         write_id="prep",

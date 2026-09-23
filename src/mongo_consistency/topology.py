@@ -13,8 +13,8 @@ DEFAULT_MEMBERS = {
     "mongo2": "mongodb://mongo2:27017/",
     "mongo3": "mongodb://mongo3:27017/",
 }
-SETUP_WRITE_CONCERN_TIMEOUT_MS = 5000
-SETUP_WRITE_SOCKET_TIMEOUT_MS = 7000
+SETUP_WRITE_CONCERN_TIMEOUT_MS = 15000
+SETUP_WRITE_SOCKET_TIMEOUT_MS = 17000
 
 
 class TopologyError(RuntimeError):
@@ -140,6 +140,68 @@ class TopologyOracle:
         if not isinstance(reply, dict):
             raise TopologyError(f"{member} returned a non-object command response")
         return reply
+
+    def sync_source(self, member: str) -> str | None:
+        """Return the replication source reported by a member's direct status."""
+
+        hello = self._hello(member)
+        member_address = hello.get("me")
+        if not isinstance(member_address, str) or not member_address:
+            raise TopologyError(f"{member} did not report its replica-set address")
+        status = self.admin_command(member, {"replSetGetStatus": 1})
+        members = status.get("members")
+        if not isinstance(members, list):
+            raise TopologyError(f"{member} returned no replica-set member status")
+        local = next(
+            (
+                item
+                for item in members
+                if isinstance(item, dict) and item.get("name") == member_address
+            ),
+            None,
+        )
+        if local is None:
+            raise TopologyError(f"{member} is absent from its replica-set status")
+        source = local.get("syncSourceHost")
+        return source if isinstance(source, str) and source else None
+
+    def sync_from(self, member: str, source_address: str) -> dict[str, Any]:
+        """Temporarily direct a secondary to replicate from a named member."""
+
+        if not isinstance(source_address, str) or not source_address:
+            raise ValueError("sync source address must be a non-empty string")
+        reply = self.admin_command(member, {"replSetSyncFrom": source_address})
+        if reply.get("ok") != 1:
+            raise TopologyError(
+                f"{member} rejected replication source {source_address!r}: {reply!r}"
+            )
+        return reply
+
+    def wait_for_sync_source(
+        self,
+        member: str,
+        source_address: str,
+        *,
+        timeout_seconds: float,
+    ) -> str:
+        """Wait until direct status confirms the requested replication source."""
+
+        if not source_address:
+            raise ValueError("sync source address must be non-empty")
+        deadline = time.monotonic() + timeout_seconds
+        last_source: str | None = None
+        while True:
+            last_source = self.sync_source(member)
+            if last_source == source_address:
+                return last_source
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            time.sleep(min(0.25, remaining))
+        raise TopologyError(
+            f"{member} still reports sync source {last_source!r}; "
+            f"expected {source_address!r}"
+        )
 
     def freeze_member(self, member: str, seconds: int) -> dict[str, Any]:
         """Freeze or unfreeze one member's candidacy for replica-set election."""

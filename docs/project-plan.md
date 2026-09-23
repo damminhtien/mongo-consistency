@@ -102,25 +102,27 @@ cache state is logged separately and never treated as ground truth.
 3. [x] Verify controller isolation, client reachability, fault recovery, and
    post-heal convergence. All three targeted members were reached during F3
    replication isolation; all 36 episodes converged.
-4. Validate the four schedules with checker fixtures and a 32-history smoke.
-5. Freeze predictions and protocol commits.
-6. Run the 128-history pilot; block main runs on harness errors, wrong routing,
+4. [ ] Re-run the 32-history smoke. The first run completed all histories but
+   failed its gate on one MR seed-write precondition: the healthy secondary was
+   still chained through the isolated member. The revised schedule verifies or
+   corrects that sync source before issuing the seed write.
+5. [x] Freeze predictions and protocol commits.
+6. [ ] Run the 128-history pilot; block main runs on harness errors, wrong routing,
    cleanup failures, or more than 5% precondition misses for any property.
-7. Run the reduced RQ1 sequentially: 96 normal controls plus 160 adversarial
-   histories, 256 in total.
-8. [ ] Implement the grouped RQ2 runner and host coordinator, freeze their
-   provenance, then rerun the 384 core histories and 48 extra histories for
-   four partition signature cells. The earlier 432-history record is retained
-   as development data until this rerun passes its gates.
-9. [ ] Verify the six historical Q1 anchors, run ten topology rehearsals, then
-   rerun the 48-history mechanism replay and analyze control-valid pairs.
-10. [ ] Derive consistency, observed definitive completion, indeterminate
+7. [ ] Re-run the reduced RQ1 after the MR schedule correction: 96 normal
+   controls plus 160 adversarial histories, 256 in total.
+8. [x] Implement and freeze the grouped RQ2 runner and host coordinator; run
+   384 core histories and 48 F3 signature-extension histories. The current
+   campaign completed 432 histories across 36 fault episodes.
+9. [x] Verify the six historical Q1 anchors, complete ten topology rehearsals,
+   run the 48-history mechanism replay, and analyze its control-valid pairs.
+10. [ ] Re-derive consistency, observed definitive completion, indeterminate
     rate, and separate all-attempt and resolved critical-operation p50/p95
-    latency from immutable RQ1/RQ2 raw histories. Keep unrecorded signature
-    cells explicit.
-11. Rebuild machine-readable analysis and plots from canonical raw histories.
-12. Audit the clean-clone path, generated numeric artifacts, staged diff, and
-    the PDF plus runtime-code submission package.
+    latency from the refreshed RQ1 and existing RQ2 raw histories.
+11. [ ] Rebuild machine-readable summaries and plots from canonical histories
+    after the RQ1 rerun.
+12. [ ] Audit the clean-clone path, generated numeric artifacts, staged diff,
+    and the PDF plus runtime-code submission package.
 
 ## Completion gates
 
@@ -130,20 +132,18 @@ episodes with four histories each. Report episode counts separately from
 history counts so shared topology events are not presented as independent
 fault events.
 
-The work is complete only when all requirements in
-[experimental-protocol.md](experimental-protocol.md) have current evidence:
-fixture and malformed-history tests; exact property schedules; live smoke;
-frozen provenance; clean pilot; complete Q1 and Q2 manifests; offline analysis;
-anchor hashes and replay controls; reproducible code package; and CI checks. A
-passing unit suite does not substitute for live schedule evidence. The earlier
-mechanism replay and its raw-derived analysis also predate the corrected
-semantics and must be rerun.
+The previous 256-history RQ1 run and its derived summaries are retained, but
+they are not final evidence after the MR schedule correction. The 432-history
+RQ2 run and 48-history RQ3 run remain valid for their registered schedules.
+RQ2 uses the corrected WFR schedule and write pre-image checker: its F3 WFR
+cells contain 16 violations and 16 precondition misses. The RQ3 manifest
+records eight control-valid pairs for each contrast.
 
-The previous grouped RQ2 campaign completed on 20 September 2026 with 432
-histories across 36 fault episodes. Those records predate the current WFR
-schedule and pre-image checker contract, so they are retained for development
-traceability and are not final evidence. The completion gate remains open until
-the corrected campaign is rerun and reanalysed.
+The completion gate remains open. The 32-history smoke must pass before the
+128-history pilot; RQ1 and its offline analyses then need to be rerun. The
+clean-clone review, PDF/package build, and release checks also need current
+evidence. Earlier records from superseded campaign semantics are excluded
+from final counts.
 The host coordinator applies faults outside the runner container through a
 temporary IPC mount, keeping Docker control out of the runner.
 
@@ -174,7 +174,7 @@ being inferred.
 
 ## Current RQ1 status
 
-The previous 1,280-history RQ1 record is superseded by the reduced frozen plan:
-96 normal controls and 160 adversarial histories. After the rerun, report only
-the counts generated from `results/raw/experiment` by `make analyse`; do not
-copy outcome numbers into this plan by hand.
+The retained RQ1 campaign has 96 normal controls and 160 adversarial histories.
+Its raw outcomes predate the MR replication-source control and must not be used
+as final evidence. The replacement run will be written to
+`results/raw/experiment` after the smoke and pilot gates pass.

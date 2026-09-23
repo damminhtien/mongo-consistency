@@ -43,6 +43,8 @@ def valid_history() -> History:
                 "server_selection_ms": 2000,
                 "operation_ms": 5000,
                 "write_concern_ms": 2000,
+                "setup_write_concern_ms": 15000,
+                "setup_socket_ms": 17000,
                 "election_barrier_ms": 30000,
                 "subtrial_ms": 60000,
             },

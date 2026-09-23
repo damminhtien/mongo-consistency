@@ -35,8 +35,11 @@ The schedules create the observation needed by each checker:
 \begin{description}
 \item[RYW] Keep a secondary at version 0, acknowledge a write of version 1
 through the subject, and read from the stale secondary.
-\item[MR] Read version 1 from a fresh member and then read from a member that
-still exposes version 0 in the same client sequence.
+\item[MR] Isolate a secondary at version 0. If the other secondary is chained
+through it, direct that member to replicate from the primary with
+\texttt{replSetSyncFrom}~\cite{mongodb-replset-syncfrom} and verify the source
+change. After a majority-acknowledged seed write, read version 1 from the fresh
+secondary and then read from the stale secondary in the same client sequence.
 \item[MW] Write on an isolated branch, allow the majority side to elect, and
 issue a successor write after the topology change.
 \item[WFR] Read a version on an isolated branch, wait for the majority-side

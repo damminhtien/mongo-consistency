@@ -25,6 +25,12 @@ class FakeOracle:
             "mongo2": "SECONDARY",
             "mongo3": "SECONDARY",
         }
+        self.sync_sources = {
+            "mongo1": None,
+            "mongo2": "mongo1:27017",
+            "mongo3": "mongo2:27017",
+        }
+        self.fail_sync_source_wait = False
         self.documents = {
             member: [
                 {
@@ -44,7 +50,12 @@ class FakeOracle:
             primary=self.primary,
             secondaries=secondaries,
             members={
-                member: {"member": member, "reachable": True, "role": role}
+                member: {
+                    "member": member,
+                    "me": f"{member}:27017",
+                    "reachable": True,
+                    "role": role,
+                }
                 for member, role in self.roles.items()
             },
             stable=True,
@@ -54,6 +65,34 @@ class FakeOracle:
     def member_state(self, member: str) -> dict[str, Any]:
         self.timeline.append(f"diagnostic:hello:{member}")
         return {"member": member, "reachable": True, "role": self.roles[member]}
+
+    def sync_source(self, member: str) -> str | None:
+        self.timeline.append(f"diagnostic:sync-source:{member}")
+        return self.sync_sources[member]
+
+    def sync_from(self, member: str, source_address: str) -> dict[str, Any]:
+        previous = self.sync_sources[member]
+        self.sync_sources[member] = source_address
+        self.timeline.append(f"replication:sync-from:{member}:{source_address}")
+        return {
+            "ok": 1,
+            "prevSyncTarget": previous,
+            "syncFromRequested": source_address,
+        }
+
+    def wait_for_sync_source(
+        self,
+        member: str,
+        source_address: str,
+        *,
+        timeout_seconds: float,
+    ) -> str:
+        del timeout_seconds
+        source = self.sync_sources[member]
+        if self.fail_sync_source_wait or source != source_address:
+            raise RuntimeError(f"{member} still syncs from {source!r}")
+        self.timeline.append(f"replication:sync-source-ready:{member}:{source_address}")
+        return source
 
     def wait_for_majority_primary(self, isolated_member: str, timeout_seconds: float) -> str:
         del timeout_seconds
@@ -396,18 +435,40 @@ class WorkloadScheduleTests(unittest.TestCase):
         self.assertLess(subject_write, subject_read)
         self.assertEqual(Outcome.VIOLATION, check_history(trial.history()).outcome)
 
-    def test_mr_isolates_before_setup_and_uses_two_subject_reads(self) -> None:
+    def test_mr_pins_fresh_replica_to_primary_before_setup(self) -> None:
         trial = self._run("MR")
 
         isolate = trial.timeline.index("fault:isolate:mongo2")
+        sync_from = trial.timeline.index("replication:sync-from:mongo3:mongo1:27017")
         setup = trial.timeline.index("setup:prep:mongo1:majority")
         first_read = trial.timeline.index("subject:read:first_read:mongo3")
         second_read = trial.timeline.index("subject:read:second_read:mongo2")
         self.assertLess(isolate, setup)
+        self.assertLess(isolate, sync_from)
+        self.assertLess(sync_from, setup)
         self.assertLess(setup, first_read)
         self.assertLess(first_read, second_read)
         self.assertEqual(2, len(trial.operations))
         self.assertEqual(Outcome.VIOLATION, check_history(trial.history()).outcome)
+
+    def test_mr_stops_when_fresh_replication_source_cannot_be_verified(self) -> None:
+        trial = FakeTrial("MR")
+        trial.oracle.fail_sync_source_wait = True
+
+        run_property(trial, adversarial=True, controller=trial.controller)
+
+        self.assertEqual("PRECONDITION_MISS", trial.precondition["status"])
+        failed_checks = [
+            check["name"]
+            for check in trial.precondition["checks"]
+            if check["status"] == "PRECONDITION_MISS"
+        ]
+        self.assertEqual(
+            ["mr-fresh-sync-source-primary"],
+            failed_checks,
+        )
+        self.assertFalse(any(item.startswith("setup:prep:") for item in trial.timeline))
+        self.assertEqual([], trial.operations)
 
     def test_mw_routes_dependent_writes_to_old_then_new_primary(self) -> None:
         trial = self._run("MW")

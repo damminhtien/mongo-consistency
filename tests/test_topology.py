@@ -24,6 +24,7 @@ class FakeAdmin:
                 raise OSError("member is unreachable")
             return {
                 "setName": state.get("set_name", "rs0"),
+                "me": f"{self.client.member}:27017",
                 "isWritablePrimary": state["role"] == "PRIMARY",
                 "secondary": state["role"] == "SECONDARY",
                 "electionId": state.get("election_id", "election-1"),
@@ -40,7 +41,24 @@ class FakeAdmin:
             return {
                 "optimes": {
                     "lastCommittedOpTime": {"ts": {"t": 20, "i": 9}}
-                }
+                },
+                "members": [
+                    {
+                        "name": f"{self.client.member}:27017",
+                        "syncSourceHost": self.client.oracle_test_state.get(
+                            "sync_source", ""
+                        ),
+                    }
+                ],
+            }
+        if "replSetSyncFrom" in command:
+            previous = self.client.oracle_test_state.get("sync_source", "")
+            requested = command["replSetSyncFrom"]
+            self.client.oracle_test_state["sync_source"] = requested
+            return {
+                "ok": 1,
+                "syncFromRequested": requested,
+                "prevSyncTarget": previous,
             }
         if "replSetFreeze" in command or "replSetStepDown" in command:
             return {"ok": 1}
@@ -201,6 +219,24 @@ class TopologyOracleTests(unittest.TestCase):
             self.clients["mongo1"].commands[-1],
         )
 
+    def test_sync_source_can_be_observed_and_temporarily_overridden(self) -> None:
+        self.states["mongo3"]["sync_source"] = "mongo2:27017"
+
+        self.assertEqual("mongo2:27017", self.oracle.sync_source("mongo3"))
+        reply = self.oracle.sync_from("mongo3", "mongo1:27017")
+        source = self.oracle.wait_for_sync_source(
+            "mongo3",
+            "mongo1:27017",
+            timeout_seconds=0.1,
+        )
+
+        self.assertEqual("mongo2:27017", reply["prevSyncTarget"])
+        self.assertEqual("mongo1:27017", source)
+        self.assertIn(
+            {"replSetSyncFrom": "mongo1:27017"},
+            self.clients["mongo3"].commands,
+        )
+
     def test_independent_observer_waits_for_all_three_document_copies(self) -> None:
         pymongo_stub = SimpleNamespace(
             read_concern=SimpleNamespace(ReadConcern=lambda level: level),
@@ -231,8 +267,11 @@ class TopologyOracleTests(unittest.TestCase):
         self.assertEqual(2, len(self.created_clients))
         self.assertIsNot(self.created_clients[0], self.created_clients[1])
         self.assertEqual(2000, self.created_clients[0].options["socketTimeoutMS"])
-        self.assertEqual(7000, self.created_clients[1].options["socketTimeoutMS"])
-        self.assertEqual(5000, self.created_clients[1].database_options["write_concern"]["wtimeout"])
+        self.assertEqual(17000, self.created_clients[1].options["socketTimeoutMS"])
+        self.assertEqual(
+            15000,
+            self.created_clients[1].database_options["write_concern"]["wtimeout"],
+        )
 
     def test_close_closes_diagnostic_and_setup_clients(self) -> None:
         pymongo_stub = SimpleNamespace(

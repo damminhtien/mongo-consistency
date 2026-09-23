@@ -20,13 +20,21 @@ from .driver import (
     tagged_secondary,
 )
 from .models import History, OperationRecord
-from .topology import DEFAULT_MEMBERS, TopologyOracle, TopologyState
+from .topology import (
+    DEFAULT_MEMBERS,
+    SETUP_WRITE_CONCERN_TIMEOUT_MS,
+    SETUP_WRITE_SOCKET_TIMEOUT_MS,
+    TopologyOracle,
+    TopologyState,
+)
 
 TIMEOUT_POLICY = {
     "connect_ms": 2000,
     "server_selection_ms": 5000,
     "operation_ms": 5000,
     "write_concern_ms": 5000,
+    "setup_write_concern_ms": SETUP_WRITE_CONCERN_TIMEOUT_MS,
+    "setup_socket_ms": SETUP_WRITE_SOCKET_TIMEOUT_MS,
     "election_barrier_ms": 30000,
     "subtrial_ms": 60000,
 }

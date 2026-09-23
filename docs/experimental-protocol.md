@@ -168,13 +168,18 @@ complete, the result is unavailable rather than a consistency violation.
 1. Verify stable topology and version 0 on all members.
 2. Select `S_stale` and `S_fresh`; isolate `S_stale` before creating version 1.
 3. Verify `S_stale` remains directly reachable as a secondary at `v0`.
-4. `SETUP W1(x,v1)` on the healthy primary with the configuration's registered
-   write concern. This setup write is not a subject operation and does not use
-   the subject session.
-5. Verify `S_fresh` contains `v1` and `S_stale` contains `v0`.
-6. `SUBJECT R1(x)` from `S_fresh`, followed by `SUBJECT R2(x)` from
+4. Verify `S_fresh` replicates from the primary. If it is chained through
+   `S_stale`, request the primary as its temporary sync source with MongoDB's
+   [`replSetSyncFrom` command](https://www.mongodb.com/docs/v7.0/reference/command/replsetsyncfrom/)
+   and wait until direct replica-set status confirms the change. This keeps
+   the healthy side able to acknowledge the seed write without changing
+   replica-set membership.
+5. `SETUP W1(x,v1)` on the healthy primary with majority write concern. This
+   setup write is not a subject operation and does not use the subject session.
+6. Verify `S_fresh` contains `v1` and `S_stale` contains `v0`.
+7. `SUBJECT R1(x)` from `S_fresh`, followed by `SUBJECT R2(x)` from
    `S_stale`, using the same explicit session.
-7. Heal, verify stable topology, then collect independent post-heal observations.
+8. Heal, verify stable topology, then collect independent post-heal observations.
 
 The diagnostic split is required before R1. If R2 returns a lower version than
 R1, the history is an MR violation.
@@ -279,7 +284,9 @@ and prevents further use of that unstable cluster.
 connect timeout                 2 seconds
 server-selection timeout       5 seconds
 operation/socket deadline       5 seconds
-write-concern timeout           5 seconds
+subject write-concern timeout   5 seconds
+setup write-concern timeout    15 seconds
+setup-write socket timeout     17 seconds
 election/topology barrier      30 seconds
 subtrial deadline              60 seconds
 retryReads=false
@@ -625,11 +632,14 @@ observations.
 
 ### Preflight, campaign, and acceptance
 
-The previously recorded RQ3 protocol-v2 campaign is also superseded by the
-current MW/WFR semantics. Its raw histories and selection artifacts remain
-available for development traceability, but the completion table below is not a
-current acceptance record. RQ3 must be rerun after the corrected RQ2 and RQ1
-inputs are frozen.
+The current protocol-v2 RQ3 campaign completed 48 of 48 planned histories.
+Its manifest records eight control-valid pairs for each contrast and no
+HARNESS_ERROR histories. The raw-derived summary is
+[RQ3 summary](../results/analysis/rq3/summary.json);
+the selected-pair hashes are in
+[selected-pair hashes](../results/analysis/rq3/selection-manifest.json).
+These artifacts describe the current run. Earlier RQ3 histories from
+superseded checker semantics are not part of its counts.
 
 Unit tests exercise the contrast definitions, anchor hashes, pair identity,
 deterministic member plans, normalization failure behavior, resume hashes,
