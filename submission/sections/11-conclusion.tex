@@ -1,20 +1,23 @@
 \section{Conclusion}
 
-We tested eight MongoDB consistency configurations against read-your-writes
-(RYW), monotonic reads (MR), monotonic writes (MW), and writes-follow-reads
-(WFR) on a three-member replica set. The configuration campaign covered 256
-histories: 96 normal controls and 160 adversarial histories; all controls
-passed. C1 returned counterexamples for all four properties. C6 produced no
-decidable histories for its four properties: RYW and MR reads timed out, while
-MW and WFR histories had unresolved write effects. In the fault campaign, F1
-and F2 produced no violations in scheduled calls. F3 produced 56 violations
-in four cells: C1 RYW and MW, and C1 and C4 WFR.
+The experiments answer the two study questions in different ways. For Q1,
+read concern, write concern, and causal sessions affected the four
+client-centric properties jointly rather than independently. The weakest
+tested combination allowed all four properties to be violated under controlled
+replica divergence. Stronger settings did not always turn those executions
+into successful consistent ones; in several cases, the dependent operation
+instead timed out or left insufficient evidence for a consistency decision.
 
-The fault campaign covered 432 histories across secondary loss, primary
-election, and replication-path partition in a single-host Docker deployment.
-These results apply to the tested schedules, timeout settings, and driver
-configuration; they do not establish behaviour for other workloads or
-deployments. F2 calls began after the election barrier, so the study does not
-measure operation completion during an election. Different failure domains
-or timeout settings may change whether an operation completes and what state a
-client observes.
+For Q2, the type of failure mattered more than failure alone. Secondary loss
+and execution after a primary election did not produce violations in the
+tested schedules. Replication-path partition was different because it created
+a separation between acknowledged state and the state available on the elected
+majority side. This was the fault condition in which the differences between
+the tested consistency settings became most visible.
+
+The main lesson from these experiments is that client-centric consistency
+should not be interpreted only in terms of whether a history contains a
+violation. Completion also matters. A configuration may prevent a client from
+observing an inconsistent state by delaying or preventing the dependent
+operation, so consistency results need to be read together with availability
+and decidability.
