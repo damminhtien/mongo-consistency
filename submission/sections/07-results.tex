@@ -3,10 +3,12 @@
 \subsection{Effect of consistency configuration}
 
 All normal controls passed. Figure~\ref{fig:prediction-observation} compares
-the adversarial observations with the configuration predictions. C1 returned
-counterexamples for all four properties. C6 produced no decidable histories
-for its four properties: its RYW and MR reads timed out; the MW and WFR histories
-had unresolved write effects.
+the adversarial observations with the configuration predictions. The weak
+baseline C1 (\texttt{local}, \texttt{w:1}, no causal session) returned
+counterexamples for all four properties. In contrast, C6 (\texttt{majority},
+\texttt{majority}, causal session) produced no decidable histories for its four
+properties: its RYW and MR reads timed out; the MW and WFR histories had
+unresolved write effects. These C6 outcomes are therefore not PASS results.
 The complete matrix is in Appendix~\ref{app:full-results}.
 
 \maybefigure[fig:prediction-observation]{submission/figures/prediction-observation.pdf}{Adversarial observations by configuration and property. Each cell represents five histories. When no outcome is decidable, its label gives the count of UNAVAILABLE, INDETERMINATE, and PRECONDITION\_MISS histories.}
