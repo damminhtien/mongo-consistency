@@ -19,9 +19,7 @@ sessions, the corresponding adversarial histories were not decidable: some
 dependent reads timed out and some write effects remained unresolved. Network
 partition was the only fault scenario that produced violations in our tests.
 
-The results show that stronger consistency settings do not simply turn
-violations into successful consistent executions. Under the tested schedules,
-they can instead prevent a consistency verdict when dependent operations do
-not complete or their effects cannot be resolved. This distinction between
-consistency and availability is important when interpreting the observed
-behaviour.
+Taken together, the results show that consistency controls affect both the
+state a client can observe and whether dependent operations can complete. A
+run with no observed violation is therefore not necessarily evidence that the
+tested property held.
