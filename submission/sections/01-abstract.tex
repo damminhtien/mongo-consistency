@@ -2,19 +2,24 @@
 \addcontentsline{toc}{section}{Abstract}
 
 Replication lets a database remain operational after member failures, but
-clients may observe different states while updates propagate. We tested
-read-your-writes (RYW), monotonic reads (MR), monotonic writes (MW), and
+clients may observe different replica states while updates propagate. We
+tested read-your-writes (RYW), monotonic reads (MR), monotonic writes (MW), and
 writes-follow-reads (WFR) across eight MongoDB consistency configurations on a
-three-member replica set. The configuration campaign covered 256 histories
+three-member replica set. The configurations varied read concern, write
+concern, and causal sessions. The configuration campaign covered 256 histories
 (96 normal controls and 160 adversarial histories); the fault campaign covered
 432 histories across secondary loss, primary election, and replication-path
 partition. We specified schedule-specific predictions for each
 configuration-property pair and compared them with recorded histories.
 
-All normal controls passed. Under adversarial schedules, C1 returned
-counterexamples for all four properties. C6 produced no decidable histories
-for its four properties: dependent reads timed out, while some write effects
-remained unresolved. F1 calls and post-election F2 calls produced no
-violations. F3 produced 56 violations in four configuration-property cells.
-These findings apply to the tested schedules, timeout settings, and
-single-host Docker deployment.
+All normal controls passed. Under adversarial schedules, the weak configuration
+using \texttt{local} reads, \texttt{w:1} writes, and no causal session returned
+counterexamples for all four properties. In contrast, the configuration using
+\texttt{majority} reads, \texttt{majority} writes, and causal sessions produced
+no decidable adversarial histories for the four properties: dependent reads
+timed out, while some write effects remained unresolved. These outcomes indicate
+unavailability or insufficient evidence rather than a PASS result. Secondary
+loss and post-election execution after primary loss produced no observed
+violations, whereas replication-path partition produced 56 violations across
+four tested configuration-property cells. These findings apply to the tested
+schedules, timeout settings, and single-host Docker deployment.
