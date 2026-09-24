@@ -2,11 +2,13 @@
 
 We combine the two read concerns (\texttt{local}, \texttt{majority}), two write
 concerns (\texttt{w:1}, \texttt{majority}), and causal sessions switched off or
-on. This produces eight configurations. For each property, we keep the
-operation sequence, logical document, and replica-set topology fixed while
-changing these controls. The matrix gives a schedule-specific consistency
-prediction for every configuration-property pair, based on the test schedules
-and MongoDB's documented read, write, and causal-session semantics
+on. This produces eight configurations. We use C1--C8 only as shorthand for
+the eight parameter combinations listed in Table~\ref{tab:configurations}.
+For each property, we keep the operation sequence, logical document, and
+replica-set topology fixed while changing these controls. The matrix gives a
+schedule-specific consistency prediction for every configuration-property
+pair, based on the test schedules and MongoDB's documented read, write, and
+causal-session semantics
 \cite{mongodb-read-concern,mongodb-write-concern,mongodb-causal-consistency}.
 
 \begin{table}[ht]
