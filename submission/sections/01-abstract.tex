@@ -12,14 +12,13 @@ concern, and causal sessions. The configuration campaign covered 256 histories
 partition. We specified schedule-specific predictions for each
 configuration-property pair and compared them with recorded histories.
 
-All normal controls passed. Under adversarial schedules, the weak configuration
-using \texttt{local} reads, \texttt{w:1} writes, and no causal session returned
-counterexamples for all four properties. In contrast, the configuration using
-\texttt{majority} reads, \texttt{majority} writes, and causal sessions produced
-no decidable adversarial histories for the four properties: dependent reads
-timed out, while some write effects remained unresolved. These outcomes indicate
-unavailability or insufficient evidence rather than a PASS result. Secondary
-loss and post-election execution after primary loss produced no observed
-violations, whereas replication-path partition produced 56 violations across
-four tested configuration-property cells. These findings apply to the tested
-schedules, timeout settings, and single-host Docker deployment.
+All normal controls passed. Under adversarial schedules, the configuration
+using \texttt{local} reads, \texttt{w:1} writes, and no causal session produced
+counterexamples for all four properties. With \texttt{majority} reads,
+\texttt{majority} writes, and causal sessions, no adversarial history was
+decidable: dependent reads timed out or write effects remained unresolved, so
+these runs were not counted as PASS. Losing one secondary, or continuing after
+a primary election, produced no violations in our schedules. Replication-path
+partition produced 56 violations across four tested configuration-property
+combinations. These results are limited to the tested schedules, timeout
+settings, and single-host Docker deployment.
