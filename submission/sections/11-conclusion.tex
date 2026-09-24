@@ -1,23 +1,16 @@
 \section{Conclusion}
 
-The experiments answer the two study questions in different ways. For Q1,
-read concern, write concern, and causal sessions affected the four
-client-centric properties jointly rather than independently. The weakest
-tested combination allowed all four properties to be violated under controlled
-replica divergence. Stronger settings did not always turn those executions
-into successful consistent ones; in several cases, the dependent operation
-instead timed out or left insufficient evidence for a consistency decision.
+For Q1, changing MongoDB's consistency controls changed both what the client
+could observe and whether dependent operations could complete. Some settings
+exposed consistency violations, while others left the adversarial history
+undecidable rather than producing a clear PASS.
 
-For Q2, the type of failure mattered more than failure alone. Secondary loss
-and execution after a primary election did not produce violations in the
-tested schedules. Replication-path partition was different because it created
-a separation between acknowledged state and the state available on the elected
-majority side. This was the fault condition in which the differences between
-the tested consistency settings became most visible.
+For Q2, secondary loss and execution after a primary election produced no
+violations in the tested schedules, while replication-path partition did. The
+partition case was the scenario that exposed the clearest separation between
+client-visible state and the state available on the majority side.
 
-The main lesson from these experiments is that client-centric consistency
-should not be interpreted only in terms of whether a history contains a
-violation. Completion also matters. A configuration may prevent a client from
-observing an inconsistent state by delaying or preventing the dependent
-operation, so consistency results need to be read together with availability
-and decidability.
+Overall, the experiments show that client-centric consistency cannot be judged
+from observed violations alone. A history with no counterexample may still be
+unavailable or undecidable, so operation completion has to be considered
+alongside consistency.
