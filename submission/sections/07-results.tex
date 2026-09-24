@@ -76,6 +76,7 @@ C6 read that carried \texttt{afterClusterTime} and timed out. Changing the read
 concern from local (C8) to majority (C5) changed the version available to R1.
 Changing the write concern from \texttt{w:1} (C3) to majority (C6) changed W1
 from an acknowledged write later absent from W2's pre-image to a write that
-timed out. The full paired outcomes are in Appendix~\ref{app:full-results}.
+timed out. Each contrast had eight control-valid pairs. Selected pair IDs and
+their recorded operations are in Appendix~\ref{app:representative-histories}.
 
 \maybefigure[fig:representative-trace]{submission/figures/representative-trace.pdf}{Representative C6 RYW history during a replication-path partition. A majority-acknowledged write completed before the causal majority read was attempted. That read returned no value, and the history is classified UNAVAILABLE. The figure abbreviates the event sequence; the raw record retains routing, session, and timeout metadata.}

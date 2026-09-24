@@ -62,17 +62,11 @@ requires complete team metadata.
 \end{figure}
 \FloatBarrier
 
-\section{Selected Results and Audit Data}
+\section{Selected Results}
 \label{app:full-results}
 
-Machine-readable results are under \texttt{results/summary/}; canonical
-histories and manifests are under \texttt{results/raw/}. The fault episode table
-records fault application, election, and recovery at the episode level. The
-completion analysis recomputes client-visible violation, observed definitive
-completion, and separate all-attempt and resolved critical-operation p50/p95
-latency from the campaign histories and writes
-\texttt{results/summary/rq4/metrics.csv}, \texttt{contrasts.csv}, and
-\texttt{fault\_deltas.csv}.
+Campaign histories are in \texttt{results/raw/}; processed RQ3/RQ4 results are
+in \texttt{results/analysis/} and \texttt{results/summary/}.
 
 \subsection{Configuration outcomes and fault signatures}
 
@@ -108,40 +102,6 @@ Config. & RYW & MR & MW & WFR \\
 \bottomrule
 \end{tabular*}
 \end{table}
-\FloatBarrier
-
-Table~\ref{tab:rq2-latency-rollback} retains the F3 cells that distinguish
-completed counterexamples, unresolved operations, and acknowledged writes lost
-after recovery. Its p95 includes all attempted subject operations, including
-failed attempts. NA in the final column means there was no acknowledged write
-to check for rollback. The full per-cell p50/p95/p99 and rollback counts remain
-in the machine-readable results under \texttt{results/summary/}.
-
-\begin{table}[ht]
-\centering
-\small
-\setlength{\tabcolsep}{5pt}
-\caption{Selected F3 latency and acknowledged-write rollback.}
-\label{tab:rq2-latency-rollback}
-\begin{tabular}{@{}llrrr@{}}
-\toprule
-Config. & Property & All-attempt p95 (ms) & Ack. writes & Rolled back / checked \\
-\midrule
-\RQTwoFthreeMetricRows
-\bottomrule
-\end{tabular}
-\end{table}
-\FloatBarrier
-
-\begin{longtable}{@{}lrrrrrr@{}}
-\caption{Election and recovery by fault episode. Times are p50 seconds.}
-\label{tab:rq2-episodes}\\
-\toprule
-Fault & Episodes & Applied & Elections & Election p50 & Converged & Recovery p50 \\
-\midrule
-\RQTwoEpisodeRows
-\bottomrule
-\end{longtable}
 \FloatBarrier
 
 \input{submission/generated-rq3-appendix.tex}

@@ -1,40 +1,22 @@
-\subsection{Matched-pair audit}
-\label{app:matched-pair-audit}
+\subsection{Representative paired histories}
+\label{app:representative-histories}
 
-The mechanism analysis compares control-valid pairs. This appendix retains
-the pair and signature counts. Trial IDs, raw histories, and complete SHA-256
-values remain in
-\texttt{results/analysis/rq3/summary.json} and
+Pair IDs resolve to raw records through
 \texttt{results/analysis/rq3/selection-manifest.json}.
 
 \begin{table}[ht]
 \centering
 \small
-\caption{Matched-pair control counts.}
-\label{tab:rq3-pair-controls}
-\begin{tabular}{@{}l p{0.40\linewidth} r r r@{}}
+\setlength{\tabcolsep}{4pt}
+\caption{Selected matched histories from the mechanism contrasts.}
+\label{tab:rq3-representative-histories}
+\begin{tabular}{@{}l l p{0.68\linewidth}@{}}
 \toprule
-Contrast & Factor & Planned & Valid & Invalid \\
+Contrast & Pair & Recorded operations \\
 \midrule
-M1 & C5 versus C6, causal session & 8 & 8 & 0 \\
-M2 & C8 versus C5, read concern & 8 & 8 & 0 \\
-M3 & C3 versus C6, write concern & 8 & 8 & 0 \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\begin{table}[ht]
-\centering
-\small
-\caption{Signature counts from the eight valid pairs in each contrast.}
-\label{tab:rq3-signature-counts}
-\begin{tabular}{@{}l p{0.78\linewidth}@{}}
-\toprule
-Contrast & Observed signatures \\
-\midrule
-M1 & C5 stale read: 8/8; C6 causal bound present: 8/8; C6 read unavailable: 8/8 \\
-M2 & C8 local v1: 8/8; C5 majority v0: 8/8; C8 WFR violations: 5/8 and indeterminate: 3/8; C5 WFR passes: 4/8 and indeterminate: 4/8; W2 present on every final member in both arms: 8/8 \\
-M3 & C3 W1 acknowledged: 8/8; W1 absent from W2's atomic pre-image: 8/8; C3 MW violations: 8/8; C6 majority W1 timed out: 8/8; C6 MW indeterminate: 8/8 \\
+M1 & \texttt{m1-r01} & C5 read returned v0; C6 causal majority read carried \texttt{afterClusterTime} and returned \texttt{NetworkTimeout}. \\
+M2 & \texttt{m2-r01} & C8 local read returned v1; C5 majority read returned v0. \\
+M3 & \texttt{m3-r01} & C3 acknowledged W1, absent from all converged observations; C6 majority W1 timed out and was INDETERMINATE. \\
 \bottomrule
 \end{tabular}
 \end{table}
