@@ -5,9 +5,9 @@ consistency properties under normal and failure conditions.
 
 ## Group
 
-- DAM MINH TIEN - A0355091E
-- NGUYEN MINH DUC - A12345678E
-- VU NHAT MINH THU - A12345679E
+- Dam Minh Tien - A0355091E
+- Nguyen Minh Duc - A12345678E
+- Vu Nhat Nguyen Thu - A0306148H
 
 ## Selected system
 

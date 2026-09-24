@@ -48,7 +48,4 @@ LaTeX sources, bibliography files, analysis scripts, tests, campaign histories,
 or local build output.
 
 Replace pending team identifiers in `submission/metadata.mk` and run
-`make check-release-ready` before upload. The report's AI Usage Statement
-describes the assistance used to organize and edit the report; the project
-group remains responsible for checking the sources, measurements, commands,
-explanations, and final PDF.
+`make check-release-ready` before upload.

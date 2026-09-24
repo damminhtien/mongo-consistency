@@ -56,7 +56,6 @@ METADATA_KEYS = (
     "STUDENT_EMAIL_MEMBER",
     "STUDENT_EMAIL",
     "SUBMISSION_DATE",
-    "AI_USE_DISCLOSURE",
 )
 REPORT_FILENAME = "mongo-consistency-report.pdf"
 ARCHIVE_FILENAME = "mongo-consistency-submission.zip"

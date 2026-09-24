@@ -1,17 +1,19 @@
 \section{Conclusion}
 
-We wanted to know what a client receives when we change MongoDB's consistency
-settings and when a replica fails or replication is cut. In the normal runs,
-all four checks passed. Once we made replicas disagree, weaker settings
-sometimes returned stale reads or let a later write run without an earlier
-one. C6 produced no completed counterexample in the tested schedules, but
-its reads or writes often did not finish. We cannot count those unresolved
-histories as passes.
+We set out to see how MongoDB's consistency settings affect client operations
+during normal operation and when replicas fail or lose contact. In the normal
+runs, all four checks passed. However, once replicas diverged, weaker settings
+sometimes returned stale reads or allowed a later write to run without its
+predecessor. With C6, we found no completed counterexample in the tested
+schedules. Many reads and writes did not complete, so those histories do not
+count as passes.
 
-Losing one secondary, or making calls after a new primary had been elected,
-caused no consistency violation in our scheduled tests. Cutting replication
-had a different effect: weaker settings completed with stale or reordered
-state, while stronger settings made the client wait or time out. Avoiding a
-stale answer can therefore mean not getting an answer yet. These findings
-describe our schedules on one Docker host; they do not cover requests during
-an election or failures across separate sites.
+When a secondary failed, or when we issued calls after a new primary had been
+elected, none of the scheduled tests showed a consistency violation. During a
+replication partition, however, the behaviour changed. Weaker settings
+returned stale or reordered state, while stronger settings often waited or
+timed out. As a result, some clients received an inconsistent value, while
+others received no result before the timeout. We ran these tests on one Docker
+host and did not issue requests during an election. The findings therefore
+describe only the schedules and failures we tested; they do not cover
+deployments across separate sites.

@@ -5,9 +5,9 @@ recorded assumption cannot be implemented.
 
 ## Group
 
-- DAM MINH TIEN - A0355091E
-- NGUYEN MINH DUC - Student ID pending
-- VU NHAT MINH THU - Student ID pending
+- Dam Minh Tien - A0355091E
+- Nguyen Minh Duc - Student ID pending
+- Vu Nhat Nguyen Thu - Student ID pending
 
 ## System and toolchain
 

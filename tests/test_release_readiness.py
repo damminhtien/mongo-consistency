@@ -508,12 +508,11 @@ def _valid_root(root: Path) -> None:
         "PROJECT_TITLE=MongoDB consistency\n"
         "ACADEMIC_YEAR=AY2026/2027\n"
         "TEAM_NAME=Group\n"
-        "TEAM_MEMBERS=DAM MINH TIEN (A0355091E); NGUYEN MINH DUC (A0000000X); "
-        "VU NHAT MINH THU (A0000001X)\n"
-        "STUDENT_EMAIL_MEMBER=DAM MINH TIEN\n"
+        "TEAM_MEMBERS=Dam Minh Tien (A0355091E); Nguyen Minh Duc (A0000000X); "
+        "Vu Nhat Nguyen Thu (A0000001X)\n"
+        "STUDENT_EMAIL_MEMBER=Dam Minh Tien\n"
         "STUDENT_EMAIL=student@example.edu\n"
-        "SUBMISSION_DATE=20 September 2026\n"
-        "AI_USE_DISCLOSURE=Reviewed\n",
+        "SUBMISSION_DATE=20 September 2026\n",
         encoding="utf-8",
     )
     _rq3_valid_root(root)
@@ -554,7 +553,7 @@ class ReleaseReadinessTests(unittest.TestCase):
             del summary["campaign_summaries"]["pilot"]
             summary_path.write_text(json.dumps(summary), encoding="utf-8")
             metadata = root / "submission/metadata.mk"
-            value = metadata.read_text(encoding="utf-8").replace("A0000000X", "A12345678E").replace("A0000001X", "A12345679E")
+            value = metadata.read_text(encoding="utf-8").replace("A0000000X", "A0308841A").replace("A0000001X", "A0306148H")
             metadata.write_text(value, encoding="utf-8")
             self.assertEqual([], check_release_readiness(root))
 
