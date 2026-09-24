@@ -180,6 +180,25 @@ def _format_fault_outcomes(outcomes: dict[str, Any]) -> str:
     return "/".join(str(int(outcomes.get(name, 0) or 0)) for name in names)
 
 
+def _compact_fault_outcomes(outcomes: dict[str, Any]) -> str:
+    """Show only nonzero counts in a configuration-property cell."""
+
+    codes = (
+        ("PASS", "P"),
+        ("VIOLATION", "V"),
+        ("UNAVAILABLE", "U"),
+        ("INDETERMINATE", "I"),
+        ("PRECONDITION_MISS", "PM"),
+        ("HARNESS_ERROR", "HE"),
+    )
+    parts = [
+        f"{int(outcomes.get(outcome, 0) or 0)}{code}"
+        for outcome, code in codes
+        if int(outcomes.get(outcome, 0) or 0) > 0
+    ]
+    return ", ".join(parts) or "NO_DATA"
+
+
 def write_generated_analysis(path: Path, root: Path) -> None:
     """Write main-campaign report macros, keeping pilot and test modes separate."""
 
@@ -474,8 +493,8 @@ def write_generated_analysis(path: Path, root: Path) -> None:
                 ) if has_property_histories else "--"
     rq2_raw_macros = {
         "RQOnePredictionObservationRows": rq1_prediction_observation_rows(),
-        "RQTwoOutcomeRows": "",
-        "RQTwoMetricRows": "",
+        "RQTwoFthreeOutcomeRows": r"\multicolumn{5}{c}{\texttt{NO DATA}} \\",
+        "RQTwoFthreeMetricRows": r"\multicolumn{5}{c}{\texttt{NO DATA}} \\",
         "RQTwoEpisodeRows": "",
         "RQTwoFaultSummaryRows": "",
     }
@@ -571,8 +590,6 @@ def write_generated_analysis(path: Path, root: Path) -> None:
                     int(property_counts.get(outcome, 0) or 0)
                 )
 
-        outcome_rows: list[str] = []
-        metric_rows: list[str] = []
         episode_table_rows: list[str] = []
         fault_summary_rows: list[str] = []
         for fault in rq2_faults:
@@ -586,10 +603,6 @@ def write_generated_analysis(path: Path, root: Path) -> None:
                     counts = row.get("outcomes", {})
                     if not isinstance(counts, dict):
                         counts = {}
-                    prediction = prediction_manifest.get(configuration, {})
-                    targets = prediction.get("guarantee_targets", [])
-                    targets = set(targets) if isinstance(targets, list) else set()
-                    target_code = "G" if property_name in targets else "N"
                     macros[f"{prefix}HistoryCount"] = str(count_value(row, "history_count"))
                     for outcome, macro_suffix in outcome_names.items():
                         macros[f"{prefix}{macro_suffix}Count"] = str(
@@ -601,43 +614,45 @@ def write_generated_analysis(path: Path, root: Path) -> None:
                     macros[f"{prefix}OperationAttemptedCount"] = str(
                         count_value(row, "operation_attempted_count")
                     )
-                    outcome_values = [
-                        int(counts.get(outcome, 0) or 0)
-                        for outcome in (
-                            "PASS",
-                            "VIOLATION",
-                            "UNAVAILABLE",
-                            "INDETERMINATE",
-                            "PRECONDITION_MISS",
-                            "HARNESS_ERROR",
-                        )
-                    ]
-                    operations = (
-                        f"{count_value(row, 'operation_successful_count')}/"
-                        f"{count_value(row, 'operation_attempted_count')}"
-                    )
-                    outcome_rows.append(
-                        f"{fault} & {configuration} & {property_name} & "
-                        f"{target_code} & "
-                        f"{count_value(row, 'history_count')} & "
-                        f"{'/'.join(map(str, outcome_values))} & {operations} \\\\"
-                    )
-                    latency = row.get("latency_ms", {})
-                    if not isinstance(latency, dict):
-                        latency = {}
-                    latency_values = "/".join(
-                        millisecond_value(latency.get(quantile))
-                        for quantile in ("p50", "p95", "p99")
-                    )
-                    rollback_checked = count_value(row, "rollback_checked_write_count")
-                    rollback_rate = row.get("acknowledged_write_rollback_rate")
-                    metric_rows.append(
-                        f"{fault} & {configuration} & {property_name} & "
-                        f"{latency_values} & "
-                        f"{count_value(row, 'acknowledged_write_count')} & "
-                        f"{rollback_checked}/{count_value(row, 'rolled_back_write_count')} & "
-                        f"{percent_value(rollback_rate)} \\\\"
-                    )
+
+        fthree_outcome_rows: list[str] = []
+        for configuration in rq2_configurations:
+            cells = []
+            for property_name in rq2_properties:
+                outcomes = rq2_group_by_key[("F3", configuration, property_name)].get(
+                    "outcomes", {}
+                )
+                cells.append(
+                    _compact_fault_outcomes(outcomes if isinstance(outcomes, dict) else {})
+                )
+            fthree_outcome_rows.append(
+                f"{configuration} & {' & '.join(cells)} \\\\"
+            )
+
+        fthree_metric_rows: list[str] = []
+        for configuration, property_name in (
+            ("C1", "RYW"),
+            ("C1", "MW"),
+            ("C1", "WFR"),
+            ("C4", "MW"),
+            ("C4", "WFR"),
+            ("C6", "RYW"),
+            ("C6", "MW"),
+        ):
+            row = rq2_group_by_key[("F3", configuration, property_name)]
+            latency = row.get("latency_ms", {})
+            latency = latency if isinstance(latency, dict) else {}
+            checked = count_value(row, "rollback_checked_write_count")
+            rollback = (
+                f"{count_value(row, 'rolled_back_write_count')}/{checked}"
+                if checked
+                else "NA"
+            )
+            fthree_metric_rows.append(
+                f"{configuration} & {property_name} & "
+                f"{millisecond_value(latency.get('p95'))} & "
+                f"{count_value(row, 'acknowledged_write_count')} & {rollback} \\\\"
+            )
 
         for fault in rq2_faults:
             fault_summary = (rq2_campaign.get("topology_conditions") or {}).get(fault, {})
@@ -743,8 +758,8 @@ def write_generated_analysis(path: Path, root: Path) -> None:
             )
         rq2_raw_macros.update(
             {
-                "RQTwoOutcomeRows": "\n".join(outcome_rows),
-                "RQTwoMetricRows": "\n".join(metric_rows),
+                "RQTwoFthreeOutcomeRows": "\n".join(fthree_outcome_rows),
+                "RQTwoFthreeMetricRows": "\n".join(fthree_metric_rows),
                 "RQTwoEpisodeRows": "\n".join(episode_table_rows),
                 "RQTwoFaultSummaryRows": "\n".join(fault_summary_rows),
             }

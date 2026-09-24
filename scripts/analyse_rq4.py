@@ -60,45 +60,36 @@ def _scenario_order(value: str) -> tuple[int, str]:
     return ({"normal": 0, "rq1_fault": 1}.get(value, 99), value)
 
 
-def _config_order(value: str) -> tuple[int, str]:
-    try:
-        return int(value.removeprefix("C")), value
-    except ValueError:
-        return 99, value
-
-
 def _property_order(value: str) -> tuple[int, str]:
     return ({"RYW": 0, "MR": 1, "MW": 2, "WFR": 3}.get(value, 99), value)
 
 
 def _metric_rows(rows: list[dict[str, str]]) -> str:
-    selected = [
-        row
+    selected = {
+        (row.get("scenario"), row.get("configuration_id"), row.get("property")): row
         for row in rows
         if row.get("configuration_id") in {"C5", "C6"}
         and row.get("scenario") in {"normal", "rq1_fault"}
-    ]
-    selected.sort(
-        key=lambda row: (
-            _scenario_order(row.get("scenario", "")),
-            _config_order(row.get("configuration_id", "")),
-            _property_order(row.get("property", "")),
-        )
-    )
+    }
     rendered = []
-    for row in selected:
-        counts = "/".join(
-            str(_integer(row, outcome))
-            for outcome in ("PASS", "VIOLATION", "UNAVAILABLE", "INDETERMINATE")
-        )
-        rendered.append(
-            f"{_value(row.get('scenario', ''))} & {_value(row.get('configuration_id', ''))} & "
-            f"{_value(row.get('property', ''))} & {counts} & "
-            f"{_rate_percent(_number(row, 'definitive_completion_rate'))} & "
-            f"{_milliseconds(_number(row, 'p50_ms'))}/{_milliseconds(_number(row, 'p95_ms'))} & "
-            f"{_milliseconds(_number(row, 'resolved_p50_ms'))}/{_milliseconds(_number(row, 'resolved_p95_ms'))} "
-            + r"\\"
-        )
+    for configuration in ("C5", "C6"):
+        for property_name in ("RYW", "MR", "MW", "WFR"):
+            normal = selected.get(("normal", configuration, property_name))
+            adversarial = selected.get(("rq1_fault", configuration, property_name))
+            if normal is None or adversarial is None:
+                return r"\multicolumn{7}{c}{\texttt{NO DATA}} \\"
+            counts = "/".join(
+                str(_integer(adversarial, outcome))
+                for outcome in ("PASS", "VIOLATION", "UNAVAILABLE", "INDETERMINATE")
+            )
+            rendered.append(
+                f"{configuration} & {property_name} & "
+                f"{_milliseconds(_number(normal, 'p95_ms'))} & {counts} & "
+                f"{_rate_percent(_number(adversarial, 'definitive_completion_rate'))} & "
+                f"{_milliseconds(_number(adversarial, 'p95_ms'))} & "
+                f"{_milliseconds(_number(adversarial, 'resolved_p95_ms'))} "
+                + r"\\"
+            )
     return "\n".join(rendered) or r"\multicolumn{7}{c}{\texttt{NO DATA}} \\"
 
 

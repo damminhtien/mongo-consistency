@@ -13,6 +13,7 @@ from scripts.build_submission import (
     REQUIRED_SECTIONS,
     REQUIRED_SUBMISSION_FILES,
     BuildError,
+    _compact_fault_outcomes,
     _format_fault_outcomes,
     copy_source_tree,
     parse_metadata,
@@ -27,6 +28,17 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class SubmissionLayoutTests(unittest.TestCase):
+    def test_compact_fault_cell_keeps_only_nonzero_outcomes(self) -> None:
+        self.assertEqual(
+            "6P, 2I",
+            _compact_fault_outcomes({"PASS": 6, "INDETERMINATE": 2}),
+        )
+        self.assertEqual(
+            "8PM",
+            _compact_fault_outcomes({"PRECONDITION_MISS": 8}),
+        )
+        self.assertEqual("NO_DATA", _compact_fault_outcomes({}))
+
     def test_fault_outcome_vector_includes_precondition_misses(self) -> None:
         self.assertEqual(
             "1/2/3/4/5",
@@ -78,9 +90,10 @@ class SubmissionLayoutTests(unittest.TestCase):
         figures = report.index(r"\listoffigures")
         contents = report.index(r"\tableofcontents")
         tables = report.index(r"\listoftables")
-        self.assertLess(figures, contents)
-        self.assertLess(contents, tables)
-        self.assertRegex(report[figures:contents], r"\s*\\clearpage\s*")
+        self.assertLess(contents, figures)
+        self.assertLess(figures, tables)
+        self.assertRegex(report[contents:figures], r"\s*\\clearpage\s*")
+        self.assertNotIn(r"\clearpage", report[figures:tables])
         self.assertNotIn(r"\clearpage", report[tables:report.index(r"\input{submission/sections/00-abbreviations.tex")])
 
         abbreviations = (ROOT / "submission/sections/00-abbreviations.tex").read_text(

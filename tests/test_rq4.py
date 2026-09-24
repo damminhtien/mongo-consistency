@@ -12,6 +12,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from mongo_consistency.history import write_history
 from mongo_consistency.models import History, OperationRecord
+from scripts.analyse_rq4 import _metric_rows
 from mongo_consistency.rq4 import (
     PARTITION_SIGNATURES,
     _partition_counts,
@@ -69,6 +70,40 @@ def _ryw_history(
 
 
 class RQ4Tests(unittest.TestCase):
+    def test_appendix_pairs_normal_and_adversarial_cells(self) -> None:
+        rows = []
+        for configuration in ("C5", "C6"):
+            for property_name in ("RYW", "MR", "MW", "WFR"):
+                rows.extend(
+                    (
+                        {
+                            "scenario": "normal",
+                            "configuration_id": configuration,
+                            "property": property_name,
+                            "p95_ms": "1.25",
+                        },
+                        {
+                            "scenario": "rq1_fault",
+                            "configuration_id": configuration,
+                            "property": property_name,
+                            "PASS": "2",
+                            "VIOLATION": "1",
+                            "UNAVAILABLE": "0",
+                            "INDETERMINATE": "2",
+                            "definitive_completion_rate": "0.6",
+                            "p95_ms": "5.5",
+                            "resolved_p95_ms": "2.5",
+                        },
+                    )
+                )
+        rendered = _metric_rows(rows)
+        self.assertEqual(8, len(rendered.splitlines()))
+        self.assertIn(
+            "C5 & RYW & 1.25 & 2/1/0/2 & 60.0\\% & 5.50 & 2.50",
+            rendered,
+        )
+        self.assertIn("NO DATA", _metric_rows(rows[:-1]))
+
     def test_metric_formulas_use_core_outcome_denominator(self) -> None:
         records = [
             {"configuration_id": "C5", "scenario": "normal", "property": "RYW", "outcome": "PASS", "latency_ms": 2.0, "critical_operation": "read"},

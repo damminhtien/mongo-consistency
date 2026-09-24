@@ -1,10 +1,9 @@
 \subsection{Matched-pair audit}
 \label{app:matched-pair-audit}
 
-The main mechanism table uses the phrase control-valid pairs so that the
-comparison remains readable. This appendix retains the pair counts, selected
-pair identities, and signature counts used to prepare it. The full raw
-histories and complete SHA-256 values remain in
+The mechanism analysis compares control-valid pairs. This appendix retains
+the pair and signature counts. Trial IDs, raw histories, and complete SHA-256
+values remain in
 \texttt{results/analysis/rq3/summary.json} and
 \texttt{results/analysis/rq3/selection-manifest.json}.
 
@@ -24,43 +23,19 @@ M3 & C3 versus C6, write concern & 8 & 8 & 0 \\
 \end{tabular}
 \end{table}
 
-\begin{longtable}{@{}l l p{0.35\linewidth} p{0.24\linewidth}@{}}
-\caption{Selected history identities; the final column is a SHA-256 prefix.}
-\label{tab:rq3-selected-histories}\\
+\begin{table}[ht]
+\centering
+\small
+\caption{Signature counts from the eight valid pairs in each contrast.}
+\label{tab:rq3-signature-counts}
+\begin{tabular}{@{}l p{0.78\linewidth}@{}}
 \toprule
-Contrast & Config & Trial ID & SHA-256 prefix \\
+Contrast & Observed signatures \\
 \midrule
-\endfirsthead
-\caption[]{Selected history identities (continued).}\\
-\toprule
-Contrast & Config & Trial ID & SHA-256 prefix \\
-\midrule
-\endhead
+M1 & C5 stale read: 8/8; C6 causal bound present: 8/8; C6 read unavailable: 8/8 \\
+M2 & C8 local v1: 8/8; C5 majority v0: 8/8; C8 WFR violations: 5/8 and indeterminate: 3/8; C5 WFR passes: 4/8 and indeterminate: 4/8; W2 present on every final member in both arms: 8/8 \\
+M3 & C3 W1 acknowledged: 8/8; W1 absent from W2's atomic pre-image: 8/8; C3 MW violations: 8/8; C6 majority W1 timed out: 8/8; C6 MW indeterminate: 8/8 \\
 \bottomrule
-\endfoot
-M1 & C5 & \texttt{rq3-m1-00001-C5-ryw} & \texttt{2d1eefdf69ac4992...} \\
-M1 & C6 & \texttt{rq3-m1-00002-C6-ryw} & \texttt{7bcd28fdf0bf59d9...} \\
-M2 & C8 & \texttt{rq3-m2-00001-C8-wfr} & \texttt{4079456bc811049a...} \\
-M2 & C5 & \texttt{rq3-m2-00002-C5-wfr} & \texttt{04b600f3e87778b4...} \\
-M3 & C3 & \texttt{rq3-m3-00001-C3-mw} & \texttt{34252303417af8a1...} \\
-M3 & C6 & \texttt{rq3-m3-00002-C6-mw} & \texttt{de49dff990a557f2...} \\
-\end{longtable}
-
-\begin{longtable}{@{}l p{0.25\linewidth} p{0.61\linewidth}@{}}
-\caption{Signature counts recomputed from control-valid pairs.}
-\label{tab:rq3-signature-counts}\\
-\toprule
-Contrast & Selected pair & Signature counts \\
-\midrule
-\endfirsthead
-\caption[]{Signature counts (continued).}\\
-\toprule
-Contrast & Selected pair & Signature counts \\
-\midrule
-\endhead
-\bottomrule
-\endlastfoot
-M1 & \texttt{m1-r01} & C5 stale read: 8/8; C6 causal bound present: 8/8; C6 read unavailable: 8/8 \\
-M2 & \texttt{m2-r01} & C8 local v1: 8/8; C5 majority v0: 8/8; C8 WFR violations: 5/8 and indeterminate: 3/8; C5 WFR passes: 4/8 and indeterminate: 4/8; W2 present on every final member in both arms: 8/8 \\
-M3 & \texttt{m3-r01} & C3 W1 acknowledged: 8/8; W1 absent from W2's atomic pre-image: 8/8; C3 MW violations: 8/8; C6 majority W1 timed out: 8/8; C6 MW indeterminate: 8/8 \\
-\end{longtable}
+\end{tabular}
+\end{table}
+\FloatBarrier

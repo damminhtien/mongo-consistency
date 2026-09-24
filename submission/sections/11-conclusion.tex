@@ -1,16 +1,17 @@
 \section{Conclusion}
 
-We set out to learn what a client sees when MongoDB's consistency controls
-and replica-set topology change. Under normal operation, the tested
-dependencies held. When we made replicas diverge, weak settings could
-complete with stale or reordered state. Majority reads, majority writes, and
-a causal session did not yield a completed counterexample in the target C6
-histories, but those histories were often unresolved rather than successful.
+We wanted to know what a client receives when we change MongoDB's consistency
+settings and when a replica fails or replication is cut. In the normal runs,
+all four checks passed. Once we made replicas disagree, weaker settings
+sometimes returned stale reads or let a later write run without an earlier
+one. C6 produced no completed counterexample in the tested schedules, but
+its reads or writes often did not finish. We cannot count those unresolved
+histories as passes.
 
-Losing a secondary or probing after a primary election did not produce a
-counterexample in our schedules. Partitioning the replication path did: it
-let a weak client complete on a state that the majority side had not kept,
-while stronger settings could wait or time out. The comparison supports our
-main prediction about the change from a stale answer to a withheld one. It
-does not establish behaviour during election or across physical sites beyond
-this single-host experiment.
+Losing one secondary, or making calls after a new primary had been elected,
+caused no consistency violation in our scheduled tests. Cutting replication
+had a different effect: weaker settings completed with stale or reordered
+state, while stronger settings made the client wait or time out. Avoiding a
+stale answer can therefore mean not getting an answer yet. These findings
+describe our schedules on one Docker host; they do not cover requests during
+an election or failures across separate sites.

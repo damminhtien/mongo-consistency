@@ -63,7 +63,7 @@ requires complete team metadata.
 \end{figure}
 \FloatBarrier
 
-\section{Full Result Matrices and Audit Data}
+\section{Selected Results and Audit Data}
 \label{app:full-results}
 
 Machine-readable results are under \texttt{results/summary/}; canonical
@@ -75,13 +75,13 @@ latency from the campaign histories and writes
 \texttt{results/summary/rq4/metrics.csv}, \texttt{contrasts.csv}, and
 \texttt{fault\_deltas.csv}.
 
-\subsection{Full fault and configuration matrices}
+\subsection{Configuration outcomes and fault signatures}
 
 \begin{table}[ht]
 \centering
 \small
 \setlength{\tabcolsep}{3pt}
-\caption{Configuration campaign outcomes by property. G marks a prediction target and N a descriptive cell. P, V, U, I, PM, and HE denote PASS, VIOLATION, UNAVAILABLE, INDETERMINATE, PRECONDITION\_MISS, and HARNESS\_ERROR. Only P and V enter the decidable comparison.}
+\caption{Configuration campaign outcomes by property. G marks a prediction target; N marks a descriptive cell. Outcome codes are defined in Section~3.5.}
 \label{tab:prediction-observation}
 \begin{tabular}{@{}l*{4}{p{0.19\textwidth}}@{}}
 \toprule
@@ -92,55 +92,47 @@ Config. & RYW & MR & MW & WFR \\
 \end{tabular}
 \end{table}
 
-The main report uses the fault-level summary in Table~\ref{tab:fault-summary}.
-These tables retain the configuration-property rows, p99 values, rollback
-counts, and episode timing used to derive that summary.
+Every F1/F2 cell returned 8 PASS histories and 16/16 successful subject
+operations. Table~\ref{tab:rq2-outcomes} shows the F3 cells.
 
-{\footnotesize
-\setlength{\tabcolsep}{3pt}
-\begin{longtable}{@{}l l l c r p{0.20\textwidth} c@{}}
-\caption{Target and outcomes by fault, configuration, and property.}
-\label{tab:rq2-outcomes}\\
+\begin{table}[ht]
+\centering
+\small
+\setlength{\tabcolsep}{5pt}
+\caption{F3 outcomes by configuration and property. Each cell lists nonzero counts only; P, V, I, and PM follow the outcome classes in Section~3.5.}
+\label{tab:rq2-outcomes}
+\begin{tabular*}{0.72\linewidth}{@{\extracolsep{\fill}}lrrrr@{}}
 \toprule
-Fault & Config & Property & Target & $n$ & P/V/U/I/PM/HE & Ops S/A \\
+Config. & RYW & MR & MW & WFR \\
 \midrule
-\endfirsthead
-\caption[]{Target and outcomes by fault, configuration, and property (continued).}\\
-\toprule
-Fault & Config & Property & Target & $n$ & P/V/U/I/PM/HE & Ops S/A \\
-\midrule
-\endhead
-\midrule
-\multicolumn{7}{r}{Continued on next page}\\
-\endfoot
+\RQTwoFthreeOutcomeRows
 \bottomrule
-\endlastfoot
-\RQTwoOutcomeRows
-\end{longtable}
-}
+\end{tabular*}
+\end{table}
+\FloatBarrier
 
-{\footnotesize
-\setlength{\tabcolsep}{3pt}
-\begin{longtable}{@{}l l l r r r r@{}}
-\caption{Latency and acknowledged-write rollback by fault, configuration, and property.}
-\label{tab:rq2-latency-rollback}\\
+Table~\ref{tab:rq2-latency-rollback} retains the F3 cells that distinguish
+completed counterexamples, unresolved operations, and acknowledged writes lost
+after recovery. Its p95 includes all attempted subject operations, not only
+successful ones. NA in the final column means there was no acknowledged write
+to check for rollback. The full per-cell p50/p95/p99 and rollback counts remain
+in the machine-readable results under \texttt{results/summary/}.
+
+\begin{table}[ht]
+\centering
+\small
+\setlength{\tabcolsep}{5pt}
+\caption{Selected F3 latency and acknowledged-write rollback.}
+\label{tab:rq2-latency-rollback}
+\begin{tabular}{@{}llrrr@{}}
 \toprule
-Fault & Config & Property & All-attempt latency p50/p95/p99 (ms) & Ack writes & Checked/rolled back & Rollback (\%) \\
+Config. & Property & All-attempt p95 (ms) & Ack. writes & Rolled back / checked \\
 \midrule
-\endfirsthead
-\caption[]{Latency and acknowledged-write rollback (continued).}\\
-\toprule
-Fault & Config & Property & All-attempt latency p50/p95/p99 (ms) & Ack writes & Checked/rolled back & Rollback (\%) \\
-\midrule
-\endhead
-\midrule
-\multicolumn{7}{r}{Continued on next page}\\
-\endfoot
+\RQTwoFthreeMetricRows
 \bottomrule
-\endlastfoot
-\RQTwoMetricRows
-\end{longtable}
-}
+\end{tabular}
+\end{table}
+\FloatBarrier
 
 \begin{longtable}{@{}lrrrrrr@{}}
 \caption{Election and recovery by fault episode. Times are p50 seconds.}
@@ -151,6 +143,7 @@ Fault & Episodes & Applied & Elections & Election p50 & Converged & Recovery p50
 \RQTwoEpisodeRows
 \bottomrule
 \end{longtable}
+\FloatBarrier
 
 \input{submission/generated-rq3-appendix.tex}
 \input{submission/generated-rq4-appendix.tex}

@@ -1,19 +1,21 @@
 \subsection{Detailed completion metrics}
 \label{app:completion-details}
 
-The main text reports the balanced partition signatures and one-factor
-contrasts. This table retains the selected C5 and C6 cells with separate
-all-attempt and resolved latency samples.
+The main text reports the partition signatures and one-factor contrasts.
+Table~\ref{tab:selected-completion-metrics} pairs each C5/C6 normal control
+with its adversarial configuration history. Every normal cell contains three
+PASS histories. All-attempt p95 includes failed operations when timed;
+resolved p95 uses only PASS and VIOLATION histories.
 
 \begin{table}[ht]
 \centering
 \small
 \setlength{\tabcolsep}{3pt}
-\caption{Selected completion and latency cells.}
+\caption{C5/C6 normal and adversarial outcomes. Latencies are in milliseconds.}
 \label{tab:selected-completion-metrics}
 \begin{tabular}{@{}l l l r r r r@{}}
 \toprule
-Scenario & Config & Property & P/V/U/I & $D$ & All-attempt p50/p95 (ms) & Resolved p50/p95 (ms) \\
+Config. & Property & \shortstack{Normal\\p95} & \shortstack{Adv.\\P/V/U/I} & \shortstack{Adv.\\$D$} & \shortstack{Adv. p95\\all} & \shortstack{Adv. p95\\resolved} \\
 \midrule
 \RQFourSelectedRows
 \bottomrule
@@ -22,3 +24,4 @@ Scenario & Config & Property & P/V/U/I & $D$ & All-attempt p50/p95 (ms) & Resolv
 
 \maybefigure[fig:completion-partition]{submission/figures/rq4_outcomes_partition.pdf}{Outcomes in the four paired C1/C6 RYW and MW partition cells. Each horizontal bar contains 20 histories; colour separates PASS, VIOLATION, UNAVAILABLE, and INDETERMINATE outcomes. No result is inferred for unrecorded cells.}
 \maybefigure[fig:completion-contrast]{submission/figures/rq4_c5_c6_contrast.pdf}{Critical-operation p95 latency for recorded C5/C6 normal and property-specific fault cells. Points show cells with timing observations; a line joins a pair only when both cells were measured. The horizontal axis is logarithmic. C5 has no F3 partition cell, so the plot does not claim a partition contrast for that configuration.}
+\FloatBarrier
