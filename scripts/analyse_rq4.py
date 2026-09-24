@@ -1,4 +1,4 @@
-"""Rebuild client-visible completion and latency data from saved histories."""
+"""Rebuild consistency, operation-completion, and latency data from histories."""
 
 from __future__ import annotations
 
@@ -56,6 +56,13 @@ def _milliseconds(value: float | None) -> str:
     return "NA" if value is None else f"{value:.2f}"
 
 
+def _operation_completion(row: dict[str, str]) -> str:
+    issued = _integer(row, "critical_operation_issued_count")
+    completed = _integer(row, "critical_operation_completed_count")
+    rate = _rate_percent(_number(row, "operation_completion_rate"))
+    return f"{completed}/{issued} ({rate})"
+
+
 def _scenario_order(value: str) -> tuple[int, str]:
     return ({"normal": 0, "rq1_fault": 1}.get(value, 99), value)
 
@@ -77,7 +84,7 @@ def _metric_rows(rows: list[dict[str, str]]) -> str:
             normal = selected.get(("normal", configuration, property_name))
             adversarial = selected.get(("rq1_fault", configuration, property_name))
             if normal is None or adversarial is None:
-                return r"\multicolumn{7}{c}{\texttt{NO DATA}} \\"
+                return r"\multicolumn{8}{c}{\texttt{NO DATA}} \\"
             counts = "/".join(
                 str(_integer(adversarial, outcome))
                 for outcome in ("PASS", "VIOLATION", "UNAVAILABLE", "INDETERMINATE")
@@ -85,12 +92,13 @@ def _metric_rows(rows: list[dict[str, str]]) -> str:
             rendered.append(
                 f"{configuration} & {property_name} & "
                 f"{_milliseconds(_number(normal, 'p95_ms'))} & {counts} & "
-                f"{_rate_percent(_number(adversarial, 'definitive_completion_rate'))} & "
+                f"{_rate_percent(_number(adversarial, 'decidable_history_rate'))} & "
+                f"{_operation_completion(adversarial)} & "
                 f"{_milliseconds(_number(adversarial, 'p95_ms'))} & "
                 f"{_milliseconds(_number(adversarial, 'resolved_p95_ms'))} "
                 + r"\\"
             )
-    return "\n".join(rendered) or r"\multicolumn{7}{c}{\texttt{NO DATA}} \\"
+    return "\n".join(rendered) or r"\multicolumn{8}{c}{\texttt{NO DATA}} \\"
 
 
 def _partition_rows(
@@ -109,17 +117,18 @@ def _partition_rows(
         if row is None:
             rendered.append(
                 f"{config} & {property_name} & -- & \\texttt{{MISSING_CELL}} & "
-                f"\\texttt{{no partition history}} & NA " + r"\\"
+                f"NA & \\texttt{{0/0 (NA)}} & NA " + r"\\"
             )
             continue
-        total = _integer(row, "history_count")
+        total = _integer(row, "valid_trials")
         values = "/".join(
             str(_integer(row, outcome))
             for outcome in ("PASS", "VIOLATION", "UNAVAILABLE", "INDETERMINATE")
         )
         rendered.append(
             f"{config} & {property_name} & {total} & {values} & "
-            f"{_rate_percent(_number(row, 'definitive_completion_rate'))} & "
+            f"{_rate_percent(_number(row, 'decidable_history_rate'))} & "
+            f"{_operation_completion(row)} & "
             f"{_milliseconds(_number(row, 'p95_ms'))} " + r"\\"
         )
     return "\n".join(rendered), grouped
@@ -142,23 +151,28 @@ def _contrast_rows(rows: list[dict[str, str]]) -> str:
     rendered = [
         f"{_value(row.get('scenario', ''))} & {_value(row.get('property', ''))} & "
         f"{_value(row.get('status', ''))} & {_milliseconds(_number(row, 'delta_p95_ms'))} & "
-        f"{_rate_percent(_number(row, 'delta_definitive_completion_rate'))} " + r"\\"
+        f"{_rate_percent(_number(row, 'delta_decidable_history_rate'))} & "
+        f"{_rate_percent(_number(row, 'delta_operation_completion_rate'))} " + r"\\"
         for row in selected
     ]
-    return "\n".join(rendered) or r"\multicolumn{5}{c}{\texttt{NO DATA}} \\"
+    return "\n".join(rendered) or r"\multicolumn{6}{c}{\texttt{NO DATA}} \\"
 
 
 def _partition_signature_values(
     rows: dict[tuple[str, str], dict[str, str]], key: tuple[str, str]
-) -> tuple[str, str]:
+) -> tuple[str, str, str]:
     row = rows.get(key)
     if row is None:
-        return "NO_DATA", "NA"
+        return "NO_DATA", "NA", "0/0 (NA)"
     counts = "/".join(
         str(_integer(row, outcome))
         for outcome in ("PASS", "VIOLATION", "UNAVAILABLE", "INDETERMINATE")
     )
-    return counts, _rate_percent(_number(row, "definitive_completion_rate"))
+    return (
+        counts,
+        _rate_percent(_number(row, "decidable_history_rate")),
+        _operation_completion(row),
+    )
 
 
 def _macro(name: str, value: str) -> str:
@@ -171,16 +185,16 @@ def write_data_macros(summary_root: Path, output: Path, summary: dict[str, Any])
     metrics = _read_csv(summary_root / "metrics.csv")
     contrasts = _read_csv(summary_root / "contrasts.csv")
     partition_rows, partition_counts = _partition_rows(metrics)
-    c1_ryw_counts, c1_ryw_completion = _partition_signature_values(
+    c1_ryw_counts, c1_ryw_decidable, c1_ryw_completion = _partition_signature_values(
         partition_counts, ("C1", "RYW")
     )
-    c6_ryw_counts, c6_ryw_completion = _partition_signature_values(
+    c6_ryw_counts, c6_ryw_decidable, c6_ryw_completion = _partition_signature_values(
         partition_counts, ("C6", "RYW")
     )
-    c1_mw_counts, c1_mw_completion = _partition_signature_values(
+    c1_mw_counts, c1_mw_decidable, c1_mw_completion = _partition_signature_values(
         partition_counts, ("C1", "MW")
     )
-    c6_mw_counts, c6_mw_completion = _partition_signature_values(
+    c6_mw_counts, c6_mw_decidable, c6_mw_completion = _partition_signature_values(
         partition_counts, ("C6", "MW")
     )
     values = {
@@ -188,13 +202,17 @@ def write_data_macros(summary_root: Path, output: Path, summary: dict[str, Any])
         "RQFourHistoryCount": str(summary.get("history_count", 0)),
         "RQFourMetricRowCount": str(summary.get("metric_row_count", 0)),
         "RQFourPartitionCOneRYWCounts": c1_ryw_counts,
-        "RQFourPartitionCOneRYWCompletion": c1_ryw_completion,
+        "RQFourPartitionCOneRYWDecidableHistoryRate": c1_ryw_decidable,
+        "RQFourPartitionCOneRYWOperationCompletion": c1_ryw_completion,
         "RQFourPartitionCsixRYWCounts": c6_ryw_counts,
-        "RQFourPartitionCsixRYWCompletion": c6_ryw_completion,
+        "RQFourPartitionCsixRYWDecidableHistoryRate": c6_ryw_decidable,
+        "RQFourPartitionCsixRYWOperationCompletion": c6_ryw_completion,
         "RQFourPartitionCOneMWCounts": c1_mw_counts,
-        "RQFourPartitionCOneMWCompletion": c1_mw_completion,
+        "RQFourPartitionCOneMWDecidableHistoryRate": c1_mw_decidable,
+        "RQFourPartitionCOneMWOperationCompletion": c1_mw_completion,
         "RQFourPartitionCsixMWCounts": c6_mw_counts,
-        "RQFourPartitionCsixMWCompletion": c6_mw_completion,
+        "RQFourPartitionCsixMWDecidableHistoryRate": c6_mw_decidable,
+        "RQFourPartitionCsixMWOperationCompletion": c6_mw_completion,
         "RQFourSelectedRows": _metric_rows(metrics),
         "RQFourPartitionRows": partition_rows,
         "RQFourContrastRows": _contrast_rows(contrasts),

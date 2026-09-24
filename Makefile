@@ -1,6 +1,6 @@
 PYTHON ?= python3
 MC_SMOKE_MOUNT ?= ./results/smoke
-.PHONY: check-docs check-schemas check-release-ready check-generated check-runner-isolation check-submission-artifacts submission test setup smoke pilot experiment experiment-fresh rq2 rq3 rq3-preflight rq3-analyse rq4-analyse analyse
+.PHONY: check-docs check-schemas check-release-ready check-generated check-runner-isolation check-submission-artifacts submission test setup smoke pilot experiment experiment-fresh rq2 rq3 rq3-preflight rq3-analyse rq4-analyse mechanism-preflight mechanism-replay analyse-mechanism analyse-partition analyse
 
 check-docs:
 	$(PYTHON) scripts/check_documentation.py
@@ -46,16 +46,25 @@ rq2: setup
 	$(PYTHON) scripts/run_rq2_coordinator.py $(RQ2_ARGS)
 
 RQ3_ARGS ?=
-rq3: setup
-	docker compose -f compose.yaml run --rm runner scripts/run_rq3_campaign.py $(RQ3_ARGS)
+MECHANISM_ARGS ?= $(RQ3_ARGS)
+rq3: mechanism-replay
 
-rq3-preflight: setup
+mechanism-replay: setup
+	docker compose -f compose.yaml run --rm runner scripts/run_rq3_campaign.py $(MECHANISM_ARGS)
+
+rq3-preflight: mechanism-preflight
+
+mechanism-preflight: setup
 	docker compose -f compose.yaml run --rm runner scripts/run_rq3_preflight.py
 
-rq3-analyse:
+rq3-analyse: analyse-mechanism
+
+analyse-mechanism:
 	PYTHONPATH=src $(PYTHON) scripts/analyse_rq3.py
 
-rq4-analyse:
+rq4-analyse: analyse-partition
+
+analyse-partition:
 	PYTHONPATH=src $(PYTHON) scripts/analyse_rq4.py
 
 analyse:

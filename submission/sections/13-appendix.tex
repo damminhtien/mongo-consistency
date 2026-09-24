@@ -1,7 +1,7 @@
 \section{Configuration Details}
 \label{app:configuration}
 
-The canonical configuration and schedule inputs are under \texttt{configs/}.
+The configuration and schedule files are under \texttt{configs/}.
 The main report's C1-C8 matrix lists the tested read concern, write concern,
 causal-session setting, and target properties. Deployment defaults are:
 
@@ -42,7 +42,8 @@ make check-docs
 make check-schemas
 make check-runner-isolation
 make analyse
-make rq4-analyse
+make analyse-mechanism
+make analyse-partition
 make submission
 make check-submission-artifacts
 make check-release-ready
@@ -50,9 +51,9 @@ make check-release-ready
 
 Smoke and pilot outputs remain separate from the main campaign results. The
 campaign manifest records status, source provenance, software versions, and
-image digest. Analysis validates and recomputes outcomes from canonical raw
-histories before building the report. The release-readiness check also
-requires complete team metadata.
+image digest. Analysis validates and recomputes outcomes from the raw trial
+histories before building the report. The submission check also requires
+complete team metadata.
 
 \begin{figure}[ht]
 \centering
@@ -65,16 +66,16 @@ requires complete team metadata.
 \section{Selected Results}
 \label{app:full-results}
 
-Campaign histories are in \texttt{results/raw/}; processed RQ3/RQ4 results are
-in \texttt{results/analysis/} and \texttt{results/summary/}.
+Campaign histories are in \texttt{results/raw/}; processed summaries are in
+\texttt{results/analysis/} and \texttt{results/summary/}.
 
-\subsection{Configuration outcomes and fault signatures}
+\subsection{Configuration and fault outcomes}
 
 \begin{table}[ht]
 \centering
 \small
 \setlength{\tabcolsep}{3pt}
-\caption{Configuration campaign outcomes by property. G marks a prediction target; N marks a descriptive cell. Outcome codes are defined in Section~3.5.}
+\caption{Configuration campaign outcomes by property. G marks a designated guarantee target; N marks other tested cells. Table~1 gives a schedule-specific prediction for every cell. Outcome codes are defined in Section~3.5.}
 \label{tab:prediction-observation}
 \begin{tabular}{@{}l*{4}{p{0.19\textwidth}}@{}}
 \toprule
@@ -85,14 +86,14 @@ Config. & RYW & MR & MW & WFR \\
 \end{tabular}
 \end{table}
 
-Every F1/F2 cell returned 8 PASS histories and 16/16 successful subject
+Every F1/F2 cell returned 8 PASS histories and 16/16 successful client
 operations. Table~\ref{tab:rq2-outcomes} shows the F3 cells.
 
 \begin{table}[ht]
 \centering
 \small
 \setlength{\tabcolsep}{5pt}
-\caption{F3 outcomes by configuration and property. Each cell lists nonzero counts only; P, V, I, and PM follow the outcome classes in Section~3.5.}
+\caption{F3 outcomes by configuration and property. Each cell lists nonzero counts only; outcome codes follow Section~3.5.}
 \label{tab:rq2-outcomes}
 \begin{tabular*}{0.72\linewidth}{@{\extracolsep{\fill}}lrrrr@{}}
 \toprule

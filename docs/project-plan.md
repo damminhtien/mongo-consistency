@@ -55,9 +55,10 @@ and its limits are described in
 [`rq3-historical-trace-selection.md`](rq3-historical-trace-selection.md).
 Three bounded matched contrasts replay each mechanism eight times (48 histories
 total). These runs explain selected observations; they do not estimate
-violation probabilities. A separate offline calculation records observed
-definitive completion and latency consequences from immutable Q1 and Q2
-histories. Both are supporting analyses for the two research questions.
+violation probabilities. A separate offline calculation records the
+decidable-history and critical-operation completion rates, plus latency, from
+immutable Q1 and Q2 histories. Both are supporting analyses for the two
+research questions.
 
 ## Configuration and predictions
 
@@ -115,9 +116,10 @@ cache state is logged separately and never treated as ground truth.
    campaign completed 432 histories across 36 fault episodes.
 9. [x] Verify the six historical Q1 anchors, complete ten topology rehearsals,
    run the 48-history mechanism replay, and analyze its control-valid pairs.
-10. [x] Re-derive consistency, observed definitive completion, indeterminate
-    rate, and separate all-attempt and resolved critical-operation p50/p95
-    latency from the refreshed RQ1 and existing RQ2 raw histories.
+10. [x] Re-derive consistency, the decidable-history and critical-operation
+    completion rates, indeterminate rate, and separate all-attempt and resolved
+    critical-operation p50/p95 latency from refreshed RQ1 and existing RQ2 raw
+    histories.
 11. [x] Rebuild machine-readable summaries and plots from canonical histories
     after the RQ1 rerun.
 12. [ ] Audit the clean-clone path, generated numeric artifacts, staged diff,
@@ -154,12 +156,12 @@ This is an offline analysis layer over the completed Q1 and Q2 histories. In
 this checkout, RQ1 is stored under `results/raw/experiment` and RQ2 under
 `results/raw/rq2`; the analyzer also accepts a `results/raw/rq1` alias. It
 does not query MongoDB or modify raw records. For each configuration, scenario,
-and property it reports the observed violation rate, observed definitive
-completion rate, indeterminate rate, all-attempt p50/p95 latency of the
-registered critical operation, and resolved p50/p95 latency for PASS and
-VIOLATION histories. `UNAVAILABLE`, `INDETERMINATE`, precondition misses, and
-harness errors remain separate. Valid timeout timestamps remain in the
-all-attempt sample; the resolved sample has its own denominator.
+and property it reports the violation rate, decidable-history rate,
+critical-operation completion rate, indeterminate rate, all-attempt p50/p95
+latency of the registered critical operation, and resolved p50/p95 latency for
+PASS and VIOLATION histories. `UNAVAILABLE`, `INDETERMINATE`, precondition
+misses, and harness errors remain separate. Valid timeout timestamps remain in
+the all-attempt sample; the resolved sample has its own denominator.
 
 For MW and WFR, PASS and VIOLATION use the course-definition evidence recorded
 by the runner: W1's write ID in W2's atomic pre-image for MW and the

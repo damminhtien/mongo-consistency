@@ -17,17 +17,24 @@ checkout stores RQ1 under `results/raw/experiment` and RQ2 under
 For each configuration, scenario, and property, the analyzer writes:
 
 - `violation_rate = VIOLATION / (PASS + VIOLATION)`;
-- `definitive_completion_rate = (PASS + VIOLATION) / attempted`;
-- `indeterminate_rate = INDETERMINATE / attempted`; and
+- `decidable_history_rate = (PASS + VIOLATION) / valid_trials`;
+- `operation_completion_rate = critical_operation_completed_count / critical_operation_issued_count`;
+- `indeterminate_rate = INDETERMINATE / valid_trials`; and
 - all-attempt critical-operation p50 and p95 latency in milliseconds; and
 - resolved critical-operation p50 and p95 latency for PASS and VIOLATION
   histories only.
 
-`attempted` is the count of PASS, VIOLATION, UNAVAILABLE, and INDETERMINATE
+`valid_trials` counts PASS, VIOLATION, UNAVAILABLE, and INDETERMINATE
 histories. PRECONDITION_MISS and HARNESS_ERROR stay visible but are excluded
-from that denominator because the registered subject operation was not a
-definitive consistency attempt. Completion is labelled **observed definitive
-completion rate**; it is not formal CAP availability.
+from this denominator. The **decidable-history rate** describes whether a
+valid history produced a consistency outcome. The **operation completion
+rate** describes whether the registered critical operation returned a
+response: an issued operation is one with a record in the history, and a
+completed operation has `response_received = true`, including a received
+server-error response. Its denominator is the number of issued
+critical-operation records; the rate is undefined when that count is zero. A
+response may be received even when the history is INDETERMINATE because
+required checker evidence is missing.
 
 For MW, PASS and VIOLATION use the preceding write ID in the successive
 write's atomic pre-image. For WFR, they use the application version in that
@@ -46,8 +53,8 @@ Latency uses `end_ns - start_ns` for one operation per property:
 
 A timeout with valid timestamps remains in the all-attempt latency sample. Its
 outcome remains UNAVAILABLE or INDETERMINATE according to the checker and is
-not reclassified as a definite failure. The resolved sample is deliberately
-limited to PASS and VIOLATION histories so the two denominators remain visible.
+not reclassified as a consistency violation. The resolved sample is limited to
+PASS and VIOLATION histories.
 
 ## Scenarios and contrasts
 
@@ -75,13 +82,13 @@ results/summary/rq4/metrics.csv
 results/summary/rq4/contrasts.csv
 results/summary/rq4/fault_deltas.csv
 figures/rq4_outcomes_partition.pdf
-figures/rq4_latency_completion.pdf
+figures/rq4_decidability_latency.pdf
 figures/rq4_c5_c6_contrast.pdf
 ```
 
-The primary figures show paired partition signature outcomes, client-observed
-all-attempt p95 time against observed definitive completion, and the C5/C6
-one-factor contrast. Claims stay conditional on the recorded schedules and
+The primary figures show paired partition signature outcomes, decidable-history
+rate alongside all-attempt p95 latency, and the C5/C6 one-factor contrast.
+Claims stay conditional on the recorded schedules and
 sample sizes; p99 is intentionally not used for the small cells. The command
 writes only machine-readable summaries and figures under `results/summary/rq4/`
 and `figures/`; it does not create a document source or modify the code

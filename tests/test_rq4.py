@@ -12,7 +12,6 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from mongo_consistency.history import write_history
 from mongo_consistency.models import History, OperationRecord
-from scripts.analyse_rq4 import _metric_rows
 from mongo_consistency.rq4 import (
     PARTITION_SIGNATURES,
     _partition_counts,
@@ -22,6 +21,7 @@ from mongo_consistency.rq4 import (
     load_records,
     metric_rows,
 )
+from scripts.analyse_rq4 import _metric_rows
 
 
 def _ryw_history(
@@ -90,7 +90,11 @@ class RQ4Tests(unittest.TestCase):
                             "VIOLATION": "1",
                             "UNAVAILABLE": "0",
                             "INDETERMINATE": "2",
-                            "definitive_completion_rate": "0.6",
+                            "valid_trials": "5",
+                            "decidable_history_rate": "0.6",
+                            "critical_operation_issued_count": "5",
+                            "critical_operation_completed_count": "4",
+                            "operation_completion_rate": "0.8",
                             "p95_ms": "5.5",
                             "resolved_p95_ms": "2.5",
                         },
@@ -99,28 +103,86 @@ class RQ4Tests(unittest.TestCase):
         rendered = _metric_rows(rows)
         self.assertEqual(8, len(rendered.splitlines()))
         self.assertIn(
-            "C5 & RYW & 1.25 & 2/1/0/2 & 60.0\\% & 5.50 & 2.50",
+            "C5 & RYW & 1.25 & 2/1/0/2 & 60.0\\% & 4/5 (80.0\\%) & 5.50 & 2.50",
             rendered,
         )
         self.assertIn("NO DATA", _metric_rows(rows[:-1]))
 
-    def test_metric_formulas_use_core_outcome_denominator(self) -> None:
+    def test_d_and_c_use_distinct_denominators(self) -> None:
         records = [
-            {"configuration_id": "C5", "scenario": "normal", "property": "RYW", "outcome": "PASS", "latency_ms": 2.0, "critical_operation": "read"},
-            {"configuration_id": "C5", "scenario": "normal", "property": "RYW", "outcome": "VIOLATION", "latency_ms": 4.0, "critical_operation": "read"},
-            {"configuration_id": "C5", "scenario": "normal", "property": "RYW", "outcome": "INDETERMINATE", "latency_ms": 8.0, "critical_operation": "read"},
-            {"configuration_id": "C5", "scenario": "normal", "property": "RYW", "outcome": "PRECONDITION_MISS", "latency_ms": None, "critical_operation": "read"},
+            {
+                "configuration_id": "C5",
+                "scenario": "normal",
+                "property": "RYW",
+                "outcome": "PASS",
+                "latency_ms": 2.0,
+                "critical_operation": "read",
+                "critical_operation_issued": True,
+                "critical_operation_completed": True,
+            },
+            {
+                "configuration_id": "C5",
+                "scenario": "normal",
+                "property": "RYW",
+                "outcome": "VIOLATION",
+                "latency_ms": 4.0,
+                "critical_operation": "read",
+                "critical_operation_issued": True,
+                "critical_operation_completed": True,
+            },
+            {
+                "configuration_id": "C5",
+                "scenario": "normal",
+                "property": "RYW",
+                "outcome": "INDETERMINATE",
+                "latency_ms": 8.0,
+                "critical_operation": "read",
+                "critical_operation_issued": True,
+                "critical_operation_completed": True,
+            },
+            {
+                "configuration_id": "C5",
+                "scenario": "normal",
+                "property": "RYW",
+                "outcome": "PRECONDITION_MISS",
+                "latency_ms": None,
+                "critical_operation": "read",
+                "critical_operation_issued": False,
+                "critical_operation_completed": False,
+            },
         ]
         row = metric_rows(records)[0]
-        self.assertEqual(3, row["attempted"])
+        self.assertEqual(3, row["valid_trials"])
         self.assertEqual(0.5, row["violation_rate"])
-        self.assertEqual(2 / 3, row["definitive_completion_rate"])
+        self.assertEqual(2 / 3, row["decidable_history_rate"])
+        self.assertEqual(3, row["critical_operation_issued_count"])
+        self.assertEqual(3, row["critical_operation_completed_count"])
+        self.assertEqual(1.0, row["operation_completion_rate"])
         self.assertEqual(1 / 3, row["indeterminate_rate"])
         self.assertEqual(4.0, row["p50_ms"])
         self.assertEqual(7.6, row["p95_ms"])
         self.assertEqual(3.0, row["resolved_p50_ms"])
         self.assertEqual(3.9, row["resolved_p95_ms"])
         self.assertEqual(2, row["resolved_latency_n"])
+
+    def test_operation_completion_is_undefined_when_nothing_was_issued(self) -> None:
+        row = metric_rows(
+            [
+                {
+                    "configuration_id": "C6",
+                    "scenario": "partition",
+                    "property": "RYW",
+                    "outcome": "INDETERMINATE",
+                    "latency_ms": None,
+                    "critical_operation_issued": False,
+                    "critical_operation_completed": False,
+                }
+            ]
+        )[0]
+        self.assertEqual(1, row["valid_trials"])
+        self.assertEqual(0.0, row["decidable_history_rate"])
+        self.assertEqual(0, row["critical_operation_issued_count"])
+        self.assertIsNone(row["operation_completion_rate"])
 
     def test_loader_maps_experiment_and_rq2_partition_and_preserves_raw(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -153,6 +215,8 @@ class RQ4Tests(unittest.TestCase):
         self.assertEqual({"normal", "partition"}, {record["scenario"] for record in records})
         self.assertEqual({"read"}, {record["critical_operation"] for record in records})
         self.assertEqual({3.0}, {record["latency_ms"] for record in records})
+        self.assertTrue(all(record["critical_operation_issued"] for record in records))
+        self.assertTrue(all(record["critical_operation_completed"] for record in records))
 
     def test_contrasts_and_fault_deltas_keep_missing_evidence_visible(self) -> None:
         rows = metric_rows(

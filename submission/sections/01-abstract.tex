@@ -1,22 +1,20 @@
 \section*{Abstract}
 \addcontentsline{toc}{section}{Abstract}
 
-Replication lets a database survive member failures, but it does not ensure
-that a client sees successive operations in the order it expects. We chose
-MongoDB because its read concern, write concern, and causal-session settings
-let us change that client experience without changing the application
-workload. In a three-member replica set, we tested read-your-writes, monotonic
-reads, monotonic writes, and writes-follow-reads under normal operation,
-controlled replica divergence, and three topology faults. We stated our
-predictions before comparing the recorded histories with them.
+Replication lets a database remain operational after member failures, but
+clients may observe different states while updates propagate. We tested
+read-your-writes (RYW), monotonic reads (MR), monotonic writes (MW), and
+writes-follow-reads (WFR) across eight MongoDB consistency configurations on a
+three-member replica set. The configuration campaign covered 256 histories
+(96 normal controls and 160 adversarial histories); the fault campaign covered
+432 histories across secondary loss, primary election, and replication-path
+partition. We specified schedule-specific predictions for each
+configuration-property pair and compared them with recorded histories.
 
-The normal controls satisfied all four checks. When replicas diverged, weak
-settings could return a completed stale or reordered result. The
-majority-acknowledged causal setting often gave no decidable result instead:
-an operation timed out or its dependency remained unresolved. Partitioning
-the replication path made this contrast clearest; the two simpler member
-failures produced no completed counterexample in the scheduled calls. These
-observations fit the predicted distinction between a stale answer and a
-withheld answer, but unresolved histories cannot confirm a consistency
-guarantee. Our conclusions are limited to the tested schedules and the
-single-host deployment.
+All normal controls passed. Under adversarial schedules, C1 returned
+counterexamples for all four properties. C6 produced no decidable histories
+for its four properties: dependent reads timed out, while some write effects
+remained unresolved. F1 calls and post-election F2 calls produced no
+violations. F3 produced 56 violations in four configuration-property cells.
+These findings apply to the tested schedules, timeout settings, and
+single-host Docker deployment.

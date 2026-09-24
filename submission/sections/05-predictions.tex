@@ -4,44 +4,36 @@ We combine the two read concerns (\texttt{local}, \texttt{majority}), two write
 concerns (\texttt{w:1}, \texttt{majority}), and causal sessions switched off or
 on. This produces eight configurations. For each property, we keep the
 operation sequence, logical document, and replica-set topology fixed while
-changing these controls. Table~\ref{tab:configurations} marks the
-configuration-property pairs with positive predictions. We report unmarked
-cells as descriptive comparisons.
+changing these controls. The matrix gives a schedule-specific consistency
+prediction for every configuration-property pair, based on the test schedules
+and MongoDB's documented read, write, and causal-session semantics
+\cite{mongodb-read-concern,mongodb-write-concern,mongodb-causal-consistency}.
 
 \begin{table}[ht]
 \centering
-\small
-\setlength{\tabcolsep}{3pt}
-\caption{C1-C8 settings and properties expected under the target schedules.}
+\scriptsize
+\setlength{\tabcolsep}{2pt}
+\renewcommand{\arraystretch}{1.12}
+\caption{Predictions under the test schedules. \emph{Expected hold} is a consistency prediction for a decidable history; \textsuperscript{\textdagger} marks cells where partition may instead leave an operation unavailable or the history indeterminate.}
 \label{tab:configurations}
-\begin{tabular}{@{}l l l l p{0.30\linewidth}@{}}
+\begin{tabular}{@{}p{0.28\linewidth}*{4}{>{\centering\arraybackslash}p{0.17\linewidth}}@{}}
 \toprule
-Config. & Read concern & Write concern & Causal session & Expected properties \\
+Configuration & RYW & MR & MW & WFR \\
 \midrule
-C1 & local & \texttt{w:1} & off & Descriptive only \\
-C2 & local & \texttt{w:1} & on & Descriptive only \\
-C3 & majority & \texttt{w:1} & on & MR, WFR \\
-C4 & local & majority & on & MW \\
-C5 & majority & majority & off & Descriptive only \\
-C6 & majority & majority & on & RYW, MR, MW, WFR \\
-C7 & majority & \texttt{w:1} & off & Descriptive only \\
-C8 & local & majority & off & Descriptive only \\
+C1 local / \texttt{w:1} / no causal & Violation possible & Violation possible & Violation possible & Violation possible \\
+C2 local / \texttt{w:1} / causal & Violation possible & Violation possible & Violation possible & Violation possible \\
+C3 majority / \texttt{w:1} / causal & Violation possible & Expected hold\textsuperscript{\textdagger} & Violation possible & Expected hold \\
+C4 local / majority / causal & Violation possible & Violation possible & Expected hold\textsuperscript{\textdagger} & Violation possible \\
+C5 majority / majority / no causal & Violation possible & Violation possible & May become unavailable / indeterminate under partition & Violation possible \\
+C6 majority / majority / causal & Expected hold\textsuperscript{\textdagger} & Expected hold\textsuperscript{\textdagger} & Expected hold\textsuperscript{\textdagger} & Expected hold\textsuperscript{\textdagger} \\
+C7 majority / \texttt{w:1} / no causal & Violation possible & Violation possible & Violation possible & Violation possible \\
+C8 local / majority / no causal & Violation possible & Violation possible & May become unavailable / indeterminate under partition & Violation possible \\
 \bottomrule
 \end{tabular}
 \end{table}
+\FloatBarrier
 
-C1 leaves reads local, acknowledges one replica, and carries no causal
-dependency; we therefore expect a stale or reordered result to be possible
-when the schedule splits the replicas. C3 tests whether majority reads and a
-causal session preserve MR and WFR for its registered sequence while its write
-uses \texttt{w:1}. C4 tests whether an acknowledged
-majority write preserves MW when a successor write follows it; its local read
-leaves WFR outside its prediction targets. C6 combines majority reads, majority
-writes, and a causal session. We expect its dependencies to prevent completed
-counterexamples, although a partition may prevent an operation from finishing.
-
-We compare predictions with completed, decidable histories. A timeout or
-missing precondition leaves the prediction unevaluated for that history.
+These predictions apply to the schedules defined in Section 3.3; they are not claims about all possible MongoDB executions.
 
 \subsection{Fault expectations}
 

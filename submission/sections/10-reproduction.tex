@@ -4,8 +4,8 @@ We ran the study from a clean checkout with Python 3.14.7, Docker Engine
 29.8.0, Docker Compose 5.5.1, and GNU Make. After starting Docker, we
 installed the pinned Python dependencies, ran \texttt{make setup}, and checked
 that the replica set had one primary and two secondaries. We then ran the
-configuration campaign, followed by the fault campaign and the small matched
-mechanism replay. These are the commands at the repository root:
+configuration campaign, the fault campaign, and a replay of the three matched
+configuration contrasts. These are the commands at the repository root:
 
 \begin{verbatim}
 python3.14 -m venv .venv
@@ -14,13 +14,14 @@ python -m pip install -r requirements-dev.txt
 make setup
 make experiment
 make rq2
-make rq3-preflight
-make rq3
+make mechanism-preflight
+make mechanism-replay
 \end{verbatim}
 
 The campaigns record one history per trial. We recomputed the classifications
-from those histories with \texttt{make analyse}, \texttt{make rq3-analyse}, and
-\texttt{make rq4-analyse} before compiling the PDF. The report figures use
+from those histories with \texttt{make analyse},
+\texttt{make analyse-mechanism}, and \texttt{make analyse-partition} before
+compiling the PDF. The report figures use
 Matplotlib 3.11.2 and SciencePlots 2.2.2~\cite{scienceplots}. Smoke and pilot
 runs are optional installation diagnostics; their histories remain separate
 from the reported campaign totals.

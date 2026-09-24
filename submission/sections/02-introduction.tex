@@ -6,13 +6,12 @@ Replication improves availability and fault tolerance, but replicas can expose
 different states while an update is propagating. For an application, the
 important question is what a client can observe across successive operations.
 
-We study that client view in a three-member MongoDB replica set. We vary read
-concern, write concern, and causal sessions while keeping the document and
-operation sequence fixed. Increasing versions give each trial an explicit
-write or read dependency. The four properties are
-read-your-writes (RYW), monotonic reads (MR), monotonic writes (MW), and
-writes-follow-reads (WFR). Section~2.1 states the Lecture~3 definitions before
-separating them from the project's measurement evidence.
+We study client-visible behaviour in a three-member MongoDB replica set. We
+vary read concern, write concern, and causal sessions while holding each
+property-specific schedule and initial document state fixed; every trial uses
+a fresh document. Increasing versions make the write and read dependencies
+explicit. We examine read-your-writes (RYW), monotonic reads (MR), monotonic
+writes (MW), and writes-follow-reads (WFR).
 
 \subsection{Study questions and approach}
 
@@ -28,13 +27,8 @@ Q_2:\quad
 \text{How does the behaviour change under node failure and network partition?}
 \]
 
-We first state what each configuration should allow a client to observe. We
-then run the same property-specific schedules across configurations, create
-controlled replica divergence, and check the resulting histories. Finally, we
-repeat selected settings under a secondary crash, a primary election, and a
-replication-path partition. Matching normal controls tell us whether the
-schedule itself caused a failure before we interpret its fault result.
-
-Our results distinguish completed operations that return stale or reordered
-values from operations that leave the consistency outcome unresolved. Stronger
-settings often withheld answers instead of returning stale values.
+To answer Q1, we state schedule-specific predictions, run normal controls,
+then create controlled replica divergence and compare the recorded histories
+with those predictions. To answer Q2, we repeat selected settings under a
+secondary loss, primary election, and replication-path partition. The normal
+controls provide a baseline for interpreting the adversarial results.

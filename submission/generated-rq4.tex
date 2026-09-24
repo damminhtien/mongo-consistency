@@ -1,28 +1,20 @@
-Under the recorded partition, definitive completion is the fraction of
-histories with a decidable consistency outcome:
-\(D=(\mathrm{PASS}+\mathrm{VIOLATION})/
-(\mathrm{PASS}+\mathrm{VIOLATION}+\mathrm{UNAVAILABLE}+\mathrm{INDETERMINATE})\).
-
 \begin{table}[ht]
 \centering
 \small
-\setlength{\tabcolsep}{4pt}
-\caption{Client-observed completion and latency under the recorded partition.}
+\setlength{\tabcolsep}{3pt}
+\caption{History outcomes, decidability, critical-operation responses, and latency under the recorded partition.}
 \label{tab:completion-partition-outcomes}
-\begin{tabular}{@{}l l r l r r@{}}
+\begin{tabular}{@{}l l r l r l r@{}}
 \toprule
-Config. & Property & $n$ & P/V/U/I & $D$ & All-attempt p95 (ms) \\
+Config. & Property & $n_{\text{valid}}$ & P/V/U/I & $D$ & \shortstack{$C$\\completed/issued (rate)} & All-attempt p95 (ms) \\
 \midrule
 \RQFourPartitionRows
 \bottomrule
 \end{tabular}
 \end{table}
 
-The paired C1 cells complete the scheduled operation and expose the weak
-setting's stale or reordered state. C6 outcomes in these cells are UNAVAILABLE
-or INDETERMINATE, with no completed counterexample. All-attempt latency retains
-timed-out operations; resolved latency,
-shown in Appendix~\ref{app:completion-details}, uses only PASS and VIOLATION
-histories.
+The paired C1 cells returned critical-operation responses that exposed stale
+or reordered state. The C6 cells had no critical-operation records. Appendix~\ref{app:completion-details}
+reports all-attempt and resolved latency separately.
 
-\maybefigure[fig:completion-latency]{submission/figures/rq4_latency_completion.pdf}{Paired C1/C6 RYW and MW cells during the recorded partition. The upper panel shows the fraction with a decidable consistency outcome. The lower panel gives p95 latency of the critical operation over all attempts when that operation was issued. ``Not issued'' marks a cell without a critical-operation observation; latency is undefined there. Each cell contains 20 histories.}
+\maybefigure[fig:decidability-latency]{submission/figures/rq4_decidability_latency.pdf}{Paired C1/C6 RYW and MW cells during the recorded partition. The upper panel shows the decidable-history rate $D$; the lower panel gives all-attempt p95 latency of the critical operation. Operation completion rate $C$ is reported in Table~\ref{tab:completion-partition-outcomes}. ``Not issued'' marks a cell without a critical-operation record. Each cell contains 20 valid histories.}

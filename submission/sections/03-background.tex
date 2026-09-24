@@ -31,7 +31,7 @@ place on the same or a more recent value of \(x\) that was read
 
 \paragraph{Operationalisation in this project.}
 RYW and MR are tested directly from successive versions returned to the
-subject client. The recorder also captures the evidence needed for the two
+test client. The recorder also captures the evidence needed for the two
 write properties.
 For MW, the atomic pre-image of the successive write records the update
 identifiers already present at the member executing that write. The checker
@@ -40,10 +40,6 @@ pre-image. For WFR, the same pre-image records the highest application version
 present immediately before the dependent write as
 \texttt{write\_base\_version}; the checker compares it with the version
 returned by R1.
-
-We apply the course definitions to subject-client observations. The
-post-recovery observer separately measures durability and rollback. If a
-required write pre-image is missing, the checker returns INDETERMINATE.
 
 \subsection{MongoDB mechanisms}
 
@@ -56,21 +52,10 @@ waits for majority acknowledgement \cite{mongodb-write-concern}. A causal
 session carries ordering information between operations; MongoDB documents
 its strongest causal guarantees for majority reads and majority writes
 \cite{mongodb-causal-consistency}. We also choose where a read is attempted
-through read preference and routing. The history records the member that
-actually handled it \cite{mongodb-read-preference}.
-
-\[
-\text{read concern}\ \longrightarrow\ \text{which state may be returned}
-\]
-\[
-\text{write concern}\ \longrightarrow\ \text{when a write is acknowledged}
-\]
-\[
-\text{causal session}\ \longrightarrow\ \text{which dependency is carried forward}
-\]
-
-Together, these controls let us ask whether a dependency is returned, delayed,
-or lost from the client's view. We state the configuration predictions before
-describing how we tested them.
+through read preference and routing; the recorded history identifies the
+member that handled it \cite{mongodb-read-preference}. These settings determine
+which states may be returned, when writes are acknowledged, and which
+dependencies later operations carry. We use these documented behaviours to
+form the schedule-specific predictions below.
 
 \input{submission/sections/05-predictions.tex}

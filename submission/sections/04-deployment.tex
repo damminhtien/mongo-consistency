@@ -11,13 +11,13 @@ deployment for repeated trials.
 We separate client traffic from replication traffic. This matters in the
 partition experiment: we can interrupt replication while leaving the client
 able to reach the isolated member. A runner issues the operations; a fault
-controller changes member availability or replication reachability; and a
-topology oracle checks which member is primary before the next scheduled
-step. An independent observer examines all three copies after recovery. The
+controller changes member availability or replication reachability. Before
+each topology-dependent step, the controller checks which replica-set member
+is primary. A post-recovery observer examines all three copies. The
 runner has no Docker socket, so fault control is kept outside the client
 process.
 
-\maybefigure[fig:architecture]{submission/figures/architecture.pdf}{Experimental deployment. The runner reaches all three data-bearing members through the client network. The fault controller changes member availability or replication-path reachability while the client route is retained. Member names are fixed, but the primary role can change after an election.}
+\maybefigure[fig:architecture]{submission/figures/architecture.pdf}{Client and fault-controller paths for the three-member replica set. During F3, the client can reach the former primary while replication to the other two members is blocked.}
 
 We installed the pinned Python dependencies and used \texttt{make setup} to
 start the Compose services, initialise the replica set, and verify its roles

@@ -168,9 +168,13 @@ class SubmissionLayoutTests(unittest.TestCase):
             "A successor write must not become visible without its predecessor", background
         )
         self.assertNotIn("not become visible without that version", background)
+        self.assertLess(
+            background.index(r"\paragraph{Course definitions.}"),
+            background.index(r"\paragraph{Operationalisation in this project.}"),
+        )
 
         method = (ROOT / "submission/sections/06-method.tex").read_text(encoding="utf-8")
-        self.assertIn("course definitions in Section~2.1", method)
+        self.assertNotIn("course definitions in Section~2.1", method)
         self.assertNotIn("project operationalisation in\nSection~2.1", method)
 
         protocol = (ROOT / "docs/experimental-protocol.md").read_text(encoding="utf-8")

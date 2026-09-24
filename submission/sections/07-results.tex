@@ -2,81 +2,63 @@
 
 \subsection{Effect of consistency configuration}
 
-We observed two outcomes under the adversarial schedules. Weak settings
-sometimes completed with stale or reordered state. Stronger settings more often
-produced UNAVAILABLE reads or INDETERMINATE writes.
-
 All normal controls passed. Figure~\ref{fig:prediction-observation} compares
 the adversarial observations with the configuration predictions. C1 returned
-completed counterexamples for all four properties. C6 returned no decidable
-history: the RYW and MR reads were unavailable, and the MW and WFR histories
-were indeterminate. The complete matrix is in Appendix~\ref{app:full-results}.
+counterexamples for all four properties. C6 produced no decidable histories
+for its four properties: its RYW and MR reads timed out; the MW and WFR histories
+had unresolved write effects.
+The complete matrix is in Appendix~\ref{app:full-results}.
 
-\maybefigure[fig:prediction-observation]{submission/figures/prediction-observation.pdf}{Adversarial configuration histories by property. Each cell reports violations over decidable histories (PASS plus VIOLATION); ``unresolved'' means no history in that cell was decidable. Dark borders mark prediction targets. Each cell contains five scheduled histories; the denominator excludes unavailable and indeterminate outcomes.}
+\maybefigure[fig:prediction-observation]{submission/figures/prediction-observation.pdf}{Adversarial observations by configuration and property. Each cell represents five histories. When no outcome is decidable, its label gives the count of UNAVAILABLE, INDETERMINATE, and PRECONDITION\_MISS histories.}
 \FloatBarrier
 
-The completed histories give uneven support for the predictions in
-Table~\ref{tab:configurations}. C3-WFR produced completed passes. C3-MR,
-C4-MW, and every C6 target lacked a decidable adversarial history, leaving
-those predictions unevaluated. C4's completed WFR counterexample is a
-descriptive observation; C4's prediction target is MW. For RYW and MR, the
-visible contrast is especially clear: a weak setting can read from a lagging
-member, whereas the stronger target may wait without returning an older value.
-The MW and WFR checks use W2's atomic pre-image, not the post-recovery state.
+In RYW and MR, C1 returned stale values from a lagging member, while the
+corresponding C6 reads timed out. In WFR, C3 histories passed and C4 produced a
+counterexample.
 
 \subsection{Effect of failures and network partition}
 
-We next changed the topology to see whether the configuration pattern
-persisted. The fault campaign contains \RQTwoHistoryCount\ histories across
+The fault campaign contains \RQTwoHistoryCount\ histories across
 \RQTwoFaultEpisodeCount\ shared fault episodes. Table~\ref{tab:fault-summary}
-separates completed counterexamples from operations that did not supply a
-decidable consistency result.
+reports outcome counts, client-operation success, and latency.
 
-F1 and F2 produced no violation in the scheduled calls, as predicted for a
-remaining majority and post-election requests. F2 included an election, but
-we waited for its barrier before probing; the result says nothing about a
-request made during that interval. F3 produced every fault-campaign violation
-and indeterminate history. This matched the predicted difference between a
-weak write accepted on an isolated branch and a majority write that timed out
-there. C6 majority writes often timed out before the dependent operation.
+F1 and F2 produced no violations in the scheduled calls. F3 produced all
+fault-campaign violations. Across the 20 C6 RYW histories under F3, W1 timed
+out or returned a time-limit error before the dependent read was issued; none
+of these histories was decidable.
 
 The completed F3 counterexamples arose in C1 RYW and MW and in WFR under C1
-and C4. The C4 WFR result needs care: we first wrote version 1 with
-\texttt{w:1} on the isolated former primary, outside the subject session. C4's
-local read returned it, but its dependent majority write reached the elected
-primary, whose pre-image contained only version 0. The setup write used
-\texttt{w:1} outside the subject session. C4's prediction target is MW, so its
-WFR result is descriptive. The required WFR read returned no version 1 under
-C3 and C6; those histories are classified PRECONDITION\_MISS.
+and C4. For C4 WFR, a setup write of version 1 with \texttt{w:1} on the
+isolated former primary preceded the client read. C4's local read returned
+version 1, but its dependent majority write reached the elected primary, where
+W2's pre-image contained only version 0. Under C3 and C6, the required WFR read
+did not return version 1, so W2 was not issued.
 
 \begin{table}[ht]
 \centering
 \small
 \setlength{\tabcolsep}{4pt}
-\caption{Fault-level outcomes, subject-operation success, and latency.}
+\caption{Fault outcomes, client-operation success, and all-attempt p50/p95 latency.}
 \label{tab:fault-summary}
 \begin{tabular}{@{}l r r l l l@{}}
 \toprule
-Fault & Histories & Episodes & P/V/U/I/PM & Operation success & p50/p95 (ms) \\
+Fault & Histories & Episodes & P/V/U/I/PM & Operation success ($S$) & p50/p95 (ms) \\
 \midrule
 \RQTwoFaultSummaryRows
 \bottomrule
 \end{tabular}
 \end{table}
 
-Timed-out reads are classified as UNAVAILABLE; writes with unresolved effects
-are classified as INDETERMINATE.
+\subsection{Evidence from recorded histories}
 
-\subsection{Mechanism evidence}
-
-We replayed three paired contrasts to understand why the same fault could
-give a value in one setting and no answer in another. With read and write
+Three paired contrasts isolate the effects of causal sessions, read concern,
+and write concern. With read and write
 concerns held fixed, adding a causal session changed a stale C5 read into a
 C6 read that carried \texttt{afterClusterTime} and timed out. Changing the read
 concern from local (C8) to majority (C5) changed the version available to R1.
 Changing the write concern from \texttt{w:1} (C3) to majority (C6) changed W1
 from an acknowledged write later absent from W2's pre-image to a write that
-timed out. Each contrast had eight control-valid pairs. Selected pair IDs and
+timed out. Each contrast had eight matched control/fault pairs. Selected pair IDs and
 their recorded operations are in Appendix~\ref{app:representative-histories}.
 
-\maybefigure[fig:representative-trace]{submission/figures/representative-trace.pdf}{Representative C6 RYW history during a replication-path partition. A majority-acknowledged write completed before the causal majority read was attempted. That read returned no value, and the history is classified UNAVAILABLE. The figure abbreviates the event sequence; the raw record retains routing, session, and timeout metadata.}
+\maybefigure[fig:representative-trace]{submission/figures/representative-trace.pdf}{Representative C6 RYW history during a replication-path partition: the majority-acknowledged write completed, then the dependent causal majority read timed out without returning a value.}

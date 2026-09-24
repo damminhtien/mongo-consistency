@@ -1,31 +1,20 @@
 \section{Discussion}
 
-\subsection{From stale results to waiting and unresolved operations}
+\subsection{Stale reads and timeouts}
 
-The contrast shows a change in what the client obtains. On a lagging branch,
-C1 can return a value that contradicts the client's earlier operation. C6
-often withholds the answer or leaves a write unresolved. These observations
-are consistent with majority acknowledgement and causal ordering. The
-histories record client responses and operation context; MongoDB's internal
-wait state is unobserved.
-
-The paired histories explain how the controls changed the observations.
-Read concern determined whether R1 could use the isolated branch's value;
-write concern determined whether W1 could be acknowledged there; the causal
-session carried a dependency into the next read. The completed counterexamples
-are visible in the states used by the operations.
+In the matched C1 history, a read on the lagging branch returned a value older
+than the client's preceding operation. Under C6, the dependent causal majority
+read timed out; in the matched majority-write history, W1 also timed out. Read
+concern determined whether R1 could use the isolated branch's value, while
+write concern determined whether W1 could be acknowledged there. The causal
+session carried a dependency into the next read.
 
 \subsection{Consistency, completion, and latency}
 
-The checker asks whether a completed history contradicted a dependency. We
-also ask whether the client received a decidable answer and how long it waited
-for the critical operation. During a partition, a setting that avoids a stale
-answer may instead impose a timeout. Figure~\ref{fig:completion-latency}
-shows completion and latency for the tested schedules.
+Table~\ref{tab:completion-partition-outcomes} reports the decidable-history
+rate $D$ and operation completion rate $C$ separately. Figure~\ref{fig:decidability-latency}
+shows $D$ and critical-operation latency for the tested schedules.
 
 \input{submission/generated-rq4.tex}
 
-All three members shared one Docker host, so the measured faults occurred in a
-single-host setup. F2 calls resumed after the election barrier; the reported
-F2 results cover post-election calls.
 \FloatBarrier

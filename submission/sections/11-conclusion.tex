@@ -1,18 +1,20 @@
 \section{Conclusion}
 
-We studied how MongoDB's consistency settings affect client operations during
-normal operation and when replicas fail or lose contact. In the normal runs,
-all four checks passed. Once replicas diverged, weaker settings
-sometimes returned stale reads or allowed a later write to run without its
-predecessor. With C6, we found no completed counterexample in the tested
-schedules. Many reads and writes ended as UNAVAILABLE or INDETERMINATE, leaving
-those histories without a completed consistency result.
+We tested eight MongoDB consistency configurations against read-your-writes
+(RYW), monotonic reads (MR), monotonic writes (MW), and writes-follow-reads
+(WFR) on a three-member replica set. The configuration campaign covered 256
+histories: 96 normal controls and 160 adversarial histories; all controls
+passed. C1 returned counterexamples for all four properties. C6 produced no
+decidable histories for its four properties: RYW and MR reads timed out, while
+MW and WFR histories had unresolved write effects. In the fault campaign, F1
+and F2 produced no violations in scheduled calls. F3 produced 56 violations
+in four cells: C1 RYW and MW, and C1 and C4 WFR.
 
-When a secondary failed, or when we issued calls after a new primary had been
-elected, none of the scheduled tests showed a consistency violation. During a
-replication partition, however, the behaviour changed. Weaker settings
-returned stale or reordered state, while stronger settings often waited or
-timed out. As a result, some clients received an inconsistent value, while
-others received no result before the timeout. The evidence covers the tested
-schedules on one Docker host, with F2 requests issued after the election
-barrier.
+The fault campaign covered 432 histories across secondary loss, primary
+election, and replication-path partition in a single-host Docker deployment.
+These results apply to the tested schedules, timeout settings, and driver
+configuration; they do not establish behaviour for other workloads or
+deployments. F2 calls began after the election barrier, so the study does not
+measure operation completion during an election. Different failure domains
+or timeout settings may change whether an operation completes and what state a
+client observes.

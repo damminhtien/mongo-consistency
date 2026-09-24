@@ -283,7 +283,7 @@ def rq4_outcomes_partition(path: Path, rows: list[dict[str, Any]]) -> Path:
     return _save(fig, path)
 
 
-def rq4_latency_completion(path: Path, rows: list[dict[str, Any]]) -> Path:
+def rq4_decidability_latency(path: Path, rows: list[dict[str, Any]]) -> Path:
     signatures = (("C1", "RYW"), ("C6", "RYW"), ("C1", "MW"), ("C6", "MW"))
     selected = {
         (row.get("configuration_id"), row.get("property")): row
@@ -291,29 +291,29 @@ def rq4_latency_completion(path: Path, rows: list[dict[str, Any]]) -> Path:
         if row.get("scenario") == "partition"
         and (row.get("configuration_id"), row.get("property")) in signatures
     }
-    fig, (completion_ax, latency_ax) = plt.subplots(2, 1, figsize=(6.8, 4.45), sharex=True, gridspec_kw={"height_ratios": [1, 1]})
+    fig, (decidable_ax, latency_ax) = plt.subplots(2, 1, figsize=(6.8, 4.45), sharex=True, gridspec_kw={"height_ratios": [1, 1]})
     for index, signature in enumerate(signatures):
         row = selected.get(signature)
         if row is None:
-            completion_ax.text(index, 0.5, "not recorded", ha="center", va="center", rotation=90, fontsize=7.5)
+            decidable_ax.text(index, 0.5, "not recorded", ha="center", va="center", rotation=90, fontsize=7.5)
             latency_ax.text(index, 0.5, "not recorded", ha="center", va="center", rotation=90, fontsize=7.5)
             continue
-        completion = row.get("definitive_completion_rate")
-        if completion is not None:
-            completion_ax.bar(index, float(completion), color=RED if int(row.get("VIOLATION", 0)) else BLUE, edgecolor=INK, linewidth=0.6, width=0.65)
-            completion_ax.text(index, float(completion) + 0.04, f"{float(completion):.0%}", ha="center", fontsize=8.5)
+        decidable = row.get("decidable_history_rate")
+        if decidable is not None:
+            decidable_ax.bar(index, float(decidable), color=RED if int(row.get("VIOLATION", 0)) else BLUE, edgecolor=INK, linewidth=0.6, width=0.65)
+            decidable_ax.text(index, float(decidable) + 0.04, f"{float(decidable):.0%}", ha="center", fontsize=8.5)
         latency_ms = row.get("p95_ms")
         if latency_ms is None:
             latency_ax.text(index, 0.5, "not issued", ha="center", va="center", fontsize=8)
         else:
             latency_ax.bar(index, float(latency_ms), color=ORANGE, edgecolor=INK, linewidth=0.6, width=0.65)
             latency_ax.text(index, float(latency_ms) + 0.12, f"{float(latency_ms):.2f}", ha="center", fontsize=8.5)
-    completion_ax.set_ylim(0, 1.17)
-    completion_ax.set_ylabel("Definitive completion")
+    decidable_ax.set_ylim(0, 1.17)
+    decidable_ax.set_ylabel("Decidable-history rate (D)")
     latency_ax.set_ylabel("p95 latency (ms)")
     latency_ax.set_ylim(0, max((float(row["p95_ms"]) for row in selected.values() if row.get("p95_ms") is not None), default=1) * 1.22)
     latency_ax.set_xticks(range(4), [f"{config} {property_name}" for config, property_name in signatures])
-    for ax in (completion_ax, latency_ax):
+    for ax in (decidable_ax, latency_ax):
         ax.grid(axis="y", alpha=0.25)
         ax.set_axisbelow(True)
     fig.subplots_adjust(hspace=0.24)
@@ -348,6 +348,6 @@ def generate_rq4_figures(root: Path, rows: list[dict[str, Any]], contrasts: list
     _style()
     return [
         rq4_outcomes_partition(root / "rq4_outcomes_partition.pdf", rows),
-        rq4_latency_completion(root / "rq4_latency_completion.pdf", rows),
+        rq4_decidability_latency(root / "rq4_decidability_latency.pdf", rows),
         rq4_c5_c6_contrast(root / "rq4_c5_c6_contrast.pdf", contrasts),
     ]

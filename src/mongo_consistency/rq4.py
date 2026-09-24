@@ -1,4 +1,4 @@
-"""Offline RQ4 consistency, completion, and critical-operation latency analysis."""
+"""Offline RQ4 consistency, operation-completion, and latency analysis."""
 
 from __future__ import annotations
 
@@ -134,6 +134,10 @@ def _record(path: Path, raw_root: Path, campaign: str) -> dict[str, Any]:
         "property": manifest.get("property"),
         "outcome": result.outcome.value,
         "critical_operation": operation_id,
+        "critical_operation_issued": operation is not None,
+        "critical_operation_completed": (
+            operation.response_received if operation is not None else False
+        ),
         "critical_operation_status": (
             operation.operation_status if operation is not None else None
         ),
@@ -213,14 +217,22 @@ def _aggregate(key: tuple[str, str, str], records: list[dict[str, Any]]) -> dict
             latencies.append(float(value))
             if outcome in {"PASS", "VIOLATION"}:
                 resolved_latencies.append(float(value))
-    attempted = sum(counts[outcome] for outcome in OUTCOMES)
+    valid_trials = sum(counts[outcome] for outcome in OUTCOMES)
     decidable = counts["PASS"] + counts["VIOLATION"]
+    critical_operation_issued = sum(
+        record.get("critical_operation_issued") is True for record in records
+    )
+    critical_operation_completed = sum(
+        record.get("critical_operation_issued") is True
+        and record.get("critical_operation_completed") is True
+        for record in records
+    )
     return {
         "configuration_id": key[0],
         "scenario": key[1],
         "property": key[2],
         "history_count": len(records),
-        "attempted": attempted,
+        "valid_trials": valid_trials,
         "PASS": counts["PASS"],
         "VIOLATION": counts["VIOLATION"],
         "UNAVAILABLE": counts["UNAVAILABLE"],
@@ -228,16 +240,21 @@ def _aggregate(key: tuple[str, str, str], records: list[dict[str, Any]]) -> dict
         "PRECONDITION_MISS": counts["PRECONDITION_MISS"],
         "HARNESS_ERROR": counts["HARNESS_ERROR"],
         "violation_rate": _rate(counts["VIOLATION"], decidable),
-        "definitive_completion_rate": _rate(decidable, attempted),
-        "indeterminate_rate": _rate(counts["INDETERMINATE"], attempted),
+        "decidable_history_rate": _rate(decidable, valid_trials),
+        "critical_operation_issued_count": critical_operation_issued,
+        "critical_operation_completed_count": critical_operation_completed,
+        "operation_completion_rate": _rate(
+            critical_operation_completed, critical_operation_issued
+        ),
+        "indeterminate_rate": _rate(counts["INDETERMINATE"], valid_trials),
         "critical_operation": critical_operation,
         "latency_n": len(latencies),
-        "latency_missing": max(attempted - len(latencies), 0),
+        "latency_missing": max(valid_trials - len(latencies), 0),
         "latency_status": (
             "NO_DATA"
             if not latencies
             else "COMPLETE"
-            if len(latencies) == attempted
+            if len(latencies) == valid_trials
             else "PARTIAL"
         ),
         "p50_ms": quantile(latencies, 0.50),
@@ -315,21 +332,39 @@ def contrast_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
                         "status": status,
                         "left_history_count": left["history_count"] if left else None,
                         "right_history_count": right["history_count"] if right else None,
+                        "left_valid_trials": left["valid_trials"] if left else None,
+                        "right_valid_trials": right["valid_trials"] if right else None,
+                        "left_critical_operation_issued_count": (
+                            left["critical_operation_issued_count"] if left else None
+                        ),
+                        "right_critical_operation_issued_count": (
+                            right["critical_operation_issued_count"] if right else None
+                        ),
                         "left_violation_rate": left["violation_rate"] if left else None,
                         "right_violation_rate": right["violation_rate"] if right else None,
                         "delta_violation_rate": _difference(
                             right["violation_rate"] if right else None,
                             left["violation_rate"] if left else None,
                         ),
-                        "left_definitive_completion_rate": (
-                            left["definitive_completion_rate"] if left else None
+                        "left_decidable_history_rate": (
+                            left["decidable_history_rate"] if left else None
                         ),
-                        "right_definitive_completion_rate": (
-                            right["definitive_completion_rate"] if right else None
+                        "right_decidable_history_rate": (
+                            right["decidable_history_rate"] if right else None
                         ),
-                        "delta_definitive_completion_rate": _difference(
-                            right["definitive_completion_rate"] if right else None,
-                            left["definitive_completion_rate"] if left else None,
+                        "delta_decidable_history_rate": _difference(
+                            right["decidable_history_rate"] if right else None,
+                            left["decidable_history_rate"] if left else None,
+                        ),
+                        "left_operation_completion_rate": (
+                            left["operation_completion_rate"] if left else None
+                        ),
+                        "right_operation_completion_rate": (
+                            right["operation_completion_rate"] if right else None
+                        ),
+                        "delta_operation_completion_rate": _difference(
+                            right["operation_completion_rate"] if right else None,
+                            left["operation_completion_rate"] if left else None,
                         ),
                         "left_p50_ms": left["p50_ms"] if left else None,
                         "right_p50_ms": right["p50_ms"] if right else None,
@@ -375,16 +410,32 @@ def fault_delta_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "status": status,
                 "normal_history_count": baseline["history_count"] if baseline else None,
                 "fault_history_count": row["history_count"],
+                "normal_valid_trials": baseline["valid_trials"] if baseline else None,
+                "fault_valid_trials": row["valid_trials"],
+                "normal_critical_operation_issued_count": (
+                    baseline["critical_operation_issued_count"] if baseline else None
+                ),
+                "fault_critical_operation_issued_count": row[
+                    "critical_operation_issued_count"
+                ],
                 "normal_p95_ms": baseline["p95_ms"] if baseline else None,
                 "fault_p95_ms": row["p95_ms"],
                 "delta_p95_ms": _difference(row["p95_ms"], baseline["p95_ms"] if baseline else None),
-                "normal_definitive_completion_rate": (
-                    baseline["definitive_completion_rate"] if baseline else None
+                "normal_decidable_history_rate": (
+                    baseline["decidable_history_rate"] if baseline else None
                 ),
-                "fault_definitive_completion_rate": row["definitive_completion_rate"],
-                "delta_definitive_completion_rate": _difference(
-                    row["definitive_completion_rate"],
-                    baseline["definitive_completion_rate"] if baseline else None,
+                "fault_decidable_history_rate": row["decidable_history_rate"],
+                "delta_decidable_history_rate": _difference(
+                    row["decidable_history_rate"],
+                    baseline["decidable_history_rate"] if baseline else None,
+                ),
+                "normal_operation_completion_rate": (
+                    baseline["operation_completion_rate"] if baseline else None
+                ),
+                "fault_operation_completion_rate": row["operation_completion_rate"],
+                "delta_operation_completion_rate": _difference(
+                    row["operation_completion_rate"],
+                    baseline["operation_completion_rate"] if baseline else None,
                 ),
                 "normal_violation_rate": baseline["violation_rate"] if baseline else None,
                 "fault_violation_rate": row["violation_rate"],
@@ -415,7 +466,7 @@ METRIC_FIELDS = [
     "scenario",
     "property",
     "history_count",
-    "attempted",
+    "valid_trials",
     "PASS",
     "VIOLATION",
     "UNAVAILABLE",
@@ -423,7 +474,10 @@ METRIC_FIELDS = [
     "PRECONDITION_MISS",
     "HARNESS_ERROR",
     "violation_rate",
-    "definitive_completion_rate",
+    "decidable_history_rate",
+    "critical_operation_issued_count",
+    "critical_operation_completed_count",
+    "operation_completion_rate",
     "indeterminate_rate",
     "critical_operation",
     "latency_n",
@@ -447,12 +501,19 @@ CONTRAST_FIELDS = [
     "status",
     "left_history_count",
     "right_history_count",
+    "left_valid_trials",
+    "right_valid_trials",
+    "left_critical_operation_issued_count",
+    "right_critical_operation_issued_count",
     "left_violation_rate",
     "right_violation_rate",
     "delta_violation_rate",
-    "left_definitive_completion_rate",
-    "right_definitive_completion_rate",
-    "delta_definitive_completion_rate",
+    "left_decidable_history_rate",
+    "right_decidable_history_rate",
+    "delta_decidable_history_rate",
+    "left_operation_completion_rate",
+    "right_operation_completion_rate",
+    "delta_operation_completion_rate",
     "left_p50_ms",
     "right_p50_ms",
     "delta_p50_ms",
@@ -467,12 +528,19 @@ FAULT_DELTA_FIELDS = [
     "status",
     "normal_history_count",
     "fault_history_count",
+    "normal_valid_trials",
+    "fault_valid_trials",
+    "normal_critical_operation_issued_count",
+    "fault_critical_operation_issued_count",
     "normal_p95_ms",
     "fault_p95_ms",
     "delta_p95_ms",
-    "normal_definitive_completion_rate",
-    "fault_definitive_completion_rate",
-    "delta_definitive_completion_rate",
+    "normal_decidable_history_rate",
+    "fault_decidable_history_rate",
+    "delta_decidable_history_rate",
+    "normal_operation_completion_rate",
+    "fault_operation_completion_rate",
+    "delta_operation_completion_rate",
     "normal_violation_rate",
     "fault_violation_rate",
     "delta_violation_rate",
@@ -500,7 +568,7 @@ def _partition_counts(rows: list[dict[str, Any]]) -> dict[tuple[str, str], dict[
 
 
 def generate_figures(figures_root: Path, rows: list[dict[str, Any]], contrasts: list[dict[str, Any]]) -> list[Path]:
-    """Generate the three completion and latency figures as vector PDFs."""
+    """Generate RQ4 outcome and latency figures as vector PDFs."""
 
     from .figures import generate_rq4_figures
 
@@ -524,7 +592,7 @@ def analyse(
     _write_csv(summary_root / "fault_deltas.csv", deltas, FAULT_DELTA_FIELDS)
     figure_paths = generate_figures(figures_root, rows, contrasts)
     summary = {
-        "schema_version": "rq4-summary.v1",
+        "schema_version": "rq4-summary.v2",
         "status": "DATA" if records else "NO_DATA",
         "input_campaigns": sorted({record["campaign"] for record in records}),
         "history_count": len(records),
@@ -534,12 +602,14 @@ def analyse(
         "figures": [path.name for path in figure_paths],
         "definitions": {
             "violation_rate": "VIOLATION / (PASS + VIOLATION)",
-            "definitive_completion_rate": "(PASS + VIOLATION) / attempted",
-            "indeterminate_rate": "INDETERMINATE / attempted",
-            "attempted": "PASS + VIOLATION + UNAVAILABLE + INDETERMINATE; precondition and harness failures are excluded",
-            "all_attempt_latency": "critical operation end_ns - start_ns in milliseconds for every attempted outcome with valid timestamps; timeout outcomes are retained",
+            "decidable_history_rate": "(PASS + VIOLATION) / valid_trials",
+            "valid_trials": "PASS + VIOLATION + UNAVAILABLE + INDETERMINATE; precondition and harness failures are excluded",
+            "operation_completion_rate": "critical_operation_completed_count / critical_operation_issued_count",
+            "critical_operation_issued_count": "histories with a record for the registered critical operation",
+            "critical_operation_completed_count": "issued critical-operation records with response_received=true",
+            "indeterminate_rate": "INDETERMINATE / valid_trials",
+            "all_attempt_latency": "critical operation end_ns - start_ns in milliseconds for valid trials with valid timestamps; timeout outcomes are retained",
             "resolved_latency": "critical operation end_ns - start_ns in milliseconds for PASS and VIOLATION outcomes only",
-            "availability_label": "observed definitive completion rate",
         },
     }
     (summary_root / "summary.json").write_text(
