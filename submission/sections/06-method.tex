@@ -1,11 +1,11 @@
 \subsection{Trial model and consistency checkers}
 
-We give each trial a new document so that an earlier trial cannot supply the
-version being tested. The subject uses one explicit PyMongo session and a
+Each trial uses a new document so its tested version comes from that trial.
+The subject uses one explicit PyMongo session and a
 sequence chosen for one property. Increasing application versions and write
-identifiers make its dependencies visible in the record. We log both the
-requested member and the server that answered, because a routed request alone
-does not prove which copy supplied the value. The record also includes concern
+identifiers make its dependencies visible in the record. We log the requested
+member and the responding server to identify which copy supplied each value.
+The record also includes concern
 settings, session state, operation status, timing, and returned document state.
 
 After each trial, an independent observer reads the members without the
@@ -13,13 +13,12 @@ subject's session. A separate controller applies and removes the fault. Our
 offline checker first asks whether the intended operations took place. For
 RYW and MR it compares values returned to the subject. For MW it checks
 whether W1's identifier was in the atomic pre-image of W2; for WFR it compares
-the value read by R1 with W2's pre-image. These are the observations available
-for the course definitions in Section~2.1, not a new definition of them.
+the value read by R1 with W2's pre-image. We apply the course definitions in
+Section~2.1 to these recorded observations.
 
-The post-heal observer is not used to infer MW or WFR. It records whether
-acknowledged writes remain after recovery and whether replicas agree on the
-final update list. Those durability observations are reported separately from
-the client-centric consistency outcome.
+The post-heal observer records whether acknowledged writes remain after
+recovery and whether replicas agree on the final update list. We report these
+durability observations separately from the client-centric consistency outcome.
 
 \subsection{Configuration campaign}
 
@@ -57,9 +56,8 @@ and version~0 on the majority side, and then reads version~1 before the
 election. In every case, W2 is issued only after R1 has returned a concrete
 version.
 
-Each schedule checks its prerequisites before issuing the dependent subject
-operation. If a prerequisite fails or returns no concrete version, the
-dependent operation is not issued.
+Schedules issue a dependent operation only after all prerequisites pass and
+any required version is recorded.
 
 \maybefigure[fig:property-timelines]{submission/figures/property-timelines.pdf}{Subject-operation order in the four property schedules. RYW and MR compare successive client-visible versions. MW checks whether W1 is present in the atomic pre-image of W2; WFR compares the version read before the fault with W2's atomic pre-image. Setup writes, prerequisite checks, and recovery observations are omitted.}
 
@@ -77,18 +75,17 @@ client-visible old branch from the majority side.
 The core design contains \(4\times3\times4\times8=384\) histories. Four F3
 signature cells receive twelve additional repetitions each, giving
 \RQTwoHistoryCount\ histories across \RQTwoFaultEpisodeCount\ shared fault
-episodes. Histories in one episode share a topology event and are not
-independent fault injections. Matching normal controls provide a descriptive
-baseline; no extra normal campaign is added.
+episodes. Histories in one episode share a topology event; the episode is the
+fault-injection unit. Matching normal controls provide the descriptive baseline.
 
 \subsection{Outcome classification and measurements}
 
 Each history is classified as PASS, VIOLATION, UNAVAILABLE, INDETERMINATE,
 PRECONDITION\_MISS, or HARNESS\_ERROR. Only PASS and VIOLATION are decidable
 consistency outcomes. UNAVAILABLE records a failed client operation, while
-INDETERMINATE records an unresolved effect or dependency. The other two
-classes identify histories that did not reach the intended test or were not
-valid harness executions.
+INDETERMINATE records an unresolved effect or dependency.
+PRECONDITION\_MISS identifies a history that stopped before the intended test;
+HARNESS\_ERROR identifies an invalid harness execution.
 
 For a set of histories, the resolved violation rate is
 \[
@@ -107,7 +104,7 @@ S=\frac{\text{successful subject operations}}
         {\text{attempted subject operations}}.
 \]
 
-D describes completion of the registered workload. It is not formal CAP
-availability. We report p50 and p95 operation latency, retain timed-out
+D measures how often classified histories yield a decidable consistency
+outcome. We report p50 and p95 operation latency, retain timed-out
 operations in all-attempt samples when their times are available, and use
 PASS/VIOLATION histories for resolved samples.

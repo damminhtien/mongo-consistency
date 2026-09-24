@@ -4,8 +4,7 @@
 
 Replication improves availability and fault tolerance, but replicas can expose
 different states while an update is propagating. For an application, the
-important question is therefore not only whether replicas eventually converge.
-It is what a client can observe across successive operations.
+important question is what a client can observe across successive operations.
 
 We study that client view in a three-member MongoDB replica set. We vary read
 concern, write concern, and causal sessions while keeping the document and
@@ -36,7 +35,6 @@ repeat selected settings under a secondary crash, a primary election, and a
 replication-path partition. Matching normal controls tell us whether the
 schedule itself caused a failure before we interpret its fault result.
 
-The central distinction in our results is between an operation that completes
-with a stale or reordered value and one that does not return a decidable
-answer. Stronger settings sometimes changed the failure mode rather than
-making the fault disappear.
+Our results distinguish completed operations that return stale or reordered
+values from operations that leave the consistency outcome unresolved. Stronger
+settings often withheld answers instead of returning stale values.

@@ -3,8 +3,7 @@
 
 The canonical configuration and schedule inputs are under \texttt{configs/}.
 The main report's C1-C8 matrix lists the tested read concern, write concern,
-causal-session setting, and target properties. Additional deployment defaults
-are:
+causal-session setting, and target properties. Deployment defaults are:
 
 \begin{itemize}
 \item replica-set name: \texttt{rs0}; three data-bearing members;
@@ -16,8 +15,8 @@ are:
 
 The prediction targets are stored in \texttt{configs/predictions.json}; the
 runner, schema, campaign, and schedule contracts are versioned alongside it.
-Reported settings come from those configuration files and the campaign
-manifests, not from a mutable setup snapshot.
+Reported settings come from these configuration files and the campaign
+manifests.
 
 \section{Installation and Reproduction Commands}
 \label{app:install}
@@ -27,7 +26,7 @@ the local toolchain and initializes the Docker Compose replica set. The
 campaign commands require the Docker services. Offline analysis and report
 building use saved artifacts and remain development commands outside the
 runtime archive. Smoke and pilot are optional diagnostics before a new campaign;
-they are not part of the final result set.
+their histories remain separate from the reported results.
 
 \begin{verbatim}
 python3.14 -m venv .venv
@@ -49,7 +48,7 @@ make check-submission-artifacts
 make check-release-ready
 \end{verbatim}
 
-Smoke and pilot outputs are not pooled into the main campaign results. The
+Smoke and pilot outputs remain separate from the main campaign results. The
 campaign manifest records status, source provenance, software versions, and
 image digest. Analysis validates and recomputes outcomes from canonical raw
 histories before building the report. The release-readiness check also
@@ -113,8 +112,8 @@ Config. & RYW & MR & MW & WFR \\
 
 Table~\ref{tab:rq2-latency-rollback} retains the F3 cells that distinguish
 completed counterexamples, unresolved operations, and acknowledged writes lost
-after recovery. Its p95 includes all attempted subject operations, not only
-successful ones. NA in the final column means there was no acknowledged write
+after recovery. Its p95 includes all attempted subject operations, including
+failed attempts. NA in the final column means there was no acknowledged write
 to check for rollback. The full per-cell p50/p95/p99 and rollback counts remain
 in the machine-readable results under \texttt{results/summary/}.
 
@@ -147,16 +146,3 @@ Fault & Episodes & Applied & Elections & Election p50 & Converged & Recovery p50
 
 \input{submission/generated-rq3-appendix.tex}
 \input{submission/generated-rq4-appendix.tex}
-
-\subsection{Additional figures}
-
-The following figures are retained for audit and interpretation. They are
-descriptive views of the measured histories, not additional experiments.
-They were exported as vector PDFs with Matplotlib 3.11.2 and SciencePlots
-2.2.2~\cite{scienceplots}. Plot generation reads the saved histories and does
-not write report sections.
-
-\maybefigure[fig:factorial-interactions]{submission/figures/factorial-interactions.pdf}{Descriptive factorial contrasts from adversarial configuration histories. RC, WC, and CS denote read concern, write concern, and causal session; interaction columns compare combinations of these factors. Values are signed contrasts for the checked metric, not causal effect estimates. NA means the contrast could not be calculated.}
-\maybefigure[fig:outcome-heatmap]{submission/figures/outcome-heatmap.pdf}{Adversarial configuration outcome matrix without prediction borders. Each cell gives violations over decidable histories; unresolved cells contain no decidable history. This view repeats Figure~\ref{fig:prediction-observation} for audit rather than adding a new experiment.}
-\maybefigure[fig:latency]{submission/figures/latency.pdf}{Operation latency quantiles for normal controls and adversarial configuration histories. The vertical scale is logarithmic when timings are available. The plot includes all timed subject operations, including failed attempts, and excludes pilot histories.}
-\FloatBarrier

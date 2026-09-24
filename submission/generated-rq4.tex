@@ -1,8 +1,7 @@
-The completion analysis asks what the client received after the consistency
-predicate is applied. For the paired partition cells, definitive completion is
+Under the recorded partition, definitive completion is the fraction of
+histories with a decidable consistency outcome:
 \(D=(\mathrm{PASS}+\mathrm{VIOLATION})/
 (\mathrm{PASS}+\mathrm{VIOLATION}+\mathrm{UNAVAILABLE}+\mathrm{INDETERMINATE})\).
-It is an observed workload measure, not formal CAP availability.
 
 \begin{table}[ht]
 \centering
@@ -20,10 +19,10 @@ Config. & Property & $n$ & P/V/U/I & $D$ & All-attempt p95 (ms) \\
 \end{table}
 
 The paired C1 cells complete the scheduled operation and expose the weak
-setting's stale or reordered state. The matching C6 cells have no completed
-counterexample because the majority-write boundary is not satisfied under the
-partition. All-attempt latency retains timed-out operations; resolved latency,
+setting's stale or reordered state. C6 outcomes in these cells are UNAVAILABLE
+or INDETERMINATE, with no completed counterexample. All-attempt latency retains
+timed-out operations; resolved latency,
 shown in Appendix~\ref{app:completion-details}, uses only PASS and VIOLATION
 histories.
 
-\maybefigure[fig:completion-latency]{submission/figures/rq4_latency_completion.pdf}{Paired C1/C6 RYW and MW cells during the recorded partition. The upper panel shows the fraction with a decidable consistency outcome. The lower panel gives p95 latency of the critical operation over all attempts when that operation was issued. ``Not issued'' means no critical-operation latency is defined; it is not a zero-millisecond observation. Each cell contains 20 histories.}
+\maybefigure[fig:completion-latency]{submission/figures/rq4_latency_completion.pdf}{Paired C1/C6 RYW and MW cells during the recorded partition. The upper panel shows the fraction with a decidable consistency outcome. The lower panel gives p95 latency of the critical operation over all attempts when that operation was issued. ``Not issued'' marks a cell without a critical-operation observation; latency is undefined there. Each cell contains 20 histories.}

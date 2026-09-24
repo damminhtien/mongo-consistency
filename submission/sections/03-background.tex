@@ -4,8 +4,8 @@
 
 Let \(v\) denote an integer application version allocated by the single
 logical writer. A write is \(W_c(x,v)\) and a read is \(R_c(x,v)\). The
-properties concern the versions and dependencies observed by the client, not
-the order of wall-clock timestamps.
+predicates compare versions and dependencies observed by the client rather
+than wall-clock timestamps.
 
 \paragraph{Course definitions.}
 
@@ -41,11 +41,9 @@ present immediately before the dependent write as
 \texttt{write\_base\_version}; the checker compares it with the version
 returned by R1.
 
-These measurements correspond to the course definitions. They do not use the
-post-recovery snapshot to infer the state used by a write. The post-recovery
-observer remains a separate durability and rollback measurement. If the
-required write pre-image is missing, the checker returns INDETERMINATE rather
-than inventing a PASS or VIOLATION.
+We apply the course definitions to subject-client observations. The
+post-recovery observer separately measures durability and rollback. If a
+required write pre-image is missing, the checker returns INDETERMINATE.
 
 \subsection{MongoDB mechanisms}
 

@@ -61,9 +61,9 @@ tracks remaining project and submission work.
   are separate from the clean, frozen main campaign and are not RQ1 outcomes.
 - [x] Freeze predictions and protocol before RQ1; the campaign manifest records
   prediction commit `b79b567` and protocol commit `c7e3cf9`.
-- [ ] Run the 128-history pilot; require zero harness errors and precondition
-  misses at or below 5% per property.
-- [ ] Run reduced sequential RQ1: 96 normal controls plus 160 adversarial
+- [ ] Before a future campaign redesign, run the optional 128-history pilot;
+  require zero harness errors and precondition misses at or below 5% per property.
+- [x] Run reduced sequential RQ1: 96 normal controls plus 160 adversarial
   histories, 256 in total.
 - [x] Implement the grouped RQ2 runner and host-only fault coordinator for
   C1/C3/C4/C6, F1/F2/F3, and RYW/MR/MW/WFR, with a 432-history plan across 36
@@ -86,10 +86,12 @@ tracks remaining project and submission work.
 - [x] Commit coherent slices, inspect staged diffs, run git diff --check, and
   push main.
 
-Q1 / Task 1 status: pending reduced rerun. The active plan is 256 histories:
-96 normal controls and 160 adversarial histories. Counts must be regenerated
-from the raw histories after the run; the superseded 1,280-history result is
-not evidence for the reduced campaign.
+Q1 / Task 1 status: complete. The canonical
+`results/raw/experiment/campaign-manifest.json` records a COMPLETE campaign
+with 256/256 histories and clean runner provenance. The derived summary records
+96/96 normal controls as PASS and 160 adversarial histories: 13 PASS,
+72 VIOLATION, 39 UNAVAILABLE, and 36 INDETERMINATE. There were no precondition
+misses or harness errors. The superseded 1,280-history result is excluded.
 
 Q2 / Task 2 status: complete. Execution evidence (20 September 2026):
 `make rq2` completed 432/432

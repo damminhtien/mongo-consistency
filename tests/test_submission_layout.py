@@ -78,10 +78,10 @@ class SubmissionLayoutTests(unittest.TestCase):
         self.assertIn("A0308841A", cover)
         self.assertIn("Vu Nhat Nguyen Thu", cover)
         self.assertIn("A0306148H", cover)
-        self.assertIn("Project supervisor: Prof. Zhenning Cai", cover)
+        self.assertIn("Course Instructor: Prof. Zhenning Cai", cover)
         self.assertNotIn("Email:", cover)
         self.assertNotIn(r"\ProjectTitle", cover)
-        self.assertNotIn(r"\ProjectSupervisor", cover)
+        self.assertNotIn(r"\CourseInstructor", cover)
         self.assertNotIn(r"\includegraphics", cover)
         self.assertNotIn("Examiner", cover)
 
