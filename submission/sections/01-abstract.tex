@@ -1,24 +1,28 @@
 \section*{Abstract}
 \addcontentsline{toc}{section}{Abstract}
 
-Replication lets a database remain operational after member failures, but
-clients may observe different replica states while updates propagate. We
-tested read-your-writes (RYW), monotonic reads (MR), monotonic writes (MW), and
-writes-follow-reads (WFR) across eight MongoDB consistency configurations on a
-three-member replica set. The configurations varied read concern, write
-concern, and causal sessions. The configuration campaign covered 256 histories
-(96 normal controls and 160 adversarial histories); the fault campaign covered
-432 histories across secondary loss, primary election, and replication-path
-partition. We specified schedule-specific predictions for each
-configuration-property pair and compared them with recorded histories.
+MongoDB exposes several controls for consistency, including read concern,
+write concern, and causal sessions. These controls are usually described
+individually, but an application experiences them together through sequences
+of dependent reads and writes. This project studies how their interaction
+affects four client-centric consistency properties: read-your-writes (RYW),
+monotonic reads (MR), monotonic writes (MW), and writes-follow-reads (WFR), in
+a three-member MongoDB replica set.
 
-All normal controls passed. Under adversarial schedules, the configuration
-using \texttt{local} reads, \texttt{w:1} writes, and no causal session produced
-counterexamples for all four properties. With \texttt{majority} reads,
-\texttt{majority} writes, and causal sessions, no adversarial history was
-decidable: dependent reads timed out or write effects remained unresolved, so
-these runs were not counted as PASS. Losing one secondary, or continuing after
-a primary election, produced no violations in our schedules. Replication-path
-partition produced 56 violations across four tested configuration-property
-combinations. These results are limited to the tested schedules, timeout
+We designed property-specific schedules that deliberately create replica
+divergence, then repeated selected settings under secondary loss, primary
+failover, and replication-path partition. Normal executions satisfied all four
+tested properties. Under controlled divergence, \texttt{local} reads with
+\texttt{w:1} writes and no causal session produced counterexamples for every
+property. With \texttt{majority} reads, \texttt{majority} writes, and causal
+sessions, the corresponding adversarial histories were not decidable: some
+dependent reads timed out and some write effects remained unresolved. Network
+partition was the only fault scenario that produced violations in our tests.
+
+The results show that stronger consistency settings do not simply turn
+violations into successful consistent executions. Under the tested schedules,
+they can instead prevent a consistency verdict when dependent operations do
+not complete or their effects cannot be resolved. This distinction between
+consistency and availability is important when interpreting the observed
+behaviour. The conclusions are limited to the tested schedules, timeout
 settings, and single-host Docker deployment.
