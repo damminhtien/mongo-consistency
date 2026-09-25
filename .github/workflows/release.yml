@@ -57,6 +57,7 @@ jobs:
           test -s output/pdf/mongo-consistency-report.pdf
           test -s output/submission/mongo-consistency-submission.zip
           test -s output/submission/manifest.txt
+          test -s reproduce.md
           grep -F "Source revision: $GITHUB_SHA" output/submission/manifest.txt
 
       - name: Upload release build artifact
@@ -68,6 +69,7 @@ jobs:
             output/pdf/mongo-consistency-report.pdf
             output/submission/mongo-consistency-submission.zip
             output/submission/manifest.txt
+            reproduce.md
 
       - name: Publish GitHub release assets
         env:
