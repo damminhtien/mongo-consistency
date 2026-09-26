@@ -10,23 +10,20 @@ than wall-clock timestamps.
 \paragraph{Course definitions.}
 
 \noindent
-The following statements use the definitions given in Lecture~3. They are
+The following statements use the definitions given in Lecture~3 \cite{cai-lecture-3}. They are
 separate from the project-specific checks described below.
 
 \begin{description}
 \item[RYW] The effect of a write operation by a process on data item \(x\) will
-always be seen by a successive read operation on \(x\) by the same process
-\cite[slides 37 to 38]{cai-lecture-3}.
+always be seen by a successive read operation on \(x\) by the same process.
 \item[MR] If a process reads the value of a data item \(x\), any successive
 read operation on \(x\) by that process will always return that same value or a
-more recent value \cite[slides 41 to 42]{cai-lecture-3}.
+more recent value.
 \item[MW] A write operation by a process on a data item \(x\) is completed
-before any successive write operation on \(x\) by the same process
-\cite[slides 43 to 44]{cai-lecture-3}.
+before any successive write operation on \(x\) by the same process.
 \item[WFR] A write operation by a process on a data item \(x\) following a
 previous read operation on \(x\) by the same process is guaranteed to take
-place on the same or a more recent value of \(x\) that was read
-\cite[slides 39 to 40]{cai-lecture-3}.
+place on the same or a more recent value of \(x\) that was read.
 \end{description}
 
 \paragraph{Operationalisation in this project.}
@@ -45,12 +42,10 @@ returned by R1.
 
 We vary three mechanisms. A \texttt{local} read can see a member's current
 state, including an update that has not been majority committed; a
-\texttt{majority} read is limited to majority-committed data
-\cite{mongodb-read-concern}. With \texttt{w:1}, a write can be acknowledged by
+\texttt{majority} read is limited to majority-committed data at the selected member \cite{mongodb-read-concern}. With \texttt{w:1}, a write can be acknowledged by
 the primary before it reaches a majority. \texttt{majority} write concern
 waits for majority acknowledgement \cite{mongodb-write-concern}. A causal
-session carries ordering information between operations; MongoDB documents
-its strongest causal guarantees for majority reads and majority writes
+session carries ordering information between operations; a dependent read may therefore have to wait until the selected member reaches the required logical time.
 \cite{mongodb-causal-consistency}. We also choose where a read is attempted
 through read preference and routing; the recorded history identifies the
 member that handled it \cite{mongodb-read-preference}. These settings determine

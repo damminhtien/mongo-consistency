@@ -17,28 +17,7 @@ is primary. A post-recovery observer examines all three copies. The
 runner has no Docker socket, so fault control is kept outside the client
 process.
 
-\maybefigure[fig:architecture]{submission/figures/architecture.pdf}{Client and fault-controller paths for the three-member replica set. During F3, the client can reach the former primary while replication to the other two members is blocked.}
+\maybefigure[fig:architecture]{submission/figures/architecture.pdf}{Client and fault-controller paths for the three-member replica set.}
 
 We installed the pinned Python dependencies and used \texttt{make setup} to
-start the Compose services, initialise the replica set, and verify its roles
-before running a campaign. The setup record supplies the observed versions in
-Table~\ref{tab:environment-versions}. Appendix~\ref{app:install} gives the
-commands; Appendix~\ref{app:configuration} retains network and image details.
-
-\begin{table}[ht]
-\centering
-\caption{Software versions recorded for the experiment.}
-\label{tab:environment-versions}
-\begin{tabular}{@{}ll@{}}
-\toprule
-Component & Recorded value \\
-\midrule
-MongoDB image & \texttt{\MongoDBImage} \\
-MongoDB server & \texttt{\MongoDBServerVersion} \\
-PyMongo & \texttt{\PyMongoVersion} \\
-Runner Python & \texttt{\RunnerPythonVersion} \\
-Docker Engine & \texttt{\DockerEngineVersion} \\
-Docker Compose & \texttt{\DockerComposeVersion} \\
-\bottomrule
-\end{tabular}
-\end{table}
+start the Compose services, initialise the replica set, and verify its roles before running a campaign. More information is give n in Appendix A and B. Appendix~\ref{app:install} gives the commands; Appendix~\ref{app:configuration} retains network, image and software versions details.

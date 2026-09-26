@@ -13,29 +13,48 @@ causal-session semantics
 
 \begin{table}[ht]
 \centering
-\scriptsize
-\setlength{\tabcolsep}{2pt}
-\renewcommand{\arraystretch}{1.12}
-\caption{Predictions under the test schedules. \emph{Expected hold} is a consistency prediction for a decidable history; \textsuperscript{\textdagger} marks cells where partition may instead leave an operation unavailable or the history indeterminate.}
+\small
+\setlength{\tabcolsep}{5pt}
+\renewcommand{\arraystretch}{1.15}
+\caption{Configurations and predicted consistency properties.}
 \label{tab:configurations}
-\begin{tabular}{@{}p{0.28\linewidth}*{4}{>{\centering\arraybackslash}p{0.17\linewidth}}@{}}
+\begin{tabular}{@{}lllccccc@{}}
 \toprule
-Configuration & RYW & MR & MW & WFR \\
+ID & Read concern & Write concern & Causal
+   & RYW & MR & MW & WFR \\
 \midrule
-C1 local / \texttt{w:1} / no causal & Violation possible & Violation possible & Violation possible & Violation possible \\
-C2 local / \texttt{w:1} / causal & Violation possible & Violation possible & Violation possible & Violation possible \\
-C3 majority / \texttt{w:1} / causal & Violation possible & Expected hold\textsuperscript{\textdagger} & Violation possible & Expected hold \\
-C4 local / majority / causal & Violation possible & Violation possible & Expected hold\textsuperscript{\textdagger} & Violation possible \\
-C5 majority / majority / no causal & Violation possible & Violation possible & May become unavailable / indeterminate under partition & Violation possible \\
-C6 majority / majority / causal & Expected hold\textsuperscript{\textdagger} & Expected hold\textsuperscript{\textdagger} & Expected hold\textsuperscript{\textdagger} & Expected hold\textsuperscript{\textdagger} \\
-C7 majority / \texttt{w:1} / no causal & Violation possible & Violation possible & Violation possible & Violation possible \\
-C8 local / majority / no causal & Violation possible & Violation possible & May become unavailable / indeterminate under partition & Violation possible \\
+C1 & local    & \texttt{w:1} & Off
+   & --   & --   & --   & --   \\
+C2 & local    & \texttt{w:1} & On
+   & --   & --   & --   & --   \\
+C3 & majority & \texttt{w:1} & On
+   & --   & Hold & --   & Hold \\
+C4 & local    & majority    & On
+   & --   & --   & Hold & --   \\
+C5 & majority & majority    & Off
+   & --   & --   & -- & -- \\
+C6 & majority & majority    & On
+   & Hold & Hold & Hold & Hold \\
+C7 & majority & \texttt{w:1} & Off
+   & --   & --   & --   & --   \\
+C8 & local    & majority    & Off
+   & --   & --   & -- & -- \\
 \bottomrule
 \end{tabular}
+
+\smallskip
+\begin{minipage}{\linewidth}
+\footnotesize
+\textit{Hold}: expected to hold.
+\textit{--}: not guaranteed; a violation is possible.
+
+\smallskip
+\end{minipage}
 \end{table}
 \FloatBarrier
 
-These predictions apply to the schedules defined in Section 3.3; they are not claims about all possible MongoDB executions.
+A partition may prevent the required operations from completing.
+Timeouts and unresolved write effects are therefore classified separately from consistency passes and violations.
 
 \subsection{Fault expectations}
 
@@ -47,11 +66,10 @@ when we change the topology.
 \item[F1, secondary loss] Removing one secondary should leave the primary and
 a majority side intact. We expect the scheduled calls to complete without a
 new consistency counterexample.
-\item[F2, primary loss] Stopping the primary should trigger an election. We
-evaluate calls made after the election barrier; the schedule includes no call
-during the election.
-\item[F3, replication partition] Isolating the former primary should separate
-a \texttt{w:1} acknowledgement from a majority acknowledgement. We predict
-that weak settings may complete with stale or reordered state, whereas C6 may
-wait or leave a dependent operation unresolved.
+\item[F2, primary loss] Stopping the primary should trigger an election. We evaluate calls made after the election barrier; the schedule includes no call during the election. We expect the
+surviving majority to restore service. However, a write acknowledged with \texttt{w:1} before the failure may be missing from subsequent operations if it had not reached the surviving members. 
+\item[F3, replication partition] We isolate the current primary from both secondaries while preserving client access to it. Before detecting the partition and stepping down, the isolated member may still acknowledge \texttt{w:1} writes, but it cannot obtain majority acknowledgement for new writes. The other two
+members can elect a primary whose state excludes those isolated-branch updates. Subsequent operations may therefore expose missing write or
+read dependencies under configurations without the relevant guarantees.
+
 \end{description}

@@ -4,13 +4,11 @@
 
 Replication improves availability and fault tolerance, but replicas can expose
 different states while an update is propagating. For an application, the
-important question is what a client can observe across successive operations.
+important question is what a client can observe across successive operations. After updating a record, a user expects a subsequent read to reflect that update. Similarly, after reading a newer value, the user would not expect a later read to return an older one. These expectations can become difficult to preserve when requests reach replicas with different states, particularly during failures or network partitions.
 
 We study client-visible behaviour in a three-member MongoDB replica set. We
 vary read concern, write concern, and causal sessions while holding each
-property-specific schedule and initial document state fixed; every trial uses
-a fresh document. Increasing versions make the write and read dependencies
-explicit. We examine read-your-writes (RYW), monotonic reads (MR), monotonic
+property-specific schedule and initial document state fixed. We examine read-your-writes (RYW), monotonic reads (MR), monotonic
 writes (MW), and writes-follow-reads (WFR).
 
 \subsection{Study questions and approach}
@@ -21,7 +19,6 @@ The study asks two questions:
 Q_1:\quad
 \text{How do read concern, write concern, and causal sessions affect these properties?}
 \]
-
 \[
 Q_2:\quad
 \text{How does the behaviour change under node failure and network partition?}
@@ -31,4 +28,4 @@ To answer Q1, we state schedule-specific predictions, run normal controls,
 then create controlled replica divergence and compare the recorded histories
 with those predictions. To answer Q2, we repeat selected settings under a
 secondary loss, primary election, and replication-path partition. The normal
-controls provide a baseline for interpreting the adversarial results.
+controls provide a baseline for interpreting the adversarial results. We also compare selected configurations that differ in one setting to investigate which mechanism explains the observed change.
