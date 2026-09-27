@@ -40,10 +40,12 @@ from being obtained.
 Latency provides another view of this trade-off. Operations that exposed stale
 or reordered state under C1 completed quickly. Under stronger settings, an
 earlier operation could instead wait until its timeout when the required state
-or acknowledgement could not be obtained. This waiting is not shown as
-critical-operation latency for the C6 cells in
+or acknowledgement could not be obtained. These earlier-operation timeouts are
+therefore absent from the critical-operation latency in
 Figure~\ref{fig:decidability-latency}, because the critical operations were
-never issued; the all-attempt latency measurements in
-Appendix~\ref{app:completion-details} include these timed-out operations.
+never issued. Their delay is instead reflected in the fault-level all-attempt
+latency reported in Table~\ref{tab:fault-summary}.
+Appendix~\ref{app:completion-details} separately reports all-attempt and
+resolved critical-operation latency for the selected configuration histories.
 
 \FloatBarrier
