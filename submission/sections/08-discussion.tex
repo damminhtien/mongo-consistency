@@ -2,19 +2,48 @@
 
 \subsection{Stale reads and timeouts}
 
-In the matched C1 history, a read on the lagging branch returned a value older
-than the client's preceding operation. Under C6, the dependent causal majority
-read timed out; in the matched majority-write history, W1 also timed out. Read
-concern determined whether R1 could use the isolated branch's value, while
-write concern determined whether W1 could be acknowledged there. The causal
-session carried a dependency into the next read.
+The matched histories show two different outcomes under the partition. With
+weaker settings, an operation could complete using stale state from the
+isolated branch, producing a consistency violation. With stronger settings,
+the operation could instead time out when the required state was unavailable.
+
+The three configuration controls contributed differently to these outcomes.
+Read concern determined whether a read could return the isolated member's
+local state or was restricted to majority-committed data. Write concern
+determined whether a write could be acknowledged on the isolated branch
+without reaching a majority. When causal consistency was enabled, the session
+also carried the logical dependency from an earlier operation to the next one.
+As illustrated by the C6 RYW history in
+Figure~\ref{fig:representative-trace}, the dependent read therefore waited for
+the required state and eventually timed out rather than returning an older
+value.
 
 \subsection{Consistency, completion, and latency}
 
 Table~\ref{tab:completion-partition-outcomes} reports the decidable-history
-rate $D$ and operation completion rate $C$ separately. Figure~\ref{fig:decidability-latency}
-shows $D$ and critical-operation latency for the tested schedules.
+rate $D$ and operation completion rate $C$ separately.
+Figure~\ref{fig:decidability-latency} compares decidability and
+critical-operation latency for the selected C1 and C6 partition experiments.
 
 \input{submission/generated-rq4.tex}
+
+The contrast between C1 and C6 shows why consistency results should be
+interpreted together with completion. Under C1, all 20 RYW and MW histories
+were decidable and exposed violations, with the critical operations completing
+in every trial. Under C6, none of the corresponding histories was decidable,
+and the critical operations were not issued because an earlier operation had
+already failed to complete or left the required evidence unresolved. Thus, the
+absence of an observed C6 violation does not mean that these trials demonstrated
+the consistency property; instead, the partition prevented a complete history
+from being obtained.
+
+Latency provides another view of this trade-off. Operations that exposed stale
+or reordered state under C1 completed quickly. Under stronger settings, an
+earlier operation could instead wait until its timeout when the required state
+or acknowledgement could not be obtained. This waiting is not shown as
+critical-operation latency for the C6 cells in
+Figure~\ref{fig:decidability-latency}, because the critical operations were
+never issued; the all-attempt latency measurements in
+Appendix~\ref{app:completion-details} include these timed-out operations.
 
 \FloatBarrier

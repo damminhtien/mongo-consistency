@@ -22,19 +22,22 @@ counterexample.
 
 The fault campaign contains \RQTwoHistoryCount\ histories across
 \RQTwoFaultEpisodeCount\ shared fault episodes. Table~\ref{tab:fault-summary}
-reports outcome counts, client-operation success, and latency.
+summarizes the outcomes, client-operation success rate, and latency for each
+fault.
 
-F1 and F2 produced no violations in the scheduled calls. F3 produced all
-fault-campaign violations. Across the 20 C6 RYW histories under F3, W1 timed
-out or returned a time-limit error before the dependent read was issued; none
-of these histories was decidable.
+No violations were observed under F1 or F2. All observed violations occurred
+under the F3 replication partition. Under F3, none of the 20 C6 RYW histories
+was decidable: W1 failed to complete within the time limit, so the dependent
+read was never issued.
 
-The completed F3 counterexamples arose in C1 RYW and MW and in WFR under C1
-and C4. For C4 WFR, a setup write of version 1 with \texttt{w:1} on the
-isolated former primary preceded the client read. C4's local read returned
-version 1, but its dependent majority write reached the elected primary, where
-W2's pre-image contained only version 0. Under C3 and C6, the required WFR read
-did not return version 1, so W2 was not issued.
+Under F3, violations were observed for RYW and MW under C1, and for WFR under
+C1 and C4. In the C4 WFR case, the isolated former primary first accepted a
+setup write of version 1 with \texttt{w:1}, and the client's local read
+subsequently returned version 1. The dependent majority write was then sent to
+the newly elected primary on the other side of the partition. Its pre-image
+contained only version 0, showing that the write was performed on a state older
+than the version previously read by the client. Under C3 and C6, the initial
+read did not return version 1, so the dependent write W2 was not issued.
 
 \begin{table}[ht]
 \centering
@@ -54,13 +57,14 @@ Fault & Histories & Episodes & P/V/U/I/PM & Operation success ($S$) & p50/p95 (m
 \subsection{Evidence from recorded histories}
 
 Three paired contrasts isolate the effects of causal sessions, read concern,
-and write concern. With read and write
-concerns held fixed, adding a causal session changed a stale C5 read into a
-C6 read that carried \texttt{afterClusterTime} and timed out. Changing the read
-concern from local (C8) to majority (C5) changed the version available to R1.
-Changing the write concern from \texttt{w:1} (C3) to majority (C6) changed W1
-from an acknowledged write later absent from W2's pre-image to a write that
-timed out. Each contrast had eight matched control/fault pairs. Selected pair IDs and
-their recorded operations are in Appendix~\ref{app:representative-histories}.
+and write concern. With read and write concerns held fixed, the C5 read
+returned a stale value, whereas the matched C6 read with a causal session
+carried \texttt{afterClusterTime} and timed out. For read concern, the C8
+local read returned version 1, while the matched C5 majority read returned
+version 0. For write concern, the C3 \texttt{w:1} write was acknowledged but
+was later absent from W2's pre-image, whereas the matched C6 majority write
+timed out. Each contrast had eight matched control/fault pairs. Selected pair
+IDs and their recorded operations are provided in
+Appendix~\ref{app:representative-histories}.
 
 \maybefigure[fig:representative-trace]{submission/figures/representative-trace.pdf}{Representative C6 RYW history during a replication-path partition: the majority-acknowledged write completed, then the dependent causal majority read timed out without returning a value.}

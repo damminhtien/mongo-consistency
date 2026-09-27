@@ -1,23 +1,29 @@
 \section{Conclusion}
 
-The experiments answer the two study questions in different ways. For Q1,
-read concern, write concern, and causal sessions affected the four
-client-centric properties jointly rather than independently. The weakest
-tested combination allowed all four properties to be violated under controlled
-replica divergence. Stronger settings did not always turn those executions
-into successful consistent ones; in several cases, the dependent operation
-instead timed out or left insufficient evidence for a consistency decision.
+The experiments answer the two study questions in different ways. For Q1, 
+different combinations of read concern, write concern, and causal
+sessions produced different client-visible behaviour. Under controlled replica
+divergence, C1 (\texttt{local}, \texttt{w:1}, no causal consistency) produced
+counterexamples for all four client-centric properties. In contrast, C6
+(\texttt{majority}, \texttt{majority}, causal consistency) produced no
+decidable adversarial histories in the configuration campaign: the RYW and MR
+reads timed out, while the MW and WFR histories had unresolved write effects.
+The intermediate configurations further showed that read concern, write
+concern, and causal sessions address different parts of the client's operation
+history.
 
-For Q2, the type of failure mattered more than failure alone. Secondary loss
-and execution after a primary election did not produce violations in the
-tested schedules. Replication-path partition was different because it created
-a separation between acknowledged state and the state available on the elected
-majority side. This was the fault condition in which the differences between
-the tested consistency settings became most visible.
+For Q2, the type of failure was important. Secondary loss (F1) and operations
+performed after a primary election (F2) produced no violations in the tested
+schedules. All observed fault-campaign violations occurred under the
+replication-path partition (F3), which produced 56 violations in the tested
+histories. The partition separated the isolated former primary from the
+majority side, allowing the two sides to expose different states. This made
+the effects of the tested consistency settings most visible.
 
-The main lesson from these experiments is that client-centric consistency
-should not be interpreted only in terms of whether a history contains a
-violation. Completion also matters. A configuration may prevent a client from
-observing an inconsistent state by delaying or preventing the dependent
-operation, so consistency results need to be read together with availability
-and decidability.
+Overall, the experiments show why client-centric consistency cannot be
+evaluated only by counting observed violations. Stronger settings may prevent
+an inconsistent value from being returned by delaying an operation or leaving
+the history unresolved instead. Consistency results should therefore be
+interpreted together with operation completion, latency, and whether the
+history is decidable. These conclusions are limited to the tested schedules,
+timeout settings, and three-member single-host Docker deployment.
