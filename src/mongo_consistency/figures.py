@@ -47,9 +47,18 @@ def _save(fig: Any, path: Path) -> Path:
     return path
 
 
-def _box(ax: Any, x: float, y: float, label: str, *, width: float = 1.55, color: str = PALE_BLUE) -> None:
+def _box(
+    ax: Any,
+    x: float,
+    y: float,
+    label: str,
+    *,
+    width: float = 1.55,
+    color: str = PALE_BLUE,
+    fontsize: float = 9,
+) -> None:
     ax.add_patch(Rectangle((x, y - 0.26), width, 0.52, facecolor=color, edgecolor=INK, linewidth=0.85))
-    ax.text(x + width / 2, y, label, ha="center", va="center", fontsize=9)
+    ax.text(x + width / 2, y, label, ha="center", va="center", fontsize=fontsize)
 
 
 def _arrow(ax: Any, start: tuple[float, float], end: tuple[float, float], *, color: str = INK) -> None:
@@ -65,17 +74,135 @@ def _diagram_axis(figsize: tuple[float, float], xlim: tuple[float, float], ylim:
 
 
 def architecture(path: Path) -> Path:
-    fig, ax = _diagram_axis((6.8, 3.15), (0, 8.6), (-0.15, 3.7))
-    _box(ax, 0.2, 1.8, "Client / runner", width=1.75, color="#e0ede5")
-    for y, name in ((3.05, "mongo1"), (1.8, "mongo2"), (0.55, "mongo3")):
-        _box(ax, 3.1, y, name)
-        _arrow(ax, (1.96, 1.8), (3.07, y))
-    _box(ax, 6.65, 1.8, "Fault controller", width=1.72, color="#f5e4df")
-    for y in (3.05, 1.8, 0.55):
-        _arrow(ax, (6.62, 1.8), (4.68, y), color=ORANGE)
-    ax.text(2.5, 3.50, "client network", ha="center", fontsize=8.5, color=BLUE)
-    ax.text(5.57, 3.50, "replication-path control", ha="center", fontsize=8.5, color=ORANGE)
-    ax.text(4.3, -0.02, "One elected primary and two secondaries; roles may change after election.", ha="center", fontsize=8)
+    fig, ax = _diagram_axis((6.8, 3.65), (0, 9.2), (0, 4.55))
+    ax.add_patch(
+        Rectangle(
+            (0.08, 3.28),
+            9.04,
+            1.05,
+            facecolor="#f1f6f9",
+            edgecolor="#a8bdca",
+            linewidth=0.75,
+        )
+    )
+    ax.add_patch(
+        Rectangle(
+            (2.02, 0.25),
+            7.10,
+            1.30,
+            facecolor="#f2f7f2",
+            edgecolor="#a9bead",
+            linewidth=0.75,
+        )
+    )
+    ax.text(0.28, 4.14, "client_net", fontsize=8.5, fontweight="bold", color=BLUE)
+    ax.text(
+        4.95,
+        4.14,
+        "Client operations and sidecar HTTP control",
+        ha="center",
+        fontsize=8,
+        color=BLUE,
+    )
+    ax.text(2.22, 1.27, "replica_net", fontsize=8.5, fontweight="bold", color=GREEN)
+    ax.text(
+        6.55,
+        1.27,
+        "Member replication traffic",
+        ha="center",
+        fontsize=8,
+        color=GREEN,
+    )
+
+    _box(ax, 0.30, 3.80, "Runner", width=1.40, color="#e0ede5")
+    ax.plot((2.02, 7.30), (3.80, 3.80), color=BLUE, linewidth=1.0, zorder=1)
+    _arrow(ax, (1.72, 3.80), (2.02, 3.80), color=BLUE)
+
+    replica_bus_y = 0.78
+    ax.plot(
+        (2.50, 7.80),
+        (replica_bus_y, replica_bus_y),
+        color=GREEN,
+        linewidth=1.2,
+        zorder=1,
+    )
+    centers = (3.00, 5.15, 7.30)
+    members = ("mongo1", "mongo2", "mongo3")
+    partition_target = 1
+
+    for index, (center, member) in enumerate(zip(centers, members, strict=True)):
+        ax.add_patch(
+            Rectangle(
+                (center - 0.88, 1.94),
+                1.76,
+                1.28,
+                facecolor="white",
+                edgecolor=MUTED,
+                linewidth=0.75,
+                linestyle=(0, (3, 2)),
+                zorder=0,
+            )
+        )
+        _box(
+            ax,
+            center - 0.72,
+            2.84,
+            f"{member}\nmongod",
+            width=1.44,
+            color=PALE_BLUE,
+            fontsize=8,
+        )
+        _box(ax, center - 0.72, 2.23, "fault sidecar", width=1.44, color="#f5e4df")
+        _arrow(ax, (center, 3.80), (center, 3.12), color=BLUE)
+        ax.plot(center, replica_bus_y, marker="o", markersize=4, color=GREEN, zorder=3)
+
+        if index == partition_target:
+            cut_y = 1.70
+            ax.plot(
+                (center, center),
+                (1.94, cut_y + 0.09),
+                color=GREEN,
+                linewidth=1.2,
+                zorder=2,
+            )
+            ax.plot(
+                (center, center),
+                (cut_y - 0.09, replica_bus_y),
+                color=GREEN,
+                linewidth=1.2,
+                zorder=2,
+            )
+            ax.plot(
+                (center - 0.07, center + 0.07),
+                (cut_y - 0.07, cut_y + 0.07),
+                color=RED,
+                linewidth=1.8,
+                zorder=4,
+            )
+            ax.plot(
+                (center - 0.07, center + 0.07),
+                (cut_y + 0.07, cut_y - 0.07),
+                color=RED,
+                linewidth=1.8,
+                zorder=4,
+            )
+            ax.text(
+                center + 0.16,
+                cut_y,
+                "target varies",
+                va="center",
+                fontsize=7.4,
+                color=RED,
+            )
+        else:
+            ax.plot(
+                (center, center),
+                (1.94, replica_bus_y),
+                color=GREEN,
+                linewidth=1.2,
+                zorder=2,
+            )
+
     return _save(fig, path)
 
 

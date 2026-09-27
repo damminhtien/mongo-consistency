@@ -17,7 +17,7 @@ is primary. A post-recovery observer examines all three copies. The
 runner has no Docker socket, so fault control is kept outside the client
 process.
 
-\maybefigure[fig:architecture]{submission/figures/architecture.pdf}{Client and fault-controller paths for the three-member replica set.}
+\maybefigure[fig:architecture]{submission/figures/architecture.pdf}{Client and replication networks for the three-member replica set. The runner sends client operations and sidecar control requests over \texttt{client\_net}; each MongoDB member attaches to both \texttt{client\_net} and \texttt{replica\_net}. Each fault-controller sidecar shares its member's network namespace and blocks traffic on that member's \texttt{replica\_net} interface during a partition. The red X marks an illustrative target; the target varies by schedule.}
 
 We installed the pinned Python dependencies and used \texttt{make setup} to
 start the Compose services, initialise the replica set, and verify its roles
