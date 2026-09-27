@@ -79,6 +79,7 @@ jobs:
             output/pdf/mongo-consistency-report.pdf
             output/submission/mongo-consistency-submission.zip
             output/submission/manifest.txt
+            reproduce.md
           )
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
             gh release upload "$GITHUB_REF_NAME" "${assets[@]}" --clobber
