@@ -19,9 +19,9 @@ always be seen by a successive read operation on \(x\) by the same process.
 \item[MR] If a process reads the value of a data item \(x\), any successive
 read operation on \(x\) by that process will always return that same value or a
 more recent value.
-\item[MW] A write operation by a process on a data item \(x\) is completed
+\item[MW] A write operation by a process on data item \(x\) is completed
 before any successive write operation on \(x\) by the same process.
-\item[WFR] A write operation by a process on a data item \(x\) following a
+\item[WFR] A write operation by a process on data item \(x\) following a
 previous read operation on \(x\) by the same process is guaranteed to take
 place on the same or a more recent value of \(x\) that was read.
 \end{description}
@@ -45,8 +45,9 @@ state, including an update that has not been majority committed; a
 \texttt{majority} read is limited to majority-committed data at the selected member \cite{mongodb-read-concern}. With \texttt{w:1}, a write can be acknowledged by
 the primary before it reaches a majority. \texttt{majority} write concern
 waits for majority acknowledgement \cite{mongodb-write-concern}. A causal
-session carries ordering information between operations; a dependent read may therefore have to wait until the selected member reaches the required logical time.
-\cite{mongodb-causal-consistency}. We also choose where a read is attempted
+session carries ordering information between operations; a dependent read may
+therefore have to wait until the selected member reaches the required logical
+time \cite{mongodb-causal-consistency}. We also choose where a read is attempted
 through read preference and routing; the recorded history identifies the
 member that handled it \cite{mongodb-read-preference}. These settings determine
 which states may be returned, when writes are acknowledged, and which
